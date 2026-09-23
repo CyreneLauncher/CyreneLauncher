@@ -1,0 +1,2164 @@
+{
+  "operations": [
+    {
+      "classification": "compile-verified",
+      "evidence": "Present in package 1.91 final ELF; semantic audit pending",
+      "route": "direct",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp",
+        "src/hotspot/os_cpu/orbis_x86/**/*.cpp",
+        "src/hotspot/os/posix/*.cpp",
+        "src/java.base/unix/native/**/*.c",
+        "src/java.base/share/native/**/*.c",
+        "src/java.base/share/native/**/*.cpp",
+        "orbis-java-app/*.c",
+        "orbis-java-app/tools/*.c"
+      ],
+      "subsystem": "pending-audit",
+      "symbol": "__error"
+    },
+    {
+      "classification": "compile-verified",
+      "evidence": "Present in package 1.91 final ELF; semantic audit pending",
+      "route": "direct",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp",
+        "src/hotspot/os_cpu/orbis_x86/**/*.cpp",
+        "src/hotspot/os/posix/*.cpp",
+        "src/java.base/unix/native/**/*.c",
+        "src/java.base/share/native/**/*.c",
+        "src/java.base/share/native/**/*.cpp",
+        "orbis-java-app/*.c",
+        "orbis-java-app/tools/*.c"
+      ],
+      "subsystem": "pending-audit",
+      "symbol": "__sys_socketex"
+    },
+    {
+      "classification": "compile-verified",
+      "evidence": "Present in package 1.91 final ELF; semantic audit pending",
+      "route": "direct",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp",
+        "src/hotspot/os_cpu/orbis_x86/**/*.cpp",
+        "src/hotspot/os/posix/*.cpp",
+        "src/java.base/unix/native/**/*.c",
+        "src/java.base/share/native/**/*.c",
+        "src/java.base/share/native/**/*.cpp",
+        "orbis-java-app/*.c",
+        "orbis-java-app/tools/*.c"
+      ],
+      "subsystem": "pending-audit",
+      "symbol": "_dup2"
+    },
+    {
+      "classification": "compile-verified",
+      "evidence": "Final ELFs wrap _exit through orbis_runtime_exit; hardware termination probe pending",
+      "route": "adapter",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp",
+        "src/hotspot/os_cpu/orbis_x86/**/*.cpp",
+        "src/hotspot/os/posix/*.cpp",
+        "src/java.base/unix/native/**/*.c",
+        "src/java.base/share/native/**/*.c",
+        "src/java.base/share/native/**/*.cpp",
+        "orbis-java-app/*.c",
+        "orbis-java-app/tools/*.c"
+      ],
+      "subsystem": "process",
+      "symbol": "_exit"
+    },
+    {
+      "classification": "compile-verified",
+      "evidence": "Reachable import retained for owning subsystem hardware audit",
+      "route": "direct",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp",
+        "src/hotspot/os_cpu/orbis_x86/**/*.cpp",
+        "src/hotspot/os/posix/*.cpp",
+        "src/java.base/unix/native/**/*.c",
+        "src/java.base/share/native/**/*.c",
+        "src/java.base/share/native/**/*.cpp",
+        "orbis-java-app/*.c",
+        "orbis-java-app/tools/*.c"
+      ],
+      "subsystem": "pending-audit",
+      "symbol": "_fcntl"
+    },
+    {
+      "classification": "compile-verified",
+      "evidence": "Present in package 1.91 final ELF; semantic audit pending",
+      "route": "direct",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp",
+        "src/hotspot/os_cpu/orbis_x86/**/*.cpp",
+        "src/hotspot/os/posix/*.cpp",
+        "src/java.base/unix/native/**/*.c",
+        "src/java.base/share/native/**/*.c",
+        "src/java.base/share/native/**/*.cpp",
+        "orbis-java-app/*.c",
+        "orbis-java-app/tools/*.c"
+      ],
+      "subsystem": "pending-audit",
+      "symbol": "_fstat"
+    },
+    {
+      "classification": "compile-verified",
+      "evidence": "Present in package 1.91 final ELF; semantic audit pending",
+      "route": "direct",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp",
+        "src/hotspot/os_cpu/orbis_x86/**/*.cpp",
+        "src/hotspot/os/posix/*.cpp",
+        "src/java.base/unix/native/**/*.c",
+        "src/java.base/share/native/**/*.c",
+        "src/java.base/share/native/**/*.cpp",
+        "orbis-java-app/*.c",
+        "orbis-java-app/tools/*.c"
+      ],
+      "subsystem": "pending-audit",
+      "symbol": "_fstatfs"
+    },
+    {
+      "classification": "compile-verified",
+      "evidence": "Present in package 1.91 final ELF; semantic audit pending",
+      "route": "direct",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp",
+        "src/hotspot/os_cpu/orbis_x86/**/*.cpp",
+        "src/hotspot/os/posix/*.cpp",
+        "src/java.base/unix/native/**/*.c",
+        "src/java.base/share/native/**/*.c",
+        "src/java.base/share/native/**/*.cpp",
+        "orbis-java-app/*.c",
+        "orbis-java-app/tools/*.c"
+      ],
+      "subsystem": "pending-audit",
+      "symbol": "_ioctl"
+    },
+    {
+      "classification": "compile-verified",
+      "evidence": "Reachable import retained for owning subsystem hardware audit",
+      "route": "direct",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp",
+        "src/hotspot/os_cpu/orbis_x86/**/*.cpp",
+        "src/hotspot/os/posix/*.cpp",
+        "src/java.base/unix/native/**/*.c",
+        "src/java.base/share/native/**/*.c",
+        "src/java.base/share/native/**/*.cpp",
+        "orbis-java-app/*.c",
+        "orbis-java-app/tools/*.c"
+      ],
+      "subsystem": "pending-audit",
+      "symbol": "_nanosleep"
+    },
+    {
+      "classification": "compile-verified",
+      "evidence": "Present in package 1.91 final ELF; semantic audit pending",
+      "route": "direct",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp",
+        "src/hotspot/os_cpu/orbis_x86/**/*.cpp",
+        "src/hotspot/os/posix/*.cpp",
+        "src/java.base/unix/native/**/*.c",
+        "src/java.base/share/native/**/*.c",
+        "src/java.base/share/native/**/*.cpp",
+        "orbis-java-app/*.c",
+        "orbis-java-app/tools/*.c"
+      ],
+      "subsystem": "pending-audit",
+      "symbol": "_open"
+    },
+    {
+      "classification": "compile-verified",
+      "evidence": "Present in package 1.91 final ELF; semantic audit pending",
+      "route": "direct",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp",
+        "src/hotspot/os_cpu/orbis_x86/**/*.cpp",
+        "src/hotspot/os/posix/*.cpp",
+        "src/java.base/unix/native/**/*.c",
+        "src/java.base/share/native/**/*.c",
+        "src/java.base/share/native/**/*.cpp",
+        "orbis-java-app/*.c",
+        "orbis-java-app/tools/*.c"
+      ],
+      "subsystem": "pending-audit",
+      "symbol": "_read"
+    },
+    {
+      "classification": "compile-verified",
+      "evidence": "Present in package 1.91 final ELF; semantic audit pending",
+      "route": "direct",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp",
+        "src/hotspot/os_cpu/orbis_x86/**/*.cpp",
+        "src/hotspot/os/posix/*.cpp",
+        "src/java.base/unix/native/**/*.c",
+        "src/java.base/share/native/**/*.c",
+        "src/java.base/share/native/**/*.cpp",
+        "orbis-java-app/*.c",
+        "orbis-java-app/tools/*.c"
+      ],
+      "subsystem": "pending-audit",
+      "symbol": "_readv"
+    },
+    {
+      "classification": "compile-verified",
+      "evidence": "Present in package 1.91 final ELF; semantic audit pending",
+      "route": "direct",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp",
+        "src/hotspot/os_cpu/orbis_x86/**/*.cpp",
+        "src/hotspot/os/posix/*.cpp",
+        "src/java.base/unix/native/**/*.c",
+        "src/java.base/share/native/**/*.c",
+        "src/java.base/share/native/**/*.cpp",
+        "orbis-java-app/*.c",
+        "orbis-java-app/tools/*.c"
+      ],
+      "subsystem": "pending-audit",
+      "symbol": "_write"
+    },
+    {
+      "classification": "compile-verified",
+      "evidence": "Present in package 1.91 final ELF; semantic audit pending",
+      "route": "direct",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp",
+        "src/hotspot/os_cpu/orbis_x86/**/*.cpp",
+        "src/hotspot/os/posix/*.cpp",
+        "src/java.base/unix/native/**/*.c",
+        "src/java.base/share/native/**/*.c",
+        "src/java.base/share/native/**/*.cpp",
+        "orbis-java-app/*.c",
+        "orbis-java-app/tools/*.c"
+      ],
+      "subsystem": "pending-audit",
+      "symbol": "_writev"
+    },
+    {
+      "classification": "direct-verified",
+      "evidence": "OrbisJvmAbiProbe 0.1.12 semantic pass",
+      "route": "direct",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp",
+        "src/hotspot/os_cpu/orbis_x86/**/*.cpp",
+        "src/hotspot/os/posix/*.cpp",
+        "src/java.base/unix/native/**/*.c",
+        "src/java.base/share/native/**/*.c",
+        "src/java.base/share/native/**/*.cpp",
+        "orbis-java-app/*.c",
+        "orbis-java-app/tools/*.c"
+      ],
+      "subsystem": "pending-audit",
+      "symbol": "accept"
+    },
+    {
+      "classification": "direct-verified",
+      "evidence": "OrbisJvmAbiProbe 0.1.12 semantic pass",
+      "route": "direct",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp",
+        "src/hotspot/os_cpu/orbis_x86/**/*.cpp",
+        "src/hotspot/os/posix/*.cpp",
+        "src/java.base/unix/native/**/*.c",
+        "src/java.base/share/native/**/*.c",
+        "src/java.base/share/native/**/*.cpp",
+        "orbis-java-app/*.c",
+        "orbis-java-app/tools/*.c"
+      ],
+      "subsystem": "pending-audit",
+      "symbol": "bind"
+    },
+    {
+      "classification": "direct-verified",
+      "evidence": "OrbisJvmAbiProbe 0.1.12 semantic pass",
+      "route": "direct",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp",
+        "src/hotspot/os_cpu/orbis_x86/**/*.cpp",
+        "src/hotspot/os/posix/*.cpp",
+        "src/java.base/unix/native/**/*.c",
+        "src/java.base/share/native/**/*.c",
+        "src/java.base/share/native/**/*.cpp",
+        "orbis-java-app/*.c",
+        "orbis-java-app/tools/*.c"
+      ],
+      "subsystem": "pending-audit",
+      "symbol": "chmod"
+    },
+    {
+      "classification": "direct-verified",
+      "evidence": "OrbisJvmAbiProbe 0.1.12 semantic pass",
+      "route": "direct",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp",
+        "src/hotspot/os_cpu/orbis_x86/**/*.cpp",
+        "src/hotspot/os/posix/*.cpp",
+        "src/java.base/unix/native/**/*.c",
+        "src/java.base/share/native/**/*.c",
+        "src/java.base/share/native/**/*.cpp",
+        "orbis-java-app/*.c",
+        "orbis-java-app/tools/*.c"
+      ],
+      "subsystem": "pending-audit",
+      "symbol": "clock_gettime"
+    },
+    {
+      "classification": "direct-verified",
+      "evidence": "OrbisJvmAbiProbe 0.1.12 semantic pass",
+      "route": "direct",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp",
+        "src/hotspot/os_cpu/orbis_x86/**/*.cpp",
+        "src/hotspot/os/posix/*.cpp",
+        "src/java.base/unix/native/**/*.c",
+        "src/java.base/share/native/**/*.c",
+        "src/java.base/share/native/**/*.cpp",
+        "orbis-java-app/*.c",
+        "orbis-java-app/tools/*.c"
+      ],
+      "subsystem": "pending-audit",
+      "symbol": "close"
+    },
+    {
+      "classification": "direct-verified",
+      "evidence": "OrbisJvmAbiProbe 0.1.12 semantic pass",
+      "route": "direct",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp",
+        "src/hotspot/os_cpu/orbis_x86/**/*.cpp",
+        "src/hotspot/os/posix/*.cpp",
+        "src/java.base/unix/native/**/*.c",
+        "src/java.base/share/native/**/*.c",
+        "src/java.base/share/native/**/*.cpp",
+        "orbis-java-app/*.c",
+        "orbis-java-app/tools/*.c"
+      ],
+      "subsystem": "pending-audit",
+      "symbol": "connect"
+    },
+    {
+      "classification": "compile-verified",
+      "evidence": "Present in package 1.91 final ELF; semantic audit pending",
+      "route": "direct",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp",
+        "src/hotspot/os_cpu/orbis_x86/**/*.cpp",
+        "src/hotspot/os/posix/*.cpp",
+        "src/java.base/unix/native/**/*.c",
+        "src/java.base/share/native/**/*.c",
+        "src/java.base/share/native/**/*.cpp",
+        "orbis-java-app/*.c",
+        "orbis-java-app/tools/*.c"
+      ],
+      "subsystem": "pending-audit",
+      "symbol": "cpuset_getaffinity"
+    },
+    {
+      "classification": "unsupported-explicit",
+      "evidence": "OpenOrbis static fallback walks a null AT_PHDR",
+      "route": "prohibited",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp",
+        "src/hotspot/os_cpu/orbis_x86/**/*.cpp",
+        "src/hotspot/os/posix/*.cpp",
+        "src/java.base/unix/native/**/*.c",
+        "src/java.base/share/native/**/*.c",
+        "src/java.base/share/native/**/*.cpp",
+        "orbis-java-app/*.c",
+        "orbis-java-app/tools/*.c"
+      ],
+      "subsystem": "loader",
+      "symbol": "dl_iterate_phdr"
+    },
+    {
+      "classification": "compile-verified",
+      "evidence": "Reachable import retained for owning subsystem hardware audit",
+      "route": "direct",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp",
+        "src/hotspot/os_cpu/orbis_x86/**/*.cpp",
+        "src/hotspot/os/posix/*.cpp",
+        "src/java.base/unix/native/**/*.c",
+        "src/java.base/share/native/**/*.c",
+        "src/java.base/share/native/**/*.cpp",
+        "orbis-java-app/*.c",
+        "orbis-java-app/tools/*.c"
+      ],
+      "subsystem": "pending-audit",
+      "symbol": "dup"
+    },
+    {
+      "classification": "direct-verified",
+      "evidence": "OrbisJvmAbiProbe 0.1.12 semantic pass",
+      "route": "direct",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp",
+        "src/hotspot/os_cpu/orbis_x86/**/*.cpp",
+        "src/hotspot/os/posix/*.cpp",
+        "src/java.base/unix/native/**/*.c",
+        "src/java.base/share/native/**/*.c",
+        "src/java.base/share/native/**/*.cpp",
+        "orbis-java-app/*.c",
+        "orbis-java-app/tools/*.c"
+      ],
+      "subsystem": "pending-audit",
+      "symbol": "fchmod"
+    },
+    {
+      "classification": "unresolved",
+      "evidence": "OrbisJvmAbiProbe 0.1.12: fstatat returned ENOSYS",
+      "route": "prohibited",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp",
+        "src/hotspot/os_cpu/orbis_x86/**/*.cpp",
+        "src/hotspot/os/posix/*.cpp",
+        "src/java.base/unix/native/**/*.c",
+        "src/java.base/share/native/**/*.c",
+        "src/java.base/share/native/**/*.cpp",
+        "orbis-java-app/*.c",
+        "orbis-java-app/tools/*.c"
+      ],
+      "subsystem": "filesystem",
+      "symbol": "fstatat64"
+    },
+    {
+      "classification": "direct-verified",
+      "evidence": "OrbisJvmAbiProbe 0.1.12 semantic pass",
+      "route": "direct",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp",
+        "src/hotspot/os_cpu/orbis_x86/**/*.cpp",
+        "src/hotspot/os/posix/*.cpp",
+        "src/java.base/unix/native/**/*.c",
+        "src/java.base/share/native/**/*.c",
+        "src/java.base/share/native/**/*.cpp",
+        "orbis-java-app/*.c",
+        "orbis-java-app/tools/*.c"
+      ],
+      "subsystem": "pending-audit",
+      "symbol": "fsync"
+    },
+    {
+      "classification": "compile-verified",
+      "evidence": "Present in package 1.91 final ELF; semantic audit pending",
+      "route": "direct",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp",
+        "src/hotspot/os_cpu/orbis_x86/**/*.cpp",
+        "src/hotspot/os/posix/*.cpp",
+        "src/java.base/unix/native/**/*.c",
+        "src/java.base/share/native/**/*.c",
+        "src/java.base/share/native/**/*.cpp",
+        "orbis-java-app/*.c",
+        "orbis-java-app/tools/*.c"
+      ],
+      "subsystem": "pending-audit",
+      "symbol": "getdents"
+    },
+    {
+      "classification": "compile-verified",
+      "evidence": "Present in package 1.91 final ELF; semantic audit pending",
+      "route": "direct",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp",
+        "src/hotspot/os_cpu/orbis_x86/**/*.cpp",
+        "src/hotspot/os/posix/*.cpp",
+        "src/java.base/unix/native/**/*.c",
+        "src/java.base/share/native/**/*.c",
+        "src/java.base/share/native/**/*.cpp",
+        "orbis-java-app/*.c",
+        "orbis-java-app/tools/*.c"
+      ],
+      "subsystem": "pending-audit",
+      "symbol": "getegid"
+    },
+    {
+      "classification": "compile-verified",
+      "evidence": "Present in package 1.91 final ELF; semantic audit pending",
+      "route": "direct",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp",
+        "src/hotspot/os_cpu/orbis_x86/**/*.cpp",
+        "src/hotspot/os/posix/*.cpp",
+        "src/java.base/unix/native/**/*.c",
+        "src/java.base/share/native/**/*.c",
+        "src/java.base/share/native/**/*.cpp",
+        "orbis-java-app/*.c",
+        "orbis-java-app/tools/*.c"
+      ],
+      "subsystem": "pending-audit",
+      "symbol": "geteuid"
+    },
+    {
+      "classification": "compile-verified",
+      "evidence": "Present in package 1.91 final ELF; semantic audit pending",
+      "route": "direct",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp",
+        "src/hotspot/os_cpu/orbis_x86/**/*.cpp",
+        "src/hotspot/os/posix/*.cpp",
+        "src/java.base/unix/native/**/*.c",
+        "src/java.base/share/native/**/*.c",
+        "src/java.base/share/native/**/*.cpp",
+        "orbis-java-app/*.c",
+        "orbis-java-app/tools/*.c"
+      ],
+      "subsystem": "pending-audit",
+      "symbol": "getgid"
+    },
+    {
+      "classification": "compile-verified",
+      "evidence": "Present in package 1.91 final ELF; semantic audit pending",
+      "route": "direct",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp",
+        "src/hotspot/os_cpu/orbis_x86/**/*.cpp",
+        "src/hotspot/os/posix/*.cpp",
+        "src/java.base/unix/native/**/*.c",
+        "src/java.base/share/native/**/*.c",
+        "src/java.base/share/native/**/*.cpp",
+        "orbis-java-app/*.c",
+        "orbis-java-app/tools/*.c"
+      ],
+      "subsystem": "pending-audit",
+      "symbol": "getgroups"
+    },
+    {
+      "classification": "direct-verified",
+      "evidence": "OrbisJvmAbiProbe 0.1.12 semantic pass",
+      "route": "direct",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp",
+        "src/hotspot/os_cpu/orbis_x86/**/*.cpp",
+        "src/hotspot/os/posix/*.cpp",
+        "src/java.base/unix/native/**/*.c",
+        "src/java.base/share/native/**/*.c",
+        "src/java.base/share/native/**/*.cpp",
+        "orbis-java-app/*.c",
+        "orbis-java-app/tools/*.c"
+      ],
+      "subsystem": "pending-audit",
+      "symbol": "getpeername"
+    },
+    {
+      "classification": "compile-verified",
+      "evidence": "Present in package 1.91 final ELF; semantic audit pending",
+      "route": "direct",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp",
+        "src/hotspot/os_cpu/orbis_x86/**/*.cpp",
+        "src/hotspot/os/posix/*.cpp",
+        "src/java.base/unix/native/**/*.c",
+        "src/java.base/share/native/**/*.c",
+        "src/java.base/share/native/**/*.cpp",
+        "orbis-java-app/*.c",
+        "orbis-java-app/tools/*.c"
+      ],
+      "subsystem": "pending-audit",
+      "symbol": "getpid"
+    },
+    {
+      "classification": "compile-verified",
+      "evidence": "Present in package 1.91 final ELF; semantic audit pending",
+      "route": "direct",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp",
+        "src/hotspot/os_cpu/orbis_x86/**/*.cpp",
+        "src/hotspot/os/posix/*.cpp",
+        "src/java.base/unix/native/**/*.c",
+        "src/java.base/share/native/**/*.c",
+        "src/java.base/share/native/**/*.cpp",
+        "orbis-java-app/*.c",
+        "orbis-java-app/tools/*.c"
+      ],
+      "subsystem": "pending-audit",
+      "symbol": "getrlimit"
+    },
+    {
+      "classification": "compile-verified",
+      "evidence": "Present in package 1.91 final ELF; semantic audit pending",
+      "route": "direct",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp",
+        "src/hotspot/os_cpu/orbis_x86/**/*.cpp",
+        "src/hotspot/os/posix/*.cpp",
+        "src/java.base/unix/native/**/*.c",
+        "src/java.base/share/native/**/*.c",
+        "src/java.base/share/native/**/*.cpp",
+        "orbis-java-app/*.c",
+        "orbis-java-app/tools/*.c"
+      ],
+      "subsystem": "pending-audit",
+      "symbol": "getrusage"
+    },
+    {
+      "classification": "direct-verified",
+      "evidence": "OrbisJvmAbiProbe 0.1.12 semantic pass",
+      "route": "direct",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp",
+        "src/hotspot/os_cpu/orbis_x86/**/*.cpp",
+        "src/hotspot/os/posix/*.cpp",
+        "src/java.base/unix/native/**/*.c",
+        "src/java.base/share/native/**/*.c",
+        "src/java.base/share/native/**/*.cpp",
+        "orbis-java-app/*.c",
+        "orbis-java-app/tools/*.c"
+      ],
+      "subsystem": "pending-audit",
+      "symbol": "getsockname"
+    },
+    {
+      "classification": "direct-verified",
+      "evidence": "OrbisJvmAbiProbe 0.1.12 semantic pass",
+      "route": "direct",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp",
+        "src/hotspot/os_cpu/orbis_x86/**/*.cpp",
+        "src/hotspot/os/posix/*.cpp",
+        "src/java.base/unix/native/**/*.c",
+        "src/java.base/share/native/**/*.c",
+        "src/java.base/share/native/**/*.cpp",
+        "orbis-java-app/*.c",
+        "orbis-java-app/tools/*.c"
+      ],
+      "subsystem": "pending-audit",
+      "symbol": "getsockopt"
+    },
+    {
+      "classification": "compile-verified",
+      "evidence": "Present in package 1.91 final ELF; semantic audit pending",
+      "route": "direct",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp",
+        "src/hotspot/os_cpu/orbis_x86/**/*.cpp",
+        "src/hotspot/os/posix/*.cpp",
+        "src/java.base/unix/native/**/*.c",
+        "src/java.base/share/native/**/*.c",
+        "src/java.base/share/native/**/*.cpp",
+        "orbis-java-app/*.c",
+        "orbis-java-app/tools/*.c"
+      ],
+      "subsystem": "pending-audit",
+      "symbol": "getuid"
+    },
+    {
+      "classification": "compile-verified",
+      "evidence": "Present in package 1.91 final ELF; semantic audit pending",
+      "route": "direct",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp",
+        "src/hotspot/os_cpu/orbis_x86/**/*.cpp",
+        "src/hotspot/os/posix/*.cpp",
+        "src/java.base/unix/native/**/*.c",
+        "src/java.base/share/native/**/*.c",
+        "src/java.base/share/native/**/*.cpp",
+        "orbis-java-app/*.c",
+        "orbis-java-app/tools/*.c"
+      ],
+      "subsystem": "pending-audit",
+      "symbol": "kill"
+    },
+    {
+      "classification": "direct-verified",
+      "evidence": "OrbisJvmAbiProbe 0.1.12 semantic pass",
+      "route": "direct",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp",
+        "src/hotspot/os_cpu/orbis_x86/**/*.cpp",
+        "src/hotspot/os/posix/*.cpp",
+        "src/java.base/unix/native/**/*.c",
+        "src/java.base/share/native/**/*.c",
+        "src/java.base/share/native/**/*.cpp",
+        "orbis-java-app/*.c",
+        "orbis-java-app/tools/*.c"
+      ],
+      "subsystem": "pending-audit",
+      "symbol": "listen"
+    },
+    {
+      "classification": "direct-verified",
+      "evidence": "OrbisJvmAbiProbe 0.1.12 semantic pass",
+      "route": "direct",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp",
+        "src/hotspot/os_cpu/orbis_x86/**/*.cpp",
+        "src/hotspot/os/posix/*.cpp",
+        "src/java.base/unix/native/**/*.c",
+        "src/java.base/share/native/**/*.c",
+        "src/java.base/share/native/**/*.cpp",
+        "orbis-java-app/*.c",
+        "orbis-java-app/tools/*.c"
+      ],
+      "subsystem": "pending-audit",
+      "symbol": "lseek"
+    },
+    {
+      "classification": "direct-verified",
+      "evidence": "OrbisJvmAbiProbe 0.1.12 semantic pass",
+      "route": "direct",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp",
+        "src/hotspot/os_cpu/orbis_x86/**/*.cpp",
+        "src/hotspot/os/posix/*.cpp",
+        "src/java.base/unix/native/**/*.c",
+        "src/java.base/share/native/**/*.c",
+        "src/java.base/share/native/**/*.cpp",
+        "orbis-java-app/*.c",
+        "orbis-java-app/tools/*.c"
+      ],
+      "subsystem": "pending-audit",
+      "symbol": "madvise"
+    },
+    {
+      "classification": "compile-verified",
+      "evidence": "Present in package 1.91 final ELF; semantic audit pending",
+      "route": "direct",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp",
+        "src/hotspot/os_cpu/orbis_x86/**/*.cpp",
+        "src/hotspot/os/posix/*.cpp",
+        "src/java.base/unix/native/**/*.c",
+        "src/java.base/share/native/**/*.c",
+        "src/java.base/share/native/**/*.cpp",
+        "orbis-java-app/*.c",
+        "orbis-java-app/tools/*.c"
+      ],
+      "subsystem": "pending-audit",
+      "symbol": "mincore"
+    },
+    {
+      "classification": "direct-verified",
+      "evidence": "OrbisJvmAbiProbe 0.1.12 semantic pass",
+      "route": "direct",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp",
+        "src/hotspot/os_cpu/orbis_x86/**/*.cpp",
+        "src/hotspot/os/posix/*.cpp",
+        "src/java.base/unix/native/**/*.c",
+        "src/java.base/share/native/**/*.c",
+        "src/java.base/share/native/**/*.cpp",
+        "orbis-java-app/*.c",
+        "orbis-java-app/tools/*.c"
+      ],
+      "subsystem": "pending-audit",
+      "symbol": "mkdir"
+    },
+    {
+      "classification": "direct-verified",
+      "evidence": "OrbisJvmAbiProbe 0.1.12 semantic pass",
+      "route": "direct",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp",
+        "src/hotspot/os_cpu/orbis_x86/**/*.cpp",
+        "src/hotspot/os/posix/*.cpp",
+        "src/java.base/unix/native/**/*.c",
+        "src/java.base/share/native/**/*.c",
+        "src/java.base/share/native/**/*.cpp",
+        "orbis-java-app/*.c",
+        "orbis-java-app/tools/*.c"
+      ],
+      "subsystem": "pending-audit",
+      "symbol": "mmap"
+    },
+    {
+      "classification": "direct-verified",
+      "evidence": "OrbisJvmAbiProbe 0.1.12 semantic pass",
+      "route": "direct",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp",
+        "src/hotspot/os_cpu/orbis_x86/**/*.cpp",
+        "src/hotspot/os/posix/*.cpp",
+        "src/java.base/unix/native/**/*.c",
+        "src/java.base/share/native/**/*.c",
+        "src/java.base/share/native/**/*.cpp",
+        "orbis-java-app/*.c",
+        "orbis-java-app/tools/*.c"
+      ],
+      "subsystem": "pending-audit",
+      "symbol": "mprotect"
+    },
+    {
+      "classification": "direct-verified",
+      "evidence": "OrbisJvmAbiProbe 0.1.12 semantic pass",
+      "route": "direct",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp",
+        "src/hotspot/os_cpu/orbis_x86/**/*.cpp",
+        "src/hotspot/os/posix/*.cpp",
+        "src/java.base/unix/native/**/*.c",
+        "src/java.base/share/native/**/*.c",
+        "src/java.base/share/native/**/*.cpp",
+        "orbis-java-app/*.c",
+        "orbis-java-app/tools/*.c"
+      ],
+      "subsystem": "pending-audit",
+      "symbol": "msync"
+    },
+    {
+      "classification": "direct-verified",
+      "evidence": "OrbisJvmAbiProbe 0.1.12 semantic pass",
+      "route": "direct",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp",
+        "src/hotspot/os_cpu/orbis_x86/**/*.cpp",
+        "src/hotspot/os/posix/*.cpp",
+        "src/java.base/unix/native/**/*.c",
+        "src/java.base/share/native/**/*.c",
+        "src/java.base/share/native/**/*.cpp",
+        "orbis-java-app/*.c",
+        "orbis-java-app/tools/*.c"
+      ],
+      "subsystem": "pending-audit",
+      "symbol": "munmap"
+    },
+    {
+      "classification": "adapter-verified",
+      "evidence": "OrbisJvmAbiProbe 0.1.12 signal context offsets",
+      "route": "adapter",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp",
+        "src/hotspot/os_cpu/orbis_x86/**/*.cpp",
+        "src/hotspot/os/posix/*.cpp",
+        "src/java.base/unix/native/**/*.c",
+        "src/java.base/share/native/**/*.c",
+        "src/java.base/share/native/**/*.cpp",
+        "orbis-java-app/*.c",
+        "orbis-java-app/tools/*.c"
+      ],
+      "subsystem": "signals",
+      "symbol": "orbis_ucontext_pc"
+    },
+    {
+      "classification": "direct-verified",
+      "evidence": "OrbisJvmAbiProbe 0.1.12 semantic pass",
+      "route": "direct",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp",
+        "src/hotspot/os_cpu/orbis_x86/**/*.cpp",
+        "src/hotspot/os/posix/*.cpp",
+        "src/java.base/unix/native/**/*.c",
+        "src/java.base/share/native/**/*.c",
+        "src/java.base/share/native/**/*.cpp",
+        "orbis-java-app/*.c",
+        "orbis-java-app/tools/*.c"
+      ],
+      "subsystem": "pending-audit",
+      "symbol": "poll"
+    },
+    {
+      "classification": "direct-verified",
+      "evidence": "OrbisJvmAbiProbe 0.1.12 semantic pass",
+      "route": "direct",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp",
+        "src/hotspot/os_cpu/orbis_x86/**/*.cpp",
+        "src/hotspot/os/posix/*.cpp",
+        "src/java.base/unix/native/**/*.c",
+        "src/java.base/share/native/**/*.c",
+        "src/java.base/share/native/**/*.cpp",
+        "orbis-java-app/*.c",
+        "orbis-java-app/tools/*.c"
+      ],
+      "subsystem": "pending-audit",
+      "symbol": "pread"
+    },
+    {
+      "classification": "direct-verified",
+      "evidence": "OrbisJvmAbiProbe 0.1.12 semantic pass",
+      "route": "direct",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp",
+        "src/hotspot/os_cpu/orbis_x86/**/*.cpp",
+        "src/hotspot/os/posix/*.cpp",
+        "src/java.base/unix/native/**/*.c",
+        "src/java.base/share/native/**/*.c",
+        "src/java.base/share/native/**/*.cpp",
+        "orbis-java-app/*.c",
+        "orbis-java-app/tools/*.c"
+      ],
+      "subsystem": "pending-audit",
+      "symbol": "pthread_attr_destroy"
+    },
+    {
+      "classification": "direct-verified",
+      "evidence": "OrbisJvmAbiProbe 0.1.12 semantic pass",
+      "route": "direct",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp",
+        "src/hotspot/os_cpu/orbis_x86/**/*.cpp",
+        "src/hotspot/os/posix/*.cpp",
+        "src/java.base/unix/native/**/*.c",
+        "src/java.base/share/native/**/*.c",
+        "src/java.base/share/native/**/*.cpp",
+        "orbis-java-app/*.c",
+        "orbis-java-app/tools/*.c"
+      ],
+      "subsystem": "pending-audit",
+      "symbol": "pthread_attr_get_np"
+    },
+    {
+      "classification": "direct-verified",
+      "evidence": "OrbisJvmAbiProbe 0.1.12 semantic pass",
+      "route": "direct",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp",
+        "src/hotspot/os_cpu/orbis_x86/**/*.cpp",
+        "src/hotspot/os/posix/*.cpp",
+        "src/java.base/unix/native/**/*.c",
+        "src/java.base/share/native/**/*.c",
+        "src/java.base/share/native/**/*.cpp",
+        "orbis-java-app/*.c",
+        "orbis-java-app/tools/*.c"
+      ],
+      "subsystem": "pending-audit",
+      "symbol": "pthread_attr_getdetachstate"
+    },
+    {
+      "classification": "direct-verified",
+      "evidence": "OrbisJvmAbiProbe 0.1.12 semantic pass",
+      "route": "direct",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp",
+        "src/hotspot/os_cpu/orbis_x86/**/*.cpp",
+        "src/hotspot/os/posix/*.cpp",
+        "src/java.base/unix/native/**/*.c",
+        "src/java.base/share/native/**/*.c",
+        "src/java.base/share/native/**/*.cpp",
+        "orbis-java-app/*.c",
+        "orbis-java-app/tools/*.c"
+      ],
+      "subsystem": "pending-audit",
+      "symbol": "pthread_attr_getguardsize"
+    },
+    {
+      "classification": "direct-verified",
+      "evidence": "OrbisJvmAbiProbe 0.1.12 semantic pass",
+      "route": "direct",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp",
+        "src/hotspot/os_cpu/orbis_x86/**/*.cpp",
+        "src/hotspot/os/posix/*.cpp",
+        "src/java.base/unix/native/**/*.c",
+        "src/java.base/share/native/**/*.c",
+        "src/java.base/share/native/**/*.cpp",
+        "orbis-java-app/*.c",
+        "orbis-java-app/tools/*.c"
+      ],
+      "subsystem": "pending-audit",
+      "symbol": "pthread_attr_getstack"
+    },
+    {
+      "classification": "direct-verified",
+      "evidence": "OrbisJvmAbiProbe 0.1.12 semantic pass",
+      "route": "direct",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp",
+        "src/hotspot/os_cpu/orbis_x86/**/*.cpp",
+        "src/hotspot/os/posix/*.cpp",
+        "src/java.base/unix/native/**/*.c",
+        "src/java.base/share/native/**/*.c",
+        "src/java.base/share/native/**/*.cpp",
+        "orbis-java-app/*.c",
+        "orbis-java-app/tools/*.c"
+      ],
+      "subsystem": "pending-audit",
+      "symbol": "pthread_attr_getstacksize"
+    },
+    {
+      "classification": "direct-verified",
+      "evidence": "OrbisJvmAbiProbe 0.1.12 semantic pass",
+      "route": "direct",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp",
+        "src/hotspot/os_cpu/orbis_x86/**/*.cpp",
+        "src/hotspot/os/posix/*.cpp",
+        "src/java.base/unix/native/**/*.c",
+        "src/java.base/share/native/**/*.c",
+        "src/java.base/share/native/**/*.cpp",
+        "orbis-java-app/*.c",
+        "orbis-java-app/tools/*.c"
+      ],
+      "subsystem": "pending-audit",
+      "symbol": "pthread_attr_init"
+    },
+    {
+      "classification": "direct-verified",
+      "evidence": "OrbisJvmAbiProbe 0.1.12 semantic pass",
+      "route": "direct",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp",
+        "src/hotspot/os_cpu/orbis_x86/**/*.cpp",
+        "src/hotspot/os/posix/*.cpp",
+        "src/java.base/unix/native/**/*.c",
+        "src/java.base/share/native/**/*.c",
+        "src/java.base/share/native/**/*.cpp",
+        "orbis-java-app/*.c",
+        "orbis-java-app/tools/*.c"
+      ],
+      "subsystem": "pending-audit",
+      "symbol": "pthread_attr_setdetachstate"
+    },
+    {
+      "classification": "direct-verified",
+      "evidence": "OrbisJvmAbiProbe 0.1.12 semantic pass",
+      "route": "direct",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp",
+        "src/hotspot/os_cpu/orbis_x86/**/*.cpp",
+        "src/hotspot/os/posix/*.cpp",
+        "src/java.base/unix/native/**/*.c",
+        "src/java.base/share/native/**/*.c",
+        "src/java.base/share/native/**/*.cpp",
+        "orbis-java-app/*.c",
+        "orbis-java-app/tools/*.c"
+      ],
+      "subsystem": "pending-audit",
+      "symbol": "pthread_attr_setstacksize"
+    },
+    {
+      "classification": "direct-verified",
+      "evidence": "OrbisJvmAbiProbe 0.1.12 semantic pass",
+      "route": "direct",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp",
+        "src/hotspot/os_cpu/orbis_x86/**/*.cpp",
+        "src/hotspot/os/posix/*.cpp",
+        "src/java.base/unix/native/**/*.c",
+        "src/java.base/share/native/**/*.c",
+        "src/java.base/share/native/**/*.cpp",
+        "orbis-java-app/*.c",
+        "orbis-java-app/tools/*.c"
+      ],
+      "subsystem": "pending-audit",
+      "symbol": "pthread_cond_broadcast"
+    },
+    {
+      "classification": "direct-verified",
+      "evidence": "OrbisJvmAbiProbe 0.1.12 semantic pass",
+      "route": "direct",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp",
+        "src/hotspot/os_cpu/orbis_x86/**/*.cpp",
+        "src/hotspot/os/posix/*.cpp",
+        "src/java.base/unix/native/**/*.c",
+        "src/java.base/share/native/**/*.c",
+        "src/java.base/share/native/**/*.cpp",
+        "orbis-java-app/*.c",
+        "orbis-java-app/tools/*.c"
+      ],
+      "subsystem": "pending-audit",
+      "symbol": "pthread_cond_destroy"
+    },
+    {
+      "classification": "direct-verified",
+      "evidence": "OrbisJvmAbiProbe 0.1.12 semantic pass",
+      "route": "direct",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp",
+        "src/hotspot/os_cpu/orbis_x86/**/*.cpp",
+        "src/hotspot/os/posix/*.cpp",
+        "src/java.base/unix/native/**/*.c",
+        "src/java.base/share/native/**/*.c",
+        "src/java.base/share/native/**/*.cpp",
+        "orbis-java-app/*.c",
+        "orbis-java-app/tools/*.c"
+      ],
+      "subsystem": "pending-audit",
+      "symbol": "pthread_cond_init"
+    },
+    {
+      "classification": "direct-verified",
+      "evidence": "OrbisJvmAbiProbe 0.1.12 semantic pass",
+      "route": "direct",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp",
+        "src/hotspot/os_cpu/orbis_x86/**/*.cpp",
+        "src/hotspot/os/posix/*.cpp",
+        "src/java.base/unix/native/**/*.c",
+        "src/java.base/share/native/**/*.c",
+        "src/java.base/share/native/**/*.cpp",
+        "orbis-java-app/*.c",
+        "orbis-java-app/tools/*.c"
+      ],
+      "subsystem": "pending-audit",
+      "symbol": "pthread_cond_signal"
+    },
+    {
+      "classification": "direct-verified",
+      "evidence": "OrbisJvmAbiProbe 0.1.12 semantic pass",
+      "route": "direct",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp",
+        "src/hotspot/os_cpu/orbis_x86/**/*.cpp",
+        "src/hotspot/os/posix/*.cpp",
+        "src/java.base/unix/native/**/*.c",
+        "src/java.base/share/native/**/*.c",
+        "src/java.base/share/native/**/*.cpp",
+        "orbis-java-app/*.c",
+        "orbis-java-app/tools/*.c"
+      ],
+      "subsystem": "pending-audit",
+      "symbol": "pthread_cond_timedwait"
+    },
+    {
+      "classification": "direct-verified",
+      "evidence": "OrbisJvmAbiProbe 0.1.12 semantic pass",
+      "route": "direct",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp",
+        "src/hotspot/os_cpu/orbis_x86/**/*.cpp",
+        "src/hotspot/os/posix/*.cpp",
+        "src/java.base/unix/native/**/*.c",
+        "src/java.base/share/native/**/*.c",
+        "src/java.base/share/native/**/*.cpp",
+        "orbis-java-app/*.c",
+        "orbis-java-app/tools/*.c"
+      ],
+      "subsystem": "pending-audit",
+      "symbol": "pthread_cond_wait"
+    },
+    {
+      "classification": "direct-verified",
+      "evidence": "OrbisJvmAbiProbe 0.1.12 semantic pass",
+      "route": "direct",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp",
+        "src/hotspot/os_cpu/orbis_x86/**/*.cpp",
+        "src/hotspot/os/posix/*.cpp",
+        "src/java.base/unix/native/**/*.c",
+        "src/java.base/share/native/**/*.c",
+        "src/java.base/share/native/**/*.cpp",
+        "orbis-java-app/*.c",
+        "orbis-java-app/tools/*.c"
+      ],
+      "subsystem": "pending-audit",
+      "symbol": "pthread_condattr_init"
+    },
+    {
+      "classification": "direct-verified",
+      "evidence": "OrbisJvmAbiProbe 0.1.12 semantic pass",
+      "route": "direct",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp",
+        "src/hotspot/os_cpu/orbis_x86/**/*.cpp",
+        "src/hotspot/os/posix/*.cpp",
+        "src/java.base/unix/native/**/*.c",
+        "src/java.base/share/native/**/*.c",
+        "src/java.base/share/native/**/*.cpp",
+        "orbis-java-app/*.c",
+        "orbis-java-app/tools/*.c"
+      ],
+      "subsystem": "pending-audit",
+      "symbol": "pthread_create"
+    },
+    {
+      "classification": "direct-verified",
+      "evidence": "OrbisJvmAbiProbe 0.1.12 semantic pass",
+      "route": "direct",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp",
+        "src/hotspot/os_cpu/orbis_x86/**/*.cpp",
+        "src/hotspot/os/posix/*.cpp",
+        "src/java.base/unix/native/**/*.c",
+        "src/java.base/share/native/**/*.c",
+        "src/java.base/share/native/**/*.cpp",
+        "orbis-java-app/*.c",
+        "orbis-java-app/tools/*.c"
+      ],
+      "subsystem": "pending-audit",
+      "symbol": "pthread_getcpuclockid"
+    },
+    {
+      "classification": "direct-verified",
+      "evidence": "OrbisJvmAbiProbe 0.1.12 semantic pass",
+      "route": "direct",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp",
+        "src/hotspot/os_cpu/orbis_x86/**/*.cpp",
+        "src/hotspot/os/posix/*.cpp",
+        "src/java.base/unix/native/**/*.c",
+        "src/java.base/share/native/**/*.c",
+        "src/java.base/share/native/**/*.cpp",
+        "orbis-java-app/*.c",
+        "orbis-java-app/tools/*.c"
+      ],
+      "subsystem": "pending-audit",
+      "symbol": "pthread_getschedparam"
+    },
+    {
+      "classification": "direct-verified",
+      "evidence": "OrbisJvmAbiProbe 0.1.12 semantic pass",
+      "route": "direct",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp",
+        "src/hotspot/os_cpu/orbis_x86/**/*.cpp",
+        "src/hotspot/os/posix/*.cpp",
+        "src/java.base/unix/native/**/*.c",
+        "src/java.base/share/native/**/*.c",
+        "src/java.base/share/native/**/*.cpp",
+        "orbis-java-app/*.c",
+        "orbis-java-app/tools/*.c"
+      ],
+      "subsystem": "pending-audit",
+      "symbol": "pthread_getspecific"
+    },
+    {
+      "classification": "direct-verified",
+      "evidence": "OrbisJvmAbiProbe 0.1.12 semantic pass",
+      "route": "direct",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp",
+        "src/hotspot/os_cpu/orbis_x86/**/*.cpp",
+        "src/hotspot/os/posix/*.cpp",
+        "src/java.base/unix/native/**/*.c",
+        "src/java.base/share/native/**/*.c",
+        "src/java.base/share/native/**/*.cpp",
+        "orbis-java-app/*.c",
+        "orbis-java-app/tools/*.c"
+      ],
+      "subsystem": "pending-audit",
+      "symbol": "pthread_key_create"
+    },
+    {
+      "classification": "direct-verified",
+      "evidence": "OrbisJvmAbiProbe 0.1.12 semantic pass",
+      "route": "direct",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp",
+        "src/hotspot/os_cpu/orbis_x86/**/*.cpp",
+        "src/hotspot/os/posix/*.cpp",
+        "src/java.base/unix/native/**/*.c",
+        "src/java.base/share/native/**/*.c",
+        "src/java.base/share/native/**/*.cpp",
+        "orbis-java-app/*.c",
+        "orbis-java-app/tools/*.c"
+      ],
+      "subsystem": "pending-audit",
+      "symbol": "pthread_kill"
+    },
+    {
+      "classification": "direct-verified",
+      "evidence": "OrbisJvmAbiProbe 0.1.12 semantic pass",
+      "route": "direct",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp",
+        "src/hotspot/os_cpu/orbis_x86/**/*.cpp",
+        "src/hotspot/os/posix/*.cpp",
+        "src/java.base/unix/native/**/*.c",
+        "src/java.base/share/native/**/*.c",
+        "src/java.base/share/native/**/*.cpp",
+        "orbis-java-app/*.c",
+        "orbis-java-app/tools/*.c"
+      ],
+      "subsystem": "pending-audit",
+      "symbol": "pthread_mutex_destroy"
+    },
+    {
+      "classification": "direct-verified",
+      "evidence": "OrbisJvmAbiProbe 0.1.12 semantic pass",
+      "route": "direct",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp",
+        "src/hotspot/os_cpu/orbis_x86/**/*.cpp",
+        "src/hotspot/os/posix/*.cpp",
+        "src/java.base/unix/native/**/*.c",
+        "src/java.base/share/native/**/*.c",
+        "src/java.base/share/native/**/*.cpp",
+        "orbis-java-app/*.c",
+        "orbis-java-app/tools/*.c"
+      ],
+      "subsystem": "pending-audit",
+      "symbol": "pthread_mutex_init"
+    },
+    {
+      "classification": "direct-verified",
+      "evidence": "OrbisJvmAbiProbe 0.1.12 semantic pass",
+      "route": "direct",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp",
+        "src/hotspot/os_cpu/orbis_x86/**/*.cpp",
+        "src/hotspot/os/posix/*.cpp",
+        "src/java.base/unix/native/**/*.c",
+        "src/java.base/share/native/**/*.c",
+        "src/java.base/share/native/**/*.cpp",
+        "orbis-java-app/*.c",
+        "orbis-java-app/tools/*.c"
+      ],
+      "subsystem": "pending-audit",
+      "symbol": "pthread_mutex_lock"
+    },
+    {
+      "classification": "direct-verified",
+      "evidence": "OrbisJvmAbiProbe 0.1.12 semantic pass",
+      "route": "direct",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp",
+        "src/hotspot/os_cpu/orbis_x86/**/*.cpp",
+        "src/hotspot/os/posix/*.cpp",
+        "src/java.base/unix/native/**/*.c",
+        "src/java.base/share/native/**/*.c",
+        "src/java.base/share/native/**/*.cpp",
+        "orbis-java-app/*.c",
+        "orbis-java-app/tools/*.c"
+      ],
+      "subsystem": "pending-audit",
+      "symbol": "pthread_mutex_trylock"
+    },
+    {
+      "classification": "direct-verified",
+      "evidence": "OrbisJvmAbiProbe 0.1.12 semantic pass",
+      "route": "direct",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp",
+        "src/hotspot/os_cpu/orbis_x86/**/*.cpp",
+        "src/hotspot/os/posix/*.cpp",
+        "src/java.base/unix/native/**/*.c",
+        "src/java.base/share/native/**/*.c",
+        "src/java.base/share/native/**/*.cpp",
+        "orbis-java-app/*.c",
+        "orbis-java-app/tools/*.c"
+      ],
+      "subsystem": "pending-audit",
+      "symbol": "pthread_mutex_unlock"
+    },
+    {
+      "classification": "direct-verified",
+      "evidence": "OrbisJvmAbiProbe 0.1.12 semantic pass",
+      "route": "direct",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp",
+        "src/hotspot/os_cpu/orbis_x86/**/*.cpp",
+        "src/hotspot/os/posix/*.cpp",
+        "src/java.base/unix/native/**/*.c",
+        "src/java.base/share/native/**/*.c",
+        "src/java.base/share/native/**/*.cpp",
+        "orbis-java-app/*.c",
+        "orbis-java-app/tools/*.c"
+      ],
+      "subsystem": "pending-audit",
+      "symbol": "pthread_mutexattr_init"
+    },
+    {
+      "classification": "direct-verified",
+      "evidence": "OrbisJvmAbiProbe 0.1.12 semantic pass",
+      "route": "direct",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp",
+        "src/hotspot/os_cpu/orbis_x86/**/*.cpp",
+        "src/hotspot/os/posix/*.cpp",
+        "src/java.base/unix/native/**/*.c",
+        "src/java.base/share/native/**/*.c",
+        "src/java.base/share/native/**/*.cpp",
+        "orbis-java-app/*.c",
+        "orbis-java-app/tools/*.c"
+      ],
+      "subsystem": "pending-audit",
+      "symbol": "pthread_mutexattr_settype"
+    },
+    {
+      "classification": "direct-verified",
+      "evidence": "OrbisJvmAbiProbe 0.1.12 semantic pass",
+      "route": "direct",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp",
+        "src/hotspot/os_cpu/orbis_x86/**/*.cpp",
+        "src/hotspot/os/posix/*.cpp",
+        "src/java.base/unix/native/**/*.c",
+        "src/java.base/share/native/**/*.c",
+        "src/java.base/share/native/**/*.cpp",
+        "orbis-java-app/*.c",
+        "orbis-java-app/tools/*.c"
+      ],
+      "subsystem": "pending-audit",
+      "symbol": "pthread_once"
+    },
+    {
+      "classification": "direct-verified",
+      "evidence": "OrbisJvmAbiProbe 0.1.12 semantic pass",
+      "route": "direct",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp",
+        "src/hotspot/os_cpu/orbis_x86/**/*.cpp",
+        "src/hotspot/os/posix/*.cpp",
+        "src/java.base/unix/native/**/*.c",
+        "src/java.base/share/native/**/*.c",
+        "src/java.base/share/native/**/*.cpp",
+        "orbis-java-app/*.c",
+        "orbis-java-app/tools/*.c"
+      ],
+      "subsystem": "pending-audit",
+      "symbol": "pthread_rwlock_rdlock"
+    },
+    {
+      "classification": "direct-verified",
+      "evidence": "OrbisJvmAbiProbe 0.1.12 semantic pass",
+      "route": "direct",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp",
+        "src/hotspot/os_cpu/orbis_x86/**/*.cpp",
+        "src/hotspot/os/posix/*.cpp",
+        "src/java.base/unix/native/**/*.c",
+        "src/java.base/share/native/**/*.c",
+        "src/java.base/share/native/**/*.cpp",
+        "orbis-java-app/*.c",
+        "orbis-java-app/tools/*.c"
+      ],
+      "subsystem": "pending-audit",
+      "symbol": "pthread_rwlock_unlock"
+    },
+    {
+      "classification": "direct-verified",
+      "evidence": "OrbisJvmAbiProbe 0.1.12 semantic pass",
+      "route": "direct",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp",
+        "src/hotspot/os_cpu/orbis_x86/**/*.cpp",
+        "src/hotspot/os/posix/*.cpp",
+        "src/java.base/unix/native/**/*.c",
+        "src/java.base/share/native/**/*.c",
+        "src/java.base/share/native/**/*.cpp",
+        "orbis-java-app/*.c",
+        "orbis-java-app/tools/*.c"
+      ],
+      "subsystem": "pending-audit",
+      "symbol": "pthread_rwlock_wrlock"
+    },
+    {
+      "classification": "direct-verified",
+      "evidence": "OrbisJvmAbiProbe 0.1.12 semantic pass",
+      "route": "direct",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp",
+        "src/hotspot/os_cpu/orbis_x86/**/*.cpp",
+        "src/hotspot/os/posix/*.cpp",
+        "src/java.base/unix/native/**/*.c",
+        "src/java.base/share/native/**/*.c",
+        "src/java.base/share/native/**/*.cpp",
+        "orbis-java-app/*.c",
+        "orbis-java-app/tools/*.c"
+      ],
+      "subsystem": "pending-audit",
+      "symbol": "pthread_self"
+    },
+    {
+      "classification": "compile-verified",
+      "evidence": "Present in package 1.91 final ELF; semantic audit pending",
+      "route": "direct",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp",
+        "src/hotspot/os_cpu/orbis_x86/**/*.cpp",
+        "src/hotspot/os/posix/*.cpp",
+        "src/java.base/unix/native/**/*.c",
+        "src/java.base/share/native/**/*.c",
+        "src/java.base/share/native/**/*.cpp",
+        "orbis-java-app/*.c",
+        "orbis-java-app/tools/*.c"
+      ],
+      "subsystem": "pending-audit",
+      "symbol": "pthread_setcancelstate"
+    },
+    {
+      "classification": "direct-verified",
+      "evidence": "OrbisJvmAbiProbe 0.1.12 semantic pass",
+      "route": "direct",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp",
+        "src/hotspot/os_cpu/orbis_x86/**/*.cpp",
+        "src/hotspot/os/posix/*.cpp",
+        "src/java.base/unix/native/**/*.c",
+        "src/java.base/share/native/**/*.c",
+        "src/java.base/share/native/**/*.cpp",
+        "orbis-java-app/*.c",
+        "orbis-java-app/tools/*.c"
+      ],
+      "subsystem": "pending-audit",
+      "symbol": "pthread_setschedparam"
+    },
+    {
+      "classification": "direct-verified",
+      "evidence": "OrbisJvmAbiProbe 0.1.12 semantic pass",
+      "route": "direct",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp",
+        "src/hotspot/os_cpu/orbis_x86/**/*.cpp",
+        "src/hotspot/os/posix/*.cpp",
+        "src/java.base/unix/native/**/*.c",
+        "src/java.base/share/native/**/*.c",
+        "src/java.base/share/native/**/*.cpp",
+        "orbis-java-app/*.c",
+        "orbis-java-app/tools/*.c"
+      ],
+      "subsystem": "pending-audit",
+      "symbol": "pthread_setspecific"
+    },
+    {
+      "classification": "direct-verified",
+      "evidence": "OrbisJvmAbiProbe 0.1.12 semantic pass",
+      "route": "direct",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp",
+        "src/hotspot/os_cpu/orbis_x86/**/*.cpp",
+        "src/hotspot/os/posix/*.cpp",
+        "src/java.base/unix/native/**/*.c",
+        "src/java.base/share/native/**/*.c",
+        "src/java.base/share/native/**/*.cpp",
+        "orbis-java-app/*.c",
+        "orbis-java-app/tools/*.c"
+      ],
+      "subsystem": "pending-audit",
+      "symbol": "pthread_sigmask"
+    },
+    {
+      "classification": "compile-verified",
+      "evidence": "Present in package 1.91 final ELF; semantic audit pending",
+      "route": "direct",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp",
+        "src/hotspot/os_cpu/orbis_x86/**/*.cpp",
+        "src/hotspot/os/posix/*.cpp",
+        "src/java.base/unix/native/**/*.c",
+        "src/java.base/share/native/**/*.c",
+        "src/java.base/share/native/**/*.cpp",
+        "orbis-java-app/*.c",
+        "orbis-java-app/tools/*.c"
+      ],
+      "subsystem": "pending-audit",
+      "symbol": "pwrite"
+    },
+    {
+      "classification": "compile-verified",
+      "evidence": "Present in package 1.91 final ELF; semantic audit pending",
+      "route": "direct",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp",
+        "src/hotspot/os_cpu/orbis_x86/**/*.cpp",
+        "src/hotspot/os/posix/*.cpp",
+        "src/java.base/unix/native/**/*.c",
+        "src/java.base/share/native/**/*.c",
+        "src/java.base/share/native/**/*.cpp",
+        "orbis-java-app/*.c",
+        "orbis-java-app/tools/*.c"
+      ],
+      "subsystem": "pending-audit",
+      "symbol": "raise"
+    },
+    {
+      "classification": "direct-verified",
+      "evidence": "OrbisJvmAbiProbe 0.1.12 semantic pass",
+      "route": "direct",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp",
+        "src/hotspot/os_cpu/orbis_x86/**/*.cpp",
+        "src/hotspot/os/posix/*.cpp",
+        "src/java.base/unix/native/**/*.c",
+        "src/java.base/share/native/**/*.c",
+        "src/java.base/share/native/**/*.cpp",
+        "orbis-java-app/*.c",
+        "orbis-java-app/tools/*.c"
+      ],
+      "subsystem": "pending-audit",
+      "symbol": "read"
+    },
+    {
+      "classification": "compile-verified",
+      "evidence": "Present in package 1.91 final ELF; semantic audit pending",
+      "route": "direct",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp",
+        "src/hotspot/os_cpu/orbis_x86/**/*.cpp",
+        "src/hotspot/os/posix/*.cpp",
+        "src/java.base/unix/native/**/*.c",
+        "src/java.base/share/native/**/*.c",
+        "src/java.base/share/native/**/*.cpp",
+        "orbis-java-app/*.c",
+        "orbis-java-app/tools/*.c"
+      ],
+      "subsystem": "pending-audit",
+      "symbol": "readv"
+    },
+    {
+      "classification": "direct-verified",
+      "evidence": "OrbisJvmAbiProbe 0.1.12 semantic pass",
+      "route": "direct",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp",
+        "src/hotspot/os_cpu/orbis_x86/**/*.cpp",
+        "src/hotspot/os/posix/*.cpp",
+        "src/java.base/unix/native/**/*.c",
+        "src/java.base/share/native/**/*.c",
+        "src/java.base/share/native/**/*.cpp",
+        "orbis-java-app/*.c",
+        "orbis-java-app/tools/*.c"
+      ],
+      "subsystem": "pending-audit",
+      "symbol": "recvfrom"
+    },
+    {
+      "classification": "compile-verified",
+      "evidence": "Present in package 1.91 final ELF; semantic audit pending",
+      "route": "direct",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp",
+        "src/hotspot/os_cpu/orbis_x86/**/*.cpp",
+        "src/hotspot/os/posix/*.cpp",
+        "src/java.base/unix/native/**/*.c",
+        "src/java.base/share/native/**/*.c",
+        "src/java.base/share/native/**/*.cpp",
+        "orbis-java-app/*.c",
+        "orbis-java-app/tools/*.c"
+      ],
+      "subsystem": "pending-audit",
+      "symbol": "recvmsg"
+    },
+    {
+      "classification": "direct-verified",
+      "evidence": "OrbisJvmAbiProbe 0.1.12 semantic pass",
+      "route": "direct",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp",
+        "src/hotspot/os_cpu/orbis_x86/**/*.cpp",
+        "src/hotspot/os/posix/*.cpp",
+        "src/java.base/unix/native/**/*.c",
+        "src/java.base/share/native/**/*.c",
+        "src/java.base/share/native/**/*.cpp",
+        "orbis-java-app/*.c",
+        "orbis-java-app/tools/*.c"
+      ],
+      "subsystem": "pending-audit",
+      "symbol": "rename"
+    },
+    {
+      "classification": "compile-verified",
+      "evidence": "Present in package 1.91 final ELF; semantic audit pending",
+      "route": "direct",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp",
+        "src/hotspot/os_cpu/orbis_x86/**/*.cpp",
+        "src/hotspot/os/posix/*.cpp",
+        "src/java.base/unix/native/**/*.c",
+        "src/java.base/share/native/**/*.c",
+        "src/java.base/share/native/**/*.cpp",
+        "orbis-java-app/*.c",
+        "orbis-java-app/tools/*.c"
+      ],
+      "subsystem": "pending-audit",
+      "symbol": "rmdir"
+    },
+    {
+      "classification": "adapter-verified",
+      "evidence": "Current Orbis adapter; hardware startup path reached",
+      "route": "adapter",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp",
+        "src/hotspot/os_cpu/orbis_x86/**/*.cpp",
+        "src/hotspot/os/posix/*.cpp",
+        "src/java.base/unix/native/**/*.c",
+        "src/java.base/share/native/**/*.c",
+        "src/java.base/share/native/**/*.cpp",
+        "orbis-java-app/*.c",
+        "orbis-java-app/tools/*.c"
+      ],
+      "subsystem": "pending-audit",
+      "symbol": "sceKernelDebugOutText"
+    },
+    {
+      "classification": "adapter-verified",
+      "evidence": "Current Orbis adapter; hardware startup path reached",
+      "route": "adapter",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp",
+        "src/hotspot/os_cpu/orbis_x86/**/*.cpp",
+        "src/hotspot/os/posix/*.cpp",
+        "src/java.base/unix/native/**/*.c",
+        "src/java.base/share/native/**/*.c",
+        "src/java.base/share/native/**/*.cpp",
+        "orbis-java-app/*.c",
+        "orbis-java-app/tools/*.c"
+      ],
+      "subsystem": "pending-audit",
+      "symbol": "sceKernelDlsym"
+    },
+    {
+      "classification": "adapter-verified",
+      "evidence": "Current Orbis adapter; hardware startup path reached",
+      "route": "adapter",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp",
+        "src/hotspot/os_cpu/orbis_x86/**/*.cpp",
+        "src/hotspot/os/posix/*.cpp",
+        "src/java.base/unix/native/**/*.c",
+        "src/java.base/share/native/**/*.c",
+        "src/java.base/share/native/**/*.cpp",
+        "orbis-java-app/*.c",
+        "orbis-java-app/tools/*.c"
+      ],
+      "subsystem": "pending-audit",
+      "symbol": "sceKernelFtruncate"
+    },
+    {
+      "classification": "adapter-verified",
+      "evidence": "Current Orbis adapter; hardware startup path reached",
+      "route": "adapter",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp",
+        "src/hotspot/os_cpu/orbis_x86/**/*.cpp",
+        "src/hotspot/os/posix/*.cpp",
+        "src/java.base/unix/native/**/*.c",
+        "src/java.base/share/native/**/*.c",
+        "src/java.base/share/native/**/*.cpp",
+        "orbis-java-app/*.c",
+        "orbis-java-app/tools/*.c"
+      ],
+      "subsystem": "pending-audit",
+      "symbol": "sceKernelGetDirectMemorySize"
+    },
+    {
+      "classification": "adapter-verified",
+      "evidence": "Current Orbis adapter; hardware startup path reached",
+      "route": "adapter",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp",
+        "src/hotspot/os_cpu/orbis_x86/**/*.cpp",
+        "src/hotspot/os/posix/*.cpp",
+        "src/java.base/unix/native/**/*.c",
+        "src/java.base/share/native/**/*.c",
+        "src/java.base/share/native/**/*.cpp",
+        "orbis-java-app/*.c",
+        "orbis-java-app/tools/*.c"
+      ],
+      "subsystem": "pending-audit",
+      "symbol": "sceKernelGetModuleInfo"
+    },
+    {
+      "classification": "adapter-verified",
+      "evidence": "Current Orbis adapter; hardware startup path reached",
+      "route": "adapter",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp",
+        "src/hotspot/os_cpu/orbis_x86/**/*.cpp",
+        "src/hotspot/os/posix/*.cpp",
+        "src/java.base/unix/native/**/*.c",
+        "src/java.base/share/native/**/*.c",
+        "src/java.base/share/native/**/*.cpp",
+        "orbis-java-app/*.c",
+        "orbis-java-app/tools/*.c"
+      ],
+      "subsystem": "pending-audit",
+      "symbol": "sceKernelGetModuleList"
+    },
+    {
+      "classification": "adapter-verified",
+      "evidence": "Current Orbis adapter; hardware startup path reached",
+      "route": "adapter",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp",
+        "src/hotspot/os_cpu/orbis_x86/**/*.cpp",
+        "src/hotspot/os/posix/*.cpp",
+        "src/java.base/unix/native/**/*.c",
+        "src/java.base/share/native/**/*.c",
+        "src/java.base/share/native/**/*.cpp",
+        "orbis-java-app/*.c",
+        "orbis-java-app/tools/*.c"
+      ],
+      "subsystem": "pending-audit",
+      "symbol": "sceKernelLoadStartModule"
+    },
+    {
+      "classification": "adapter-verified",
+      "evidence": "Current Orbis adapter; hardware startup path reached",
+      "route": "adapter",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp",
+        "src/hotspot/os_cpu/orbis_x86/**/*.cpp",
+        "src/hotspot/os/posix/*.cpp",
+        "src/java.base/unix/native/**/*.c",
+        "src/java.base/share/native/**/*.c",
+        "src/java.base/share/native/**/*.cpp",
+        "orbis-java-app/*.c",
+        "orbis-java-app/tools/*.c"
+      ],
+      "subsystem": "pending-audit",
+      "symbol": "sceKernelLseek"
+    },
+    {
+      "classification": "adapter-verified",
+      "evidence": "Current Orbis adapter; hardware startup path reached",
+      "route": "adapter",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp",
+        "src/hotspot/os_cpu/orbis_x86/**/*.cpp",
+        "src/hotspot/os/posix/*.cpp",
+        "src/java.base/unix/native/**/*.c",
+        "src/java.base/share/native/**/*.c",
+        "src/java.base/share/native/**/*.cpp",
+        "orbis-java-app/*.c",
+        "orbis-java-app/tools/*.c"
+      ],
+      "subsystem": "pending-audit",
+      "symbol": "sceKernelNanosleep"
+    },
+    {
+      "classification": "adapter-verified",
+      "evidence": "Current Orbis adapter; hardware startup path reached",
+      "route": "adapter",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp",
+        "src/hotspot/os_cpu/orbis_x86/**/*.cpp",
+        "src/hotspot/os/posix/*.cpp",
+        "src/java.base/unix/native/**/*.c",
+        "src/java.base/share/native/**/*.c",
+        "src/java.base/share/native/**/*.cpp",
+        "orbis-java-app/*.c",
+        "orbis-java-app/tools/*.c"
+      ],
+      "subsystem": "pending-audit",
+      "symbol": "sceKernelStopUnloadModule"
+    },
+    {
+      "classification": "adapter-verified",
+      "evidence": "Current Orbis adapter; hardware startup path reached",
+      "route": "adapter",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp",
+        "src/hotspot/os_cpu/orbis_x86/**/*.cpp",
+        "src/hotspot/os/posix/*.cpp",
+        "src/java.base/unix/native/**/*.c",
+        "src/java.base/share/native/**/*.c",
+        "src/java.base/share/native/**/*.cpp",
+        "orbis-java-app/*.c",
+        "orbis-java-app/tools/*.c"
+      ],
+      "subsystem": "pending-audit",
+      "symbol": "sceKernelUsleep"
+    },
+    {
+      "classification": "adapter-verified",
+      "evidence": "Current Orbis adapter; hardware startup path reached",
+      "route": "adapter",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp",
+        "src/hotspot/os_cpu/orbis_x86/**/*.cpp",
+        "src/hotspot/os/posix/*.cpp",
+        "src/java.base/unix/native/**/*.c",
+        "src/java.base/share/native/**/*.c",
+        "src/java.base/share/native/**/*.cpp",
+        "orbis-java-app/*.c",
+        "orbis-java-app/tools/*.c"
+      ],
+      "subsystem": "pending-audit",
+      "symbol": "sceNetInit"
+    },
+    {
+      "classification": "adapter-verified",
+      "evidence": "Current Orbis adapter; hardware startup path reached",
+      "route": "adapter",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp",
+        "src/hotspot/os_cpu/orbis_x86/**/*.cpp",
+        "src/hotspot/os/posix/*.cpp",
+        "src/java.base/unix/native/**/*.c",
+        "src/java.base/share/native/**/*.c",
+        "src/java.base/share/native/**/*.cpp",
+        "orbis-java-app/*.c",
+        "orbis-java-app/tools/*.c"
+      ],
+      "subsystem": "pending-audit",
+      "symbol": "sceNetNtohl"
+    },
+    {
+      "classification": "adapter-verified",
+      "evidence": "Current Orbis adapter; hardware startup path reached",
+      "route": "adapter",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp",
+        "src/hotspot/os_cpu/orbis_x86/**/*.cpp",
+        "src/hotspot/os/posix/*.cpp",
+        "src/java.base/unix/native/**/*.c",
+        "src/java.base/share/native/**/*.c",
+        "src/java.base/share/native/**/*.cpp",
+        "orbis-java-app/*.c",
+        "orbis-java-app/tools/*.c"
+      ],
+      "subsystem": "pending-audit",
+      "symbol": "sceNetResolverCreate"
+    },
+    {
+      "classification": "adapter-verified",
+      "evidence": "Current Orbis adapter; hardware startup path reached",
+      "route": "adapter",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp",
+        "src/hotspot/os_cpu/orbis_x86/**/*.cpp",
+        "src/hotspot/os/posix/*.cpp",
+        "src/java.base/unix/native/**/*.c",
+        "src/java.base/share/native/**/*.c",
+        "src/java.base/share/native/**/*.cpp",
+        "orbis-java-app/*.c",
+        "orbis-java-app/tools/*.c"
+      ],
+      "subsystem": "pending-audit",
+      "symbol": "sceNetResolverDestroy"
+    },
+    {
+      "classification": "adapter-verified",
+      "evidence": "Current Orbis adapter; hardware startup path reached",
+      "route": "adapter",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp",
+        "src/hotspot/os_cpu/orbis_x86/**/*.cpp",
+        "src/hotspot/os/posix/*.cpp",
+        "src/java.base/unix/native/**/*.c",
+        "src/java.base/share/native/**/*.c",
+        "src/java.base/share/native/**/*.cpp",
+        "orbis-java-app/*.c",
+        "orbis-java-app/tools/*.c"
+      ],
+      "subsystem": "pending-audit",
+      "symbol": "sceNetResolverStartNtoa"
+    },
+    {
+      "classification": "direct-verified",
+      "evidence": "OrbisJvmAbiProbe 0.1.12 semantic pass",
+      "route": "direct",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp",
+        "src/hotspot/os_cpu/orbis_x86/**/*.cpp",
+        "src/hotspot/os/posix/*.cpp",
+        "src/java.base/unix/native/**/*.c",
+        "src/java.base/share/native/**/*.c",
+        "src/java.base/share/native/**/*.cpp",
+        "orbis-java-app/*.c",
+        "orbis-java-app/tools/*.c"
+      ],
+      "subsystem": "pending-audit",
+      "symbol": "sched_yield"
+    },
+    {
+      "classification": "compile-verified",
+      "evidence": "Present in package 1.91 final ELF; semantic audit pending",
+      "route": "direct",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp",
+        "src/hotspot/os_cpu/orbis_x86/**/*.cpp",
+        "src/hotspot/os/posix/*.cpp",
+        "src/java.base/unix/native/**/*.c",
+        "src/java.base/share/native/**/*.c",
+        "src/java.base/share/native/**/*.cpp",
+        "orbis-java-app/*.c",
+        "orbis-java-app/tools/*.c"
+      ],
+      "subsystem": "pending-audit",
+      "symbol": "sendmsg"
+    },
+    {
+      "classification": "direct-verified",
+      "evidence": "OrbisJvmAbiProbe 0.1.12 semantic pass",
+      "route": "direct",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp",
+        "src/hotspot/os_cpu/orbis_x86/**/*.cpp",
+        "src/hotspot/os/posix/*.cpp",
+        "src/java.base/unix/native/**/*.c",
+        "src/java.base/share/native/**/*.c",
+        "src/java.base/share/native/**/*.cpp",
+        "orbis-java-app/*.c",
+        "orbis-java-app/tools/*.c"
+      ],
+      "subsystem": "pending-audit",
+      "symbol": "sendto"
+    },
+    {
+      "classification": "compile-verified",
+      "evidence": "Present in package 1.91 final ELF; semantic audit pending",
+      "route": "direct",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp",
+        "src/hotspot/os_cpu/orbis_x86/**/*.cpp",
+        "src/hotspot/os/posix/*.cpp",
+        "src/java.base/unix/native/**/*.c",
+        "src/java.base/share/native/**/*.c",
+        "src/java.base/share/native/**/*.cpp",
+        "orbis-java-app/*.c",
+        "orbis-java-app/tools/*.c"
+      ],
+      "subsystem": "pending-audit",
+      "symbol": "setrlimit"
+    },
+    {
+      "classification": "direct-verified",
+      "evidence": "OrbisJvmAbiProbe 0.1.12 semantic pass",
+      "route": "direct",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp",
+        "src/hotspot/os_cpu/orbis_x86/**/*.cpp",
+        "src/hotspot/os/posix/*.cpp",
+        "src/java.base/unix/native/**/*.c",
+        "src/java.base/share/native/**/*.c",
+        "src/java.base/share/native/**/*.cpp",
+        "orbis-java-app/*.c",
+        "orbis-java-app/tools/*.c"
+      ],
+      "subsystem": "pending-audit",
+      "symbol": "setsockopt"
+    },
+    {
+      "classification": "direct-verified",
+      "evidence": "OrbisJvmAbiProbe 0.1.12 semantic pass",
+      "route": "direct",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp",
+        "src/hotspot/os_cpu/orbis_x86/**/*.cpp",
+        "src/hotspot/os/posix/*.cpp",
+        "src/java.base/unix/native/**/*.c",
+        "src/java.base/share/native/**/*.c",
+        "src/java.base/share/native/**/*.cpp",
+        "orbis-java-app/*.c",
+        "orbis-java-app/tools/*.c"
+      ],
+      "subsystem": "pending-audit",
+      "symbol": "shutdown"
+    },
+    {
+      "classification": "compile-verified",
+      "evidence": "Present in package 1.91 final ELF; semantic audit pending",
+      "route": "direct",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp",
+        "src/hotspot/os_cpu/orbis_x86/**/*.cpp",
+        "src/hotspot/os/posix/*.cpp",
+        "src/java.base/unix/native/**/*.c",
+        "src/java.base/share/native/**/*.c",
+        "src/java.base/share/native/**/*.cpp",
+        "orbis-java-app/*.c",
+        "orbis-java-app/tools/*.c"
+      ],
+      "subsystem": "pending-audit",
+      "symbol": "sigaction"
+    },
+    {
+      "classification": "compile-verified",
+      "evidence": "Present in package 1.91 final ELF; semantic audit pending",
+      "route": "direct",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp",
+        "src/hotspot/os_cpu/orbis_x86/**/*.cpp",
+        "src/hotspot/os/posix/*.cpp",
+        "src/java.base/unix/native/**/*.c",
+        "src/java.base/share/native/**/*.c",
+        "src/java.base/share/native/**/*.cpp",
+        "orbis-java-app/*.c",
+        "orbis-java-app/tools/*.c"
+      ],
+      "subsystem": "pending-audit",
+      "symbol": "sigsetjmp"
+    },
+    {
+      "classification": "compile-verified",
+      "evidence": "Present in package 1.91 final ELF; semantic audit pending",
+      "route": "direct",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp",
+        "src/hotspot/os_cpu/orbis_x86/**/*.cpp",
+        "src/hotspot/os/posix/*.cpp",
+        "src/java.base/unix/native/**/*.c",
+        "src/java.base/share/native/**/*.c",
+        "src/java.base/share/native/**/*.cpp",
+        "orbis-java-app/*.c",
+        "orbis-java-app/tools/*.c"
+      ],
+      "subsystem": "pending-audit",
+      "symbol": "sigsuspend"
+    },
+    {
+      "classification": "direct-verified",
+      "evidence": "OrbisJvmAbiProbe 0.1.12 semantic pass",
+      "route": "direct",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp",
+        "src/hotspot/os_cpu/orbis_x86/**/*.cpp",
+        "src/hotspot/os/posix/*.cpp",
+        "src/java.base/unix/native/**/*.c",
+        "src/java.base/share/native/**/*.c",
+        "src/java.base/share/native/**/*.cpp",
+        "orbis-java-app/*.c",
+        "orbis-java-app/tools/*.c"
+      ],
+      "subsystem": "pending-audit",
+      "symbol": "socketpair"
+    },
+    {
+      "classification": "direct-verified",
+      "evidence": "OrbisJvmAbiProbe 0.1.12 semantic pass",
+      "route": "direct",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp",
+        "src/hotspot/os_cpu/orbis_x86/**/*.cpp",
+        "src/hotspot/os/posix/*.cpp",
+        "src/java.base/unix/native/**/*.c",
+        "src/java.base/share/native/**/*.c",
+        "src/java.base/share/native/**/*.cpp",
+        "orbis-java-app/*.c",
+        "orbis-java-app/tools/*.c"
+      ],
+      "subsystem": "pending-audit",
+      "symbol": "stat"
+    },
+    {
+      "classification": "direct-verified",
+      "evidence": "OrbisJvmAbiProbe 0.1.12 semantic pass",
+      "route": "direct",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp",
+        "src/hotspot/os_cpu/orbis_x86/**/*.cpp",
+        "src/hotspot/os/posix/*.cpp",
+        "src/java.base/unix/native/**/*.c",
+        "src/java.base/share/native/**/*.c",
+        "src/java.base/share/native/**/*.cpp",
+        "orbis-java-app/*.c",
+        "orbis-java-app/tools/*.c"
+      ],
+      "subsystem": "pending-audit",
+      "symbol": "unlink"
+    },
+    {
+      "classification": "direct-verified",
+      "evidence": "OrbisJvmAbiProbe 0.1.12 semantic pass",
+      "route": "direct",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp",
+        "src/hotspot/os_cpu/orbis_x86/**/*.cpp",
+        "src/hotspot/os/posix/*.cpp",
+        "src/java.base/unix/native/**/*.c",
+        "src/java.base/share/native/**/*.c",
+        "src/java.base/share/native/**/*.cpp",
+        "orbis-java-app/*.c",
+        "orbis-java-app/tools/*.c"
+      ],
+      "subsystem": "pending-audit",
+      "symbol": "write"
+    },
+    {
+      "classification": "compile-verified",
+      "evidence": "Present in package 1.91 final ELF; semantic audit pending",
+      "route": "direct",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp",
+        "src/hotspot/os_cpu/orbis_x86/**/*.cpp",
+        "src/hotspot/os/posix/*.cpp",
+        "src/java.base/unix/native/**/*.c",
+        "src/java.base/share/native/**/*.c",
+        "src/java.base/share/native/**/*.cpp",
+        "orbis-java-app/*.c",
+        "orbis-java-app/tools/*.c"
+      ],
+      "subsystem": "pending-audit",
+      "symbol": "writev"
+    }
+  ],
+  "schema": 1
+}

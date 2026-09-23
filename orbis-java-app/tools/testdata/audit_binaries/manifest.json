@@ -1,0 +1,13 @@
+{
+  "binaries": [
+    "build/launcher.elf",
+    "build/native/libjvm.so",
+    "build/native/libjava.so",
+    "build/native/libnet.so",
+    "build/native/libnio.so",
+    "build/native/libzip.so",
+    "build/native/libverify.so",
+    "build/native/libjimage.so"
+  ],
+  "schema": 1
+}
