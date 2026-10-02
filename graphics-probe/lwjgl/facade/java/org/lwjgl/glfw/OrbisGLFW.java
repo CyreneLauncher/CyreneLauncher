@@ -171,13 +171,6 @@ final class OrbisGLFW {
             error(GLFW_PLATFORM_ERROR, "OpenGL function provider unavailable: " + failure);
             return false;
         }
-        try {
-            inputAvailable = NativeInput.start() == 0;
-            if (!inputAvailable) error(GLFW_PLATFORM_ERROR, "Runner input service unavailable; no input events");
-        } catch (LinkageError failure) {
-            inputAvailable = false;
-            error(GLFW_PLATFORM_ERROR, "Runner GPU input bridge unavailable (display=gpu required): " + failure);
-        }
         initialized = true;
         return true;
     }
@@ -339,6 +332,7 @@ final class OrbisGLFW {
             return NULL;
         }
         window = handle;
+        startInput();
         framebufferWidth = NativePlatform.nFramebufferWidth(handle);
         framebufferHeight = NativePlatform.nFramebufferHeight(handle);
         fullscreen = monitor != NULL;
@@ -351,6 +345,21 @@ final class OrbisGLFW {
 
     static long glfwCreateWindow(int width, int height, ByteBuffer windowTitle, long monitor, long share) {
         return glfwCreateWindow(width, height, windowTitle == null ? "" : memUTF8(memAddress(windowTitle)), monitor, share);
+    }
+
+    /**
+     * Input starts once the window, and with it VideoOut, exists: the console keyboard
+     * delivered no keys when opened before VideoOut (console mode always opened it after).
+     */
+    private static void startInput() {
+        if (inputAvailable) return;
+        try {
+            inputAvailable = NativeInput.start() == 0;
+            if (!inputAvailable) error(GLFW_PLATFORM_ERROR, "Runner input service unavailable; no input events");
+        } catch (LinkageError failure) {
+            inputAvailable = false;
+            error(GLFW_PLATFORM_ERROR, "Runner GPU input bridge unavailable (display=gpu required): " + failure);
+        }
     }
 
     static void glfwDestroyWindow(long handle) {

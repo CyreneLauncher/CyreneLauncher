@@ -26,7 +26,7 @@ public final class FacadeBehaviorTest {
         check(previous == null, "no previous error callback");
 
         check(glfwInit(), "glfwInit");
-        check(NativeInput.started, "input bridge started");
+        check(!NativeInput.started, "input waits for the window (VideoOut before keyboard)");
         check(GL.getFunctionProvider() != null, "GL function provider installed without loading libGL");
         check(GL.getFunctionProvider().getFunctionAddress("glClear") == 0x1000 + 7, "GL lookup goes through EGL");
         check(NativePlatform.procNames.contains("glClear"), "provider asked the platform");
@@ -45,6 +45,7 @@ public final class FacadeBehaviorTest {
         glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GLFW_TRUE);
         long window = glfwCreateWindow(854, 480, "Minecraft* 1.18.2", 0, 0);
         check(window != 0, "window created");
+        check(NativeInput.started, "input started with the window");
         int[] context = NativePlatform.lastContext;
         check(context[0] == 3 && context[1] == 2 && context[2] == 1 && context[3] == 1, "context hints forwarded");
         check(glfwCreateWindow(1, 1, "second", 0, 0) == 0 && lastError() == GLFW_PLATFORM_ERROR, "one window only");
