@@ -31,6 +31,8 @@ final class OrbisGLFW {
     private static final int INPUT_WIDTH = NativeInput.WIDTH, INPUT_HEIGHT = NativeInput.HEIGHT;
     private static final int MAX_EVENTS_PER_POLL = 256;
     private static final int HID_BACKSPACE = 42;
+    /** HID usages 0-3 are "no event" and keyboard error codes, never keys (seen on console). */
+    private static final int HID_FIRST_KEY = 4;
 
     private static boolean initialized, inputAvailable, dispatching;
     private static long window;
@@ -818,6 +820,9 @@ final class OrbisGLFW {
     private static void dispatch(int[] event) {
         int type = event[NativeInput.TYPE];
         int raw = event[NativeInput.RAW_KEY];
+        boolean keyEvent = type == NativeInput.EVENT_KEY_DOWN || type == NativeInput.EVENT_KEY_UP
+                || type == NativeInput.EVENT_TEXT;
+        if (keyEvent && raw < HID_FIRST_KEY) return;
         switch (type) {
             case NativeInput.EVENT_RESET:
             case NativeInput.EVENT_FOCUS:

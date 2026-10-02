@@ -75,6 +75,12 @@ public final class FacadeBehaviorTest {
         glfwSetCursorPosCallback(window, (win, x, y) -> events.add("cursor " + (int) x + " " + (int) y));
         glfwSetScrollCallback(window, (win, x, y) -> events.add("scroll " + (int) x + " " + (int) y));
 
+        // Reserved HID usages (0 = no event, 1-3 = keyboard errors) are not keys.
+        NativeInput.push(NativeInput.EVENT_KEY_DOWN, 0, 0, 0, 0, 0, 0, 0);
+        NativeInput.push(NativeInput.EVENT_KEY_DOWN, 1, 0, 0, 0, 0, 0, 0);
+        glfwPollEvents();
+        expect();
+
         // A: press, initial text, a repeat, release.
         NativeInput.push(NativeInput.EVENT_KEY_DOWN, 4, 0, 0, 0, 0, 0, 0);
         NativeInput.push(NativeInput.EVENT_TEXT, 4, 'a', 0, 0, 0, 0, 0);
