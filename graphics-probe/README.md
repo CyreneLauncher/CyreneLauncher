@@ -50,3 +50,30 @@ Build the separate installable probe package with `make -C graphics-probe packag
 4. Relaunch the normal application three times with both marker files absent. Each run must repeat the checks and shut down cleanly. Record base and Pro results separately; a Liverpool renderer string on Pro does not prove Pro GPU support.
 
 The previous console run crashed during Mesa configuration parsing before rendering. This package includes the corrected libc16 link and default process name guard, but successful context creation and rendering still require a new device run. The backend decision remains pending until device logs and visible presentation confirm the checks. If a stage fails, preserve the log and investigate that stage before GLFW/LWJGL integration.
+
+## Runner graphics bundle (LWJGL 3.2.2, in progress)
+
+`make -C graphics-probe graphics-bundle` builds the optional bundle the runner loads in
+`display=gpu` mode and writes it to `graphics-probe/build/graphics-bundle/`. Upload that
+directory's contents to the runner's `graphics_bundle` path (default `/data/orbis-jdk/graphics`).
+Inputs: the Mesa target build above, the pinned LWJGL 3.2.2 and dyncall 1.0 archives from
+`lwjgl/lwjgl-sources.lock.json` in `build/downloads/` (or `FETCH=--fetch`), and the official
+LWJGL 3.2.2 Java JARs in `LWJGL_JARS`, verified against the pinned SHA-1s.
+
+| File | Built by | Contents |
+| --- | --- | --- |
+| `lib/liborbis_lwjgl_platform.so` | `tools/build_platform_prx.py` | Mesa EGL/GL/Zink/RADV, orbis-compat, libc16 bridge, EGL bridge for `orbis.graphics.NativePlatform` |
+| `lib/liblwjgl.so`, `lib/liblwjgl_opengl.so` | `tools/build_lwjgl_natives.py` | LWJGL 3.2.2 core (with dyncall 1.0) and OpenGL JNI |
+| `lib/orbis-lwjgl-3.2.2-adapter.jar` | `tools/build_lwjgl_facade.py` | GLFW facade, `Platform` shim accepting `os.name=Orbis`, `NativePlatform` |
+| `graphics-bundle.json` | `tools/package_graphics_bundle.py` | schema 1 manifest, validated with the runner's `GraphicsBundle` reader |
+
+The three native modules are SELF PRXs with `.so` names, linked with the JDK native-module
+recipe (`tools/orbis_prx.py`) and per-thread PRX TLS (`orbis-java-app/tools/orbis_prx_tls.c`),
+because the loader gives user PRXs no TLS block of their own. The adapter JAR must precede
+`lwjgl-3.2.2.jar` on the class path and replaces `lwjgl-glfw-3.2.2.jar`; its GLFW classes are
+the official bytecode except a generated `GLFW` (exact 3.2.2 descriptors; 83 of 189 methods
+implemented, the rest throw `UnsupportedOperationException`) and a Java `Callbacks`. Input
+comes from the runner's input service (`runner.gpu.NativeInput`). Host checks:
+`test_platform_prx.py`, `test_lwjgl_natives.py`, `test_lwjgl_facade.py`,
+`test_graphics_bundle.py`. None of this has run on a console yet; see `legal/README.md` in the
+bundle for licensing items still open.
