@@ -41,7 +41,7 @@ RUNTIME_VERSION ?= 17.0.20
 JLINK_COMPRESS ?= 0
 RUNTIME_MODULES ?= java.desktop,java.datatransfer,java.prefs,java.base,java.logging,java.xml,java.net.http,java.transaction.xa,java.sql,java.naming,java.security.jgss,java.security.sasl,java.sql.rowset,java.xml.crypto,java.scripting,java.rmi,jdk.charsets,jdk.localedata,jdk.random,jdk.unsupported,jdk.zipfs,java.compiler,jdk.httpserver,jdk.naming.dns,jdk.naming.rmi,jdk.net,jdk.nio.mapmode,jdk.security.auth,jdk.security.jgss,jdk.xml.dom,jdk.dynalink,jdk.crypto.ec,java.management,jdk.management
 TARGET_FLAGS := --target=x86_64-pc-freebsd12-elf -fPIC -funwind-tables -Wno-writable-strings -isysroot $(TOOLCHAIN) -isystem $(TOOLCHAIN)/include
-APP_SOURCES := $(wildcard $(PROJECT_DIR)/src/runner/*.java)
+APP_SOURCES := $(wildcard $(PROJECT_DIR)/src/runner/*.java $(PROJECT_DIR)/src/runner/lwjgl/*.java)
 
 .PHONY: all runner package jdk-export check check-artifacts clean FORCE
 all: package

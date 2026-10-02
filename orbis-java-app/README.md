@@ -205,3 +205,33 @@ The runner can opt into the integrated Cacio desktop path with
 establish PS4 device, presentation, or GUI behavior. Full AWT compatibility,
 movable/resizable windows, and modality are not claimed; managed-window behavior
 and input details need hardware acceptance and further adaptation.
+
+## LWJGL launch metadata (GPU mode, in progress)
+
+`runner.lwjgl` resolves a local Mojang-style version JSON before any game native
+code loads. `VersionMetadataResolver.resolve(versionJson, librariesRoot,
+MetadataPlatform.ORBIS)` reads the `libraries` list in the format used by
+Minecraft 1.18.2: rules may test only `os.name` and `os.arch`; Orbis is
+evaluated as Mojang's `linux` Java track. Native classifiers (`downloads.classifiers`
+and `:natives-*` coordinates) are recorded as skipped and never placed on the
+class path. Artifact paths must be plain relative paths that stay below the
+libraries root, symlinks included. Declared `size`, `sha1` and `sha256` are verified.
+The plan lists the class path in metadata order without duplicates, the
+selected `org.lwjgl` module versions and their SHA-1s. Game argument rules,
+downloads, assets and `inheritsFrom` mod loader inheritance are not supported.
+
+`LwjglProfileRegistry` accepts only exact tested sets. The single registered
+profile, `minecraft-1.18.2-lwjgl-3.2.2-orbis-v1`, requires the seven LWJGL 3.2.2
+modules with their audited SHA-1s. Any missing, extra, mixed or rebuilt module is
+rejected. Profile selection also validates `<graphics_bundle>/graphics-bundle.json`
+(schema version 1): `files` maps bundle-relative paths to SHA-256; `profiles`
+entries carry `id`, the exact `modules`, `java_adapter_paths`,
+`native_library_paths`, `glfw_operations` and `gl_features`. Unknown fields,
+symlinks and hash mismatches fail.
+
+Failures are `LaunchPlanException`s with a stable category: `METADATA_PARSE`,
+`METADATA_UNSUPPORTED`, `METADATA_CONFLICT`, `ARTIFACT_PATH`, `ARTIFACT_MISSING`,
+`ARTIFACT_MISMATCH`, `LWJGL_CONFLICT`, `PROFILE_UNSUPPORTED` and `BUNDLE_INVALID`.
+These classes are part of `app.jar` but are not yet invoked by `runner.Main`;
+a successful resolution does not mean LWJGL runs on Orbis. Host fixtures:
+`python3 tests/test_lwjgl_metadata.py`.
