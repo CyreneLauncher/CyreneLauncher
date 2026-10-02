@@ -1,0 +1,26 @@
+{
+  "format": "guarded-source-hunks",
+  "applied_by": "../tools/build_cacio.py",
+  "hunks": [
+    "ctc/CTCScreen.java: remove the complete final Android LD_LIBRARY_PATH/libpojavexec initializer; preserve the class close",
+    "ctc/CTCToolkit.java: replace CTCClipboard with the local Clipboard",
+    "ctc/CTCDesktopPeer.java: throw IOException for external open/browse; report APP_ABOUT and APP_QUIT_HANDLER unsupported and reject direct setter calls",
+    "ctc/CTCClipboard.java: omit Android native hooks",
+    "ctc/CTCPreloadClassLoader.java: omit unused reflective preload helper",
+    "ctc/FontManagerUtil.java: omit unused reflective font helper",
+    "ctc/CTCScreen.java: synchronized singleton initialization, public fixed-geometry initialization entry",
+    "ctc/CTCToolkit.java: return the screen's ARGB ColorModel",
+    "peer/CacioToolkit.java: preserve the platform font manager instead of forcing FcFontManager",
+    "ctc/CTCScreen.java: safely publish singleton, copy canonical caller-owned ARGB under screenLock, serialize snapshot close/sequence state and locked RobotPeer pixel reads; remove mutable getCurrentScreenRGB exposure",
+    "runner/desktop/DesktopSession.java: delegate copy/close to CTCScreen shared lock without session monitor",
+    "ctc/CTCScreen.java: add closeFrameSubmission and make copyCurrentScreenARGB return the successful sequence under the same screenLock",
+    "ctc/CTCEventSource.java: synchronized singleton and installation; volatile optional CacioEventSource delegate with PollingEventSource finite poll; 255 local queue slots plus one reserved full-screen paint invalidation, coalesce same-source/same-ID rectangles under source monitor; local polls at most 2ms; explicit Robot input overflow",
+    "peer/CacioEventPump.java: preserve interruption and explicitly exit on InterruptedException without printing/retrying; finally clear AWTAutoShutdown busy on every exit",
+    "managed/FullScreenWindowFactory.java: eagerly create single-screen managed root and accept that root without PlatformScreen cast; retain existing FullScreenEventPump",
+    "ctc/CTCScreen.java: public getEventRoot returning existing public ScreenManagedWindowContainer without drawing lock",
+    "managed/FullScreenEventPump.java: process local paint invalidations with managed repaint so coalesced and overflow invalidations remain recoverable",
+    "managed/EventData.java: explicit button for pressed/released/clicked; NOBUTTON for other mouse IDs; signed dedicated wheelRotation accessor and clear",
+    "ctc/CTCRobotPeer.java: convert existing button-down masks to explicit AWT button IDs for compatibility with EventData conversion"
+  ],
+  "failure_policy": "Each textual replacement requires exactly one expected source hunk; the screen initializer must match in full and be final. Missing, duplicate, or moved hunks abort the build."
+}

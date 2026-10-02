@@ -1,0 +1,4 @@
+{
+  "native_binaries": ["libjvm.so", "libjava.so", "libnet.so", "libnio.so", "libzip.so", "libverify.so", "libjimage.so", "libmanagement.so", "libmanagement_ext.so", "libjaas.so"],
+  "schema": 1
+}

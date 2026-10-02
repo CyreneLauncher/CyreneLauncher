@@ -1,0 +1,12 @@
+# Console remains the default. Desktop mode needs the separately FTP-installed
+# three-JAR Cacio export under desktop_bundle before startup. GPU mode needs a
+# graphics bundle (graphics-bundle.json) under graphics_bundle; see README.
+java_home=/data/orbis-jdk/jdk
+jar=/data/orbis-jdk/runner/target.jar
+working_directory=/data/orbis-jdk/runner
+output_log=/data/orbis-jdk/runner/runner-output.log
+temporary_directory=/data/orbis-jdk/runner/tmp
+debug=false
+display=console
+desktop_bundle=/data/orbis-jdk/cacio
+graphics_bundle=/data/orbis-jdk/graphics

@@ -1,0 +1,66 @@
+{
+  "sdk": {
+    "expected_path": "/home/wonder/PS4Toolchain",
+    "sha256": {
+      "link.x": "e52b4bf39ecf6db66c861d130fe89a67aec6e34c5af394faf60331a1655769c1",
+      "include/pthread.h": "697639ba04b6d7623f87a8b391cdb7333c07c2c66c6081bea055a9008f3aaff1",
+      "lib/libc.a": "dd3f25830490bc0aab6a87a1bce890a502e2ec874ac8c3169e37210c4e49aef7",
+      "lib/libc++.a": "9c0ddc37ccba2ab11b2a61a330af941c1bc0c806c8f6fade92db682049836e9a",
+      "lib/crt1.o": "4173c4401c0b5d0a72c2641f712982bb38a78e346515278a32fa99d4bbf9dd86"
+    }
+  },
+  "host_dependencies": {
+    "meson": "1.7.2",
+    "Mako": "1.3.10",
+    "MarkupSafe": "2.1.5",
+    "PyYAML": "6.0.2",
+    "packaging": "24.2",
+    "ply": "3.11",
+    "installed_tool_sha256": {
+      "host/usr/bin/bison": "b67826f519b3bc9c6cc4fb50d03bf6c362ba3f202b32a553c7256a801f4c985e",
+      "host/usr/bin/flex": "6b70611fd650c8216b5c8c1a54a69ed470cd82c63ec0dc095dd4d9782bc3efbb"
+    },
+    "meson_entry_body_sha256": "11db108ed574a4a54d311044d47a4752f2dd615cf6194876aaa51bbc4db0d3ae",
+    "extracted_payload_sha256": "3a84bda97ed03a0bd6429099e87e2fd67c00c06511ec8a46cd56ec8214bfd44f",
+    "flex_deb": {
+      "version": "2.6.4-8.2build1",
+      "sha256": "c5604f55827b50e3f568b4731b7799f86b147454c867be02bc141d9d8ce561ff"
+    },
+    "bison_deb": {
+      "version": "2:3.8.2+dfsg-1ubuntu0.24.04.1",
+      "sha256": "9d75084d1293f68f3c1a2ee677dea5baa4e010bac2d4c455d8e23177e97aa353"
+    }
+  },
+  "python_wheels": {
+    "meson-1.7.2-py3-none-any.whl": "82c6818dc81743c96de3a458f06175776ebfde4081195ea31ea6971838f25e38",
+    "mako-1.3.10-py3-none-any.whl": "baef24a52fc4fc514a0887ac600f9f1cff3d82c61d4d700a1fa84d597b88db59",
+    "PyYAML-6.0.2-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl": "80bab7bfc629882493af4aa31a4cfa43a4c57c83813253626916b8c7ada83476",
+    "packaging-24.2-py3-none-any.whl": "09abb1bccd265c01f4a3aa3f7a7db064b36514d2cba19a2f694fe6150451a759",
+    "ply-3.11-py2.py3-none-any.whl": "096f9b8350b65ebd2fd1346b12452efe5b9607f7482813ffca50c22722a807ce",
+    "MarkupSafe-2.1.5-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl": "f5dfb42c4604dddc8e4305050aa6deb084540643ed5804d7455b5df8fe16f5e5"
+  },
+  "zlib": {
+    "source_filename": "zlib-1.3.1.tar.gz",
+    "source_sha256": "9a93b2b7dfdac77ceba5a558a580e74667dd6fede4585b91eefb60f03b72df23",
+    "patch_filename": "zlib_1.3.1-1_patch.zip",
+    "patch_sha256": "e79b98eb24a75392009cec6f99ca5cdca9881ff20bfa174e8b8926d5c7a47095",
+    "tree_sha256": "a6dbdc012587ae04d79de0883ebbb8e8a98f6d591a9b403a3ada532c0ce15e4f"
+  },
+  "compat_archive_sha256": "85e5ad890a1abbef602281c73e43809f632b7b534c9301a344ada867df89b5f7",
+  "sources": {
+    "mesa": {
+      "url": "https://github.com/orbis-ports/mesa-ps4.git",
+      "revision": "1a59cc147b54e3970814b37313e2f27357672e9d",
+      "seed": "/tmp/mesa-ps4-audit"
+    },
+    "orbis-compat": {
+      "url": "https://github.com/orbis-ports/orbis-compat.git",
+      "revision": "6922a7b6f4291a28edd239f1a4db50ed7aa00359",
+      "seed": "/tmp/orbis-compat-audit"
+    },
+    "orbis-porting-kit": {
+      "url": "https://github.com/orbis-ports/orbis-porting-kit.git",
+      "revision": "213b0c38ff25ea7ca402c8844a6494086d0f1cae"
+    }
+  }
+}
