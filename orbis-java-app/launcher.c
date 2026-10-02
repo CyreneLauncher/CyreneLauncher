@@ -21,6 +21,7 @@
 #include "launcher_profile.h"
 #include "tools/orbis_screen_console.h"
 #include "tools/orbis_desktop_bridge.h"
+#include "tools/orbis_gpu_input_bridge.h"
 #include "tools/orbis_desktop_preflight.h"
 
 struct ScreenConsoleLifetime {
@@ -1472,6 +1473,12 @@ int main(int argc, char **argv) {
     runner_debug("RETURN register screen input success");
 #endif
 
+    if (runner_display_gpu() && orbis_gpu_input_bridge_register(env) < 0) {
+        check_exception(env);
+        startup_error("gpu input JNI bridge registration failed");
+        vm->DestroyJavaVM();
+        return 3;
+    }
     if (runner_display_desktop() && orbis_desktop_bridge_register(env) < 0) {
         check_exception(env);
         startup_error("desktop JNI bridge registration failed");

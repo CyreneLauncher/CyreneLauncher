@@ -22,6 +22,7 @@ bool started;
 bool stopping;
 bool lifecycle_busy;
 bool desktop_enabled;
+bool focus_toggle_enabled = true;
 bool swallowed_keys[256];
 int keyboard_handle = -1;
 int mouse_handle = -1;
@@ -276,7 +277,7 @@ void *collect(void *) {
                     uint64_t tick = now_us();
                     held_since[key] = tick;
                     repeat_due[key] = tick + 500000;
-                    if (key == ORBIS_KEYBOARD_KEY_F12 && desktop_enabled) {
+                    if (key == ORBIS_KEYBOARD_KEY_F12 && desktop_enabled && focus_toggle_enabled) {
                         orbis_input_focus next = focus == ORBIS_INPUT_FOCUS_CONSOLE
                                 ? ORBIS_INPUT_FOCUS_DESKTOP : ORBIS_INPUT_FOCUS_CONSOLE;
                         swallowed_keys[key] = true;
@@ -574,6 +575,26 @@ extern "C" int32_t orbis_input_set_desktop_enabled(int32_t enabled) {
     pthread_mutex_unlock(&lock);
     if (was_enabled != (enabled != 0) || focus_changed)
         orbis_display_set_cursor(cx, cy, visible);
+    return 0;
+}
+
+extern "C" int32_t orbis_input_set_focus_toggle_enabled(int32_t enabled) {
+    pthread_mutex_lock(&lock);
+    focus_toggle_enabled = enabled != 0;
+    pthread_mutex_unlock(&lock);
+    return 0;
+}
+
+extern "C" int32_t orbis_input_set_pointer(int32_t x, int32_t y) {
+    if (x < 0) x = 0; if (x > 1279) x = 1279;
+    if (y < 0) y = 0; if (y > 719) y = 719;
+    pthread_mutex_lock(&lock);
+    // A warp moves the reference point; it is not reported as motion.
+    mouse_x = state.x = x;
+    mouse_y = state.y = y;
+    bool visible = desktop_enabled && focus == ORBIS_INPUT_FOCUS_DESKTOP;
+    pthread_mutex_unlock(&lock);
+    orbis_display_set_cursor(x, y, visible);
     return 0;
 }
 

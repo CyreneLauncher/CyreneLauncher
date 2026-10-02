@@ -1,11 +1,12 @@
 #include "orbis_desktop_bridge.h"
 #include "orbis_display_service.h"
+#include "orbis_input_packet.h"
 #include "orbis_input_service.h"
 #include <pthread.h>
 #include <stdlib.h>
 
 namespace {
-constexpr jint kVersion = 1, kWords = 24;
+constexpr jint kVersion = ORBIS_INPUT_PACKET_VERSION, kWords = ORBIS_INPUT_PACKET_WORDS;
 pthread_mutex_t bridge_lock = PTHREAD_MUTEX_INITIALIZER;
 jint *scratch;
 bool active, closed;
@@ -74,22 +75,9 @@ jint JNICALL read_event(JNIEnv *env, jclass, jintArray packet, jint timeout) {
     Guard guard;
     if (!active || closed) return -2;
     if (result != 0) return result;
-    if (event.abi_version != ORBIS_INPUT_ABI_VERSION ||
-        event.struct_size != sizeof(event) || event.type > ORBIS_INPUT_EVENT_FOCUS ||
-        event.focus != ORBIS_INPUT_FOCUS_DESKTOP) return -1;
-    jint words[kWords] = {kVersion, kWords, static_cast<jint>(event.type),
-        static_cast<jint>(event.focus), static_cast<jint>(event.monotonic_us),
-        static_cast<jint>(event.monotonic_us >> 32), static_cast<jint>(event.reset_generation),
-        static_cast<jint>(event.reset_generation >> 32), static_cast<jint>(event.raw_key),
-        static_cast<jint>(event.unicode_scalar), static_cast<jint>(event.modifiers),
-        event.x, event.y, static_cast<jint>(event.button), event.wheel_delta,
-        static_cast<jint>(event.pressed_buttons)};
-    for (int i = 0; i < 8; ++i) {
-        uint32_t value = 0;
-        for (int b = 0; b < 4; ++b)
-            value |= static_cast<uint32_t>(event.pressed_keys[i * 4 + b]) << (b * 8);
-        words[16 + i] = static_cast<jint>(value);
-    }
+    if (!orbis_input_event_valid(&event, ORBIS_INPUT_FOCUS_DESKTOP)) return -1;
+    jint words[kWords];
+    orbis_input_pack_event(&event, words);
     env->SetIntArrayRegion(packet, 0, kWords, words);
     return env->ExceptionCheck() ? -1 : 0;
 }

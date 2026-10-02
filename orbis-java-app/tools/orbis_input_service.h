@@ -68,6 +68,12 @@ int32_t orbis_input_set_focus(orbis_input_focus focus);
 int32_t orbis_input_read_event(orbis_input_focus requested_focus,
                                orbis_input_event *out, uint32_t timeout_ms);
 int32_t orbis_input_get_state(orbis_input_state *out);
+/* F12 switches console/desktop focus while enabled (default). Modes without a
+ * visible console disable it so the application keeps input. */
+int32_t orbis_input_set_focus_toggle_enabled(int32_t enabled);
+/* Moves the pointer reference (clamped to 1280x720) without a MOTION event;
+ * relative-motion consumers re-centre with it. */
+int32_t orbis_input_set_pointer(int32_t x, int32_t y);
 
 #ifdef __cplusplus
 }

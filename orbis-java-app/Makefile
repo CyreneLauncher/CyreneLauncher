@@ -41,7 +41,7 @@ RUNTIME_VERSION ?= 17.0.20
 JLINK_COMPRESS ?= 0
 RUNTIME_MODULES ?= java.desktop,java.datatransfer,java.prefs,java.base,java.logging,java.xml,java.net.http,java.transaction.xa,java.sql,java.naming,java.security.jgss,java.security.sasl,java.sql.rowset,java.xml.crypto,java.scripting,java.rmi,jdk.charsets,jdk.localedata,jdk.random,jdk.unsupported,jdk.zipfs,java.compiler,jdk.httpserver,jdk.naming.dns,jdk.naming.rmi,jdk.net,jdk.nio.mapmode,jdk.security.auth,jdk.security.jgss,jdk.xml.dom,jdk.dynalink,jdk.crypto.ec,java.management,jdk.management
 TARGET_FLAGS := --target=x86_64-pc-freebsd12-elf -fPIC -funwind-tables -Wno-writable-strings -isysroot $(TOOLCHAIN) -isystem $(TOOLCHAIN)/include
-APP_SOURCES := $(wildcard $(PROJECT_DIR)/src/runner/*.java $(PROJECT_DIR)/src/runner/lwjgl/*.java)
+APP_SOURCES := $(wildcard $(PROJECT_DIR)/src/runner/*.java $(PROJECT_DIR)/src/runner/gpu/*.java $(PROJECT_DIR)/src/runner/lwjgl/*.java)
 
 .PHONY: all runner package jdk-export check check-artifacts clean FORCE
 all: package
@@ -66,7 +66,7 @@ $(BUILD)/app.jar: $(BUILD)/classes.stamp
 	$(BOOT_JDK)/bin/jar --create --file $@ -C $(CLASSES) .
 $(BUILD)/launcher_profile.h: $(PROJECT_DIR)/tools/write_launcher_profile.py $(BUILD)/settings
 	$(PYTHON) $< --output $@ --main-class runner/Main --user-dir /data/orbis-jdk/runner --log-path /data/orbis-jdk/logs/orbis-runner.log --tmp-dir /data/orbis-jdk/runner/tmp --runtime-jvm-options /data/orbis-jdk/runner/jvm-options.txt --screen-console --java-option=-Dsun.nio.fs.chdirAllowed=true --java-option=-XX:HeapBaseMinAddress=4g
-$(BUILD)/launcher.o: $(PROJECT_DIR)/launcher.c $(PROJECT_DIR)/tools/runner_config.h $(PROJECT_DIR)/tools/orbis_stat.h $(PROJECT_DIR)/tools/orbis_runtime.h $(PROJECT_DIR)/tools/orbis_mapping_probe.h $(PROJECT_DIR)/tools/orbis_screen_console.h $(PROJECT_DIR)/tools/orbis_input_service.h $(PROJECT_DIR)/tools/orbis_display_service.h $(PROJECT_DIR)/tools/orbis_desktop_bridge.h $(PROJECT_DIR)/tools/orbis_desktop_preflight.h $(BUILD)/launcher_profile.h $(BUILD)/settings
+$(BUILD)/launcher.o: $(PROJECT_DIR)/launcher.c $(PROJECT_DIR)/tools/runner_config.h $(PROJECT_DIR)/tools/orbis_stat.h $(PROJECT_DIR)/tools/orbis_runtime.h $(PROJECT_DIR)/tools/orbis_mapping_probe.h $(PROJECT_DIR)/tools/orbis_screen_console.h $(PROJECT_DIR)/tools/orbis_input_service.h $(PROJECT_DIR)/tools/orbis_display_service.h $(PROJECT_DIR)/tools/orbis_desktop_bridge.h $(PROJECT_DIR)/tools/orbis_gpu_input_bridge.h $(PROJECT_DIR)/tools/orbis_desktop_preflight.h $(BUILD)/launcher_profile.h $(BUILD)/settings
 	$(CXX) $(TARGET_FLAGS) -x c++ -DORBIS_JAVA_BUILD_VERSION=\"$(VERSION)\" -DORBIS_JAVA_BUILD_KIND=\"jar-runner-screen-console\" -I$(BUILD) -I$(JNI_HEADERS) -I$(JNI_HEADERS)/$(JNI_PLATFORM) -c $< -o $@
 $(BUILD)/%.o: $(PROJECT_DIR)/tools/%.c $(BUILD)/settings
 	$(CC) $(TARGET_FLAGS) -MMD -MP -c $< -o $@
@@ -76,12 +76,14 @@ $(BUILD)/orbis_display_service.o: $(PROJECT_DIR)/tools/orbis_display_service.cpp
 	$(CXX) $(TARGET_FLAGS) -MMD -MP -c $< -o $@
 $(BUILD)/orbis_input_service.o: $(PROJECT_DIR)/tools/orbis_input_service.cpp $(PROJECT_DIR)/tools/orbis_input_service.h $(PROJECT_DIR)/tools/orbis_mouse_abi.h $(PROJECT_DIR)/tools/orbis_display_service.h $(BUILD)/settings
 	$(CXX) $(TARGET_FLAGS) -MMD -MP -c $< -o $@
-$(BUILD)/orbis_desktop_bridge.o: $(PROJECT_DIR)/tools/orbis_desktop_bridge.cpp $(PROJECT_DIR)/tools/orbis_desktop_bridge.h $(PROJECT_DIR)/tools/orbis_display_service.h $(PROJECT_DIR)/tools/orbis_input_service.h $(BUILD)/settings
+$(BUILD)/orbis_desktop_bridge.o: $(PROJECT_DIR)/tools/orbis_desktop_bridge.cpp $(PROJECT_DIR)/tools/orbis_desktop_bridge.h $(PROJECT_DIR)/tools/orbis_display_service.h $(PROJECT_DIR)/tools/orbis_input_service.h $(PROJECT_DIR)/tools/orbis_input_packet.h $(BUILD)/settings
+	$(CXX) $(TARGET_FLAGS) -MMD -MP -I$(JNI_HEADERS) -I$(JNI_HEADERS)/$(JNI_PLATFORM) -c $< -o $@
+$(BUILD)/orbis_gpu_input_bridge.o: $(PROJECT_DIR)/tools/orbis_gpu_input_bridge.cpp $(PROJECT_DIR)/tools/orbis_gpu_input_bridge.h $(PROJECT_DIR)/tools/orbis_input_service.h $(PROJECT_DIR)/tools/orbis_input_packet.h $(BUILD)/settings
 	$(CXX) $(TARGET_FLAGS) -MMD -MP -I$(JNI_HEADERS) -I$(JNI_HEADERS)/$(JNI_PLATFORM) -c $< -o $@
 $(BUILD)/orbis_desktop_preflight.o: $(PROJECT_DIR)/tools/orbis_desktop_preflight.cpp $(PROJECT_DIR)/tools/orbis_desktop_preflight.h $(PROJECT_DIR)/tools/runner_config.h $(BUILD)/settings
 	$(CXX) $(TARGET_FLAGS) -MMD -MP -c $< -o $@
 -include $(wildcard $(BUILD)/*.d)
-$(BUILD)/launcher.elf: $(BUILD)/orbis_desktop_bridge.o $(BUILD)/orbis_desktop_preflight.o $(BUILD)/launcher.o $(BUILD)/runner_config.o $(BUILD)/orbis_runtime.o $(BUILD)/orbis_mapping_probe.o $(BUILD)/orbis_screen_console.o $(BUILD)/orbis_display_service.o $(BUILD)/orbis_input_service.o
+$(BUILD)/launcher.elf: $(BUILD)/orbis_desktop_bridge.o $(BUILD)/orbis_gpu_input_bridge.o $(BUILD)/orbis_desktop_preflight.o $(BUILD)/launcher.o $(BUILD)/runner_config.o $(BUILD)/orbis_runtime.o $(BUILD)/orbis_mapping_probe.o $(BUILD)/orbis_screen_console.o $(BUILD)/orbis_display_service.o $(BUILD)/orbis_input_service.o
 	$(LD) -m elf_x86_64 -pie --script $(TOOLCHAIN)/link.x --eh-frame-hdr -L$(TOOLCHAIN)/lib --rpath=/app0 --wrap=_exit -o $@ $^ $(TOOLCHAIN)/lib/crt1.o -lc -lkernel -lc++ -lSceVideoOut -lSceKeyboard -lSceMouse -lSceSysmodule -lSceUserService
 $(STAGE)/eboot.bin: $(BUILD)/launcher.elf
 	mkdir -p $(STAGE)
