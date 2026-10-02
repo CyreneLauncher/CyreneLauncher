@@ -189,18 +189,37 @@ void enqueue_locked(const orbis_input_event &event) {
     pthread_cond_broadcast(&changed);
 }
 
-/* Bounded UART evidence for the reverse-engineered keyboard ABI (debug mode only). */
-void log_keyboard_sample(const OrbisKeyboardData &sample) {
-    if (!diagnostics_enabled || keyboard_samples_logged >= 24) return;
-    const uint8_t *bytes = reinterpret_cast<const uint8_t *>(&sample);
-    bool active = false;
-    for (size_t i = 16; i < sizeof(sample); ++i) active |= bytes[i] != 0 && i != 16;
-    if (!active) return;
+/*
+ * The SDK's OrbisKeyboardData is reverse-engineered and the console disagrees with it
+ * (constant nkeys=1, keycode 0, timestamp 0). Reads go into an oversized canary-filled
+ * buffer so a larger firmware structure cannot overrun the stack, and debug mode reports
+ * how many bytes the firmware writes and dumps the buffer whenever its content changes.
+ */
+constexpr size_t kKeyboardReadBytes = 256;
+constexpr uint8_t kKeyboardCanary = 0xa5;
+uint8_t keyboard_last_dump[kKeyboardReadBytes];
+bool keyboard_size_logged;
+
+void log_keyboard_read(const uint8_t *bytes, int32_t result) {
+    if (!diagnostics_enabled) return;
+    size_t written = kKeyboardReadBytes;
+    while (written > 0 && bytes[written - 1] == kKeyboardCanary) --written;
+    if (!keyboard_size_logged) {
+        keyboard_size_logged = true;
+        char line[160];
+        snprintf(line, sizeof(line), "orbis-java-input: kbd read result=0x%08x wrote %u of %u bytes (sdk struct %u)\n",
+                 static_cast<unsigned>(result), static_cast<unsigned>(written),
+                 static_cast<unsigned>(kKeyboardReadBytes), static_cast<unsigned>(sizeof(OrbisKeyboardData)));
+        sceKernelDebugOutText(0, line);
+    }
+    if (keyboard_samples_logged >= 48 || memcmp(bytes, keyboard_last_dump, kKeyboardReadBytes) == 0) return;
+    memcpy(keyboard_last_dump, bytes, kKeyboardReadBytes);
     ++keyboard_samples_logged;
-    char line[400];
-    int used = snprintf(line, sizeof(line), "orbis-java-input: kbd sample %u size=%u nkeys=%d mods=0x%x bytes=",
-                        keyboard_samples_logged, static_cast<unsigned>(sizeof(sample)), sample.nkeys, sample.mods);
-    for (size_t i = 0; i < sizeof(sample) && used < static_cast<int>(sizeof(line)) - 3; ++i)
+    size_t shown = written < 160 ? written : 160;
+    char line[420];
+    int used = snprintf(line, sizeof(line), "orbis-java-input: kbd change %u wrote=%u bytes=",
+                        keyboard_samples_logged, static_cast<unsigned>(written));
+    for (size_t i = 0; i < shown && used < static_cast<int>(sizeof(line)) - 3; ++i)
         used += snprintf(line + used, sizeof(line) - used, "%02x", bytes[i]);
     snprintf(line + used, sizeof(line) - used, "\n");
     sceKernelDebugOutText(0, line);
@@ -259,9 +278,14 @@ void *collect(void *) {
             mhandle = mouse_handle;
         }
         OrbisKeyboardData sample{};
+        alignas(16) uint8_t raw_sample[kKeyboardReadBytes];
         int32_t result = 0;
-        if (handle >= 0)
-            result = sceKeyboardReadState(handle, &sample);
+        if (handle >= 0) {
+            memset(raw_sample, kKeyboardCanary, sizeof(raw_sample));
+            result = sceKeyboardReadState(handle, reinterpret_cast<OrbisKeyboardData *>(raw_sample));
+            memcpy(&sample, raw_sample, sizeof(sample));
+            log_keyboard_read(raw_sample, result);
+        }
         if (result < 0) {
             keyboard_retry_after = now_us() + 1000000;
             sceKeyboardClose(handle);
@@ -280,7 +304,6 @@ void *collect(void *) {
             }
         }
         bool keyboard_sample_valid = handle >= 0 && result >= 0;
-        if (keyboard_sample_valid) log_keyboard_sample(sample);
         if (keyboard_sample_valid && (sample.nkeys < 0 || sample.nkeys > 32)) {
             pthread_mutex_lock(&lock);
             reset_keyboard_locked();
