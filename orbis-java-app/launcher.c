@@ -565,10 +565,16 @@ static void run_hotspot_reservation_probe(const char *stage) {
 }
 #endif
 
+static int runner_display_desktop(void) { return runner_config.display == RUNNER_DISPLAY_DESKTOP; }
+static int runner_display_gpu(void) { return runner_config.display == RUNNER_DISPLAY_GPU; }
+static const char *runner_display_name(void) {
+    return runner_display_gpu() ? "gpu" : runner_display_desktop() ? "desktop" : "console";
+}
+
 // Desktop owns its toolkit, fonts and software pipeline. Console profiles keep
 // their existing accepted option set.
 static int desktop_option_conflict(const char *option) {
-    if (!runner_config.desktop) return 0;
+    if (!runner_display_desktop()) return 0;
     const char *prefixes[] = {"-Djava.awt.", "-Dawt.", "-Dorbis.awt.", "-Dcacio.",
         "-Dswing.", "-Dsun.awt.", "-Dsun.java2d.", "-Dsun.font.",
         "-Dsun.fontmanager", "-Dsun.fontconfig", "-Dsun.jnu.font",
@@ -985,17 +991,26 @@ static int validate_runner_paths(void) {
 int main(int argc, char **argv) {
     setvbuf(stdout, NULL, _IONBF, 0);
     orbis_log_open();
-#if ORBIS_PROFILE_SCREEN_CONSOLE
-    int screen_console_ready = orbis_screen_console_init() == 0;
-    ScreenConsoleLifetime screen_console_lifetime;
-    if (!screen_console_ready) {
-        debug_text("orbis-java: screen console unavailable; continuing\n");
-        orbis_log_line("WARN", "launcher", "screen console initialization failed");
-    }
-#endif
     char configuration_error[1024];
-    if (runner_config_load(RUNNER_CONFIG_PATH, &runner_config,
-                           configuration_error, sizeof(configuration_error)) < 0) {
+    int configuration_result = runner_config_load(RUNNER_CONFIG_PATH, &runner_config,
+        configuration_error, sizeof(configuration_error));
+#if ORBIS_PROFILE_SCREEN_CONSOLE
+    // GPU mode leaves VideoOut and input to the graphics bundle. Console, desktop
+    // and configuration failures keep the CPU screen for startup diagnostics.
+    int screen_console_ready = 0;
+    if (configuration_result < 0 || !runner_display_gpu()) {
+        screen_console_ready = orbis_screen_console_init() == 0;
+        if (!screen_console_ready) {
+            debug_text("orbis-java: screen console unavailable; continuing\n");
+            orbis_log_line("WARN", "launcher", "screen console initialization failed");
+        }
+    } else {
+        debug_text("orbis-java: GPU display mode; CPU screen console not started\n");
+        orbis_log_line("INFO", "launcher", "GPU display mode; CPU display/input not started");
+    }
+    ScreenConsoleLifetime screen_console_lifetime;
+#endif
+    if (configuration_result < 0) {
         startup_error(configuration_error);
         return 3;
     }
@@ -1010,10 +1025,11 @@ int main(int argc, char **argv) {
         close(debug_fd);
         runner_debug_ready = 1;
         runner_debug("SESSION start build=%s; configuration load completed path=%s", ORBIS_JAVA_BUILD_VERSION, RUNNER_CONFIG_PATH);
-        runner_debug("CONFIG java_home=%s jar=%s working_directory=%s output_log=%s temporary_directory=%s debug=true",
+        runner_debug("CONFIG java_home=%s jar=%s working_directory=%s output_log=%s temporary_directory=%s debug=true display=%s desktop_bundle=%s graphics_bundle=%s",
             runner_config.java_home, runner_config.jar, runner_config.working_directory,
-            runner_config.output_log, runner_config.temporary_directory);
-        runner_debug("EARLY startup log opened and screen initialization completed before configuration");
+            runner_config.output_log, runner_config.temporary_directory, runner_display_name(),
+            runner_config.desktop_bundle, runner_config.graphics_bundle);
+        runner_debug("EARLY startup log opened; configuration loaded before display/input ownership was selected");
     }
     runner_debug("ENTER prepare directories");
     if (prepare_profile_directories() < 0) {
@@ -1044,7 +1060,17 @@ int main(int argc, char **argv) {
         debug_text("orbis-java: invalid launcher options\n");
         return 2;
     }
-    if (runner_config.desktop) {
+    if (runner_display_gpu()) {
+        if (strcmp(main_class_name, "runner/Main")) {
+            startup_error("gpu display requires runner/Main orchestration");
+            return 3;
+        }
+        char manifest[RUNNER_PATH_CAPACITY + 32];
+        snprintf(manifest, sizeof(manifest), "%s/graphics-bundle.json", runner_config.graphics_bundle);
+        if (require_readable_file(manifest) < 0) return 3;
+        orbis_log_line("INFO", "launcher", "graphics bundle=%s", runner_config.graphics_bundle);
+    }
+    if (runner_display_desktop()) {
         if (strcmp(main_class_name, "runner/Main")) {
             startup_error("desktop requires runner/Main orchestration");
             return 3;
@@ -1237,9 +1263,9 @@ int main(int argc, char **argv) {
     }
 
     constexpr int runtime_option_capacity = 32;
-    constexpr int configured_option_count = 15;
+    constexpr int configured_option_count = 16;
     constexpr int desktop_option_capacity = 32;
-    int desktop_option_count = runner_config.desktop ? static_cast<int>(runner_desktop_option_count()) : 0;
+    int desktop_option_count = runner_display_desktop() ? static_cast<int>(runner_desktop_option_count()) : 0;
     if (desktop_option_count > desktop_option_capacity) { startup_error("desktop option capacity exceeded"); return 3; }
     char configured_storage[configured_option_count][2048];
     char runtime_option_storage[runtime_option_capacity][512];
@@ -1256,17 +1282,27 @@ int main(int argc, char **argv) {
 
     const char *configured_formats[] = {
         "-Djava.home=%s", "-Djava.class.path=%s",
-        "-Djava.library.path=%s/lib:%s/lib/server:/app0/sce_module",
+        "-Djava.library.path=%s",
         "-Djava.io.tmpdir=%s", "-Duser.dir=%s", "-Drunner.jar=%s",
         "-Drunner.output.log=%s", "-Dorbis.runner.root=" RUNNER_ROOT,
         "-Dorbis.module.names.file=%s/lib/orbis-modules.list",
         "-Dorbis.module.finder.imageFallback=true",
         "-Dorbis.runner.screen.enabled=%s", "-Drunner.debug.log=%s",
         "-Drunner.display=%s", "-Drunner.desktop.bundle=%s",
-        "-Djava.system.class.loader=%s"
+        "-Djava.system.class.loader=%s", "-Drunner.graphics.bundle=%s"
     };
+    // GPU mode appends the graphics bundle's natives after the JDK search path.
+    char library_path[2048];
+    int library_length = snprintf(library_path, sizeof(library_path),
+        "%s/lib:%s/lib/server:/app0/sce_module%s%s%s", runner_config.java_home,
+        runner_config.java_home, runner_display_gpu() ? ":" : "",
+        runner_display_gpu() ? runner_config.graphics_bundle : "",
+        runner_display_gpu() ? "/lib" : "");
+    if (library_length < 0 || library_length >= static_cast<int>(sizeof(library_path))) {
+        startup_error("library path exceeds capacity"); return 3;
+    }
     char system_classpath[2048] = "/app0/app.jar";
-    if (runner_config.desktop) {
+    if (runner_display_desktop()) {
         size_t used = strlen(system_classpath);
         for (size_t i = 0; i < runner_desktop_jar_count(); ++i) {
             int length = snprintf(system_classpath + used, sizeof(system_classpath) - used,
@@ -1277,12 +1313,13 @@ int main(int argc, char **argv) {
             used += length;
         }
     }
-    const char *configured_values[] = { runner_config.java_home, system_classpath, runner_config.java_home,
+    const char *configured_values[] = { runner_config.java_home, system_classpath, library_path,
         runner_config.temporary_directory, runner_config.working_directory,
         runner_config.jar, runner_config.output_log, "", runner_config.java_home, "",
-        ORBIS_PROFILE_SCREEN_CONSOLE ? "true" : "false", runner_config.debug ? RUNNER_DEBUG_LOG : "",
-        runner_config.desktop ? "desktop" : "console", runner_config.desktop_bundle,
-        "runner.RunnerSystemClassLoader" };
+        ORBIS_PROFILE_SCREEN_CONSOLE && !runner_display_gpu() ? "true" : "false",
+        runner_config.debug ? RUNNER_DEBUG_LOG : "",
+        runner_display_name(), runner_config.desktop_bundle,
+        "runner.RunnerSystemClassLoader", runner_config.graphics_bundle };
     for (int i = 0; i < configured_option_count; ++i) {
         int length = snprintf(configured_storage[i], sizeof(configured_storage[i]), configured_formats[i],
                  configured_values[i], configured_values[i]);
@@ -1435,7 +1472,7 @@ int main(int argc, char **argv) {
     runner_debug("RETURN register screen input success");
 #endif
 
-    if (runner_config.desktop && orbis_desktop_bridge_register(env) < 0) {
+    if (runner_display_desktop() && orbis_desktop_bridge_register(env) < 0) {
         check_exception(env);
         startup_error("desktop JNI bridge registration failed");
         vm->DestroyJavaVM();

@@ -42,9 +42,10 @@ temporary_directory=/data/orbis-jdk/runner/tmp
 debug=false
 display=console
 desktop_bundle=/data/orbis-jdk/cacio
+graphics_bundle=/data/orbis-jdk/graphics
 ```
 
-All six configured paths must be absolute and shorter than 512 bytes. `debug` accepts only `true` or `false` (default `false`). `display` accepts `console` (default) or `desktop`; desktop uses `desktop_bundle` (default `/data/orbis-jdk/cacio`), whose path cannot contain `:`. UTF-8 entries use `key=value`; blank lines and
+All seven configured paths must be absolute and shorter than 512 bytes. `debug` accepts only `true` or `false` (default `false`). `display` accepts `console` (default), `desktop` or `gpu`; desktop uses `desktop_bundle` (default `/data/orbis-jdk/cacio`), whose path cannot contain `:`. `display=gpu` gives VideoOut and input to the separately installed graphics bundle at `graphics_bundle` (default `/data/orbis-jdk/graphics`): the CPU screen console, display and input services are not started, application output goes only to `output_log`, and `<graphics_bundle>/lib` is appended to `java.library.path`. Startup fails unless `<graphics_bundle>/graphics-bundle.json` is readable; that path also cannot contain `:`. UTF-8 entries use `key=value`; blank lines and
 `#` comments are ignored, surrounding whitespace trimmed. Unknown/duplicate
 keys, malformed entries and overlong paths fail startup. No shell quoting,
 variable expansion or commands are interpreted. Java `user.dir` and the port's native Java file adapters use
