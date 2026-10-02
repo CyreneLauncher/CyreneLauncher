@@ -1237,7 +1237,7 @@ int main(int argc, char **argv) {
     }
 
     constexpr int runtime_option_capacity = 32;
-    constexpr int configured_option_count = 14;
+    constexpr int configured_option_count = 15;
     constexpr int desktop_option_capacity = 32;
     int desktop_option_count = runner_config.desktop ? static_cast<int>(runner_desktop_option_count()) : 0;
     if (desktop_option_count > desktop_option_capacity) { startup_error("desktop option capacity exceeded"); return 3; }
@@ -1262,7 +1262,8 @@ int main(int argc, char **argv) {
         "-Dorbis.module.names.file=%s/lib/orbis-modules.list",
         "-Dorbis.module.finder.imageFallback=true",
         "-Dorbis.runner.screen.enabled=%s", "-Drunner.debug.log=%s",
-        "-Drunner.display=%s", "-Drunner.desktop.bundle=%s"
+        "-Drunner.display=%s", "-Drunner.desktop.bundle=%s",
+        "-Djava.system.class.loader=%s"
     };
     char system_classpath[2048] = "/app0/app.jar";
     if (runner_config.desktop) {
@@ -1280,7 +1281,8 @@ int main(int argc, char **argv) {
         runner_config.temporary_directory, runner_config.working_directory,
         runner_config.jar, runner_config.output_log, "", runner_config.java_home, "",
         ORBIS_PROFILE_SCREEN_CONSOLE ? "true" : "false", runner_config.debug ? RUNNER_DEBUG_LOG : "",
-        runner_config.desktop ? "desktop" : "console", runner_config.desktop_bundle };
+        runner_config.desktop ? "desktop" : "console", runner_config.desktop_bundle,
+        "runner.RunnerSystemClassLoader" };
     for (int i = 0; i < configured_option_count; ++i) {
         int length = snprintf(configured_storage[i], sizeof(configured_storage[i]), configured_formats[i],
                  configured_values[i], configured_values[i]);
