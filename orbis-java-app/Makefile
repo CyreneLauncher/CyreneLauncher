@@ -1,311 +1,99 @@
-PROJECT_DIR := $(abspath .)
-
-PROFILE ?= probe
-
+# Runner packaging never invokes the upstream JDK build.
+PROJECT_DIR := $(patsubst %/,%,$(dir $(abspath $(lastword $(MAKEFILE_LIST)))))
+REPO_ROOT := $(abspath $(PROJECT_DIR)/..)
 JDK_CONF ?= orbis-x86_64-server-fastdebug
-
-SDK       ?= /home/wonder/ps4-payload-sdk
+DESKTOP ?= 0
+ifneq ($(DESKTOP),0)
+ifneq ($(DESKTOP),1)
+$(error DESKTOP must be exactly 0 or 1)
+endif
+endif
+DESKTOP_FLAG := $(if $(filter 1,$(DESKTOP)),--desktop)
+DESKTOP_FONT_INPUTS := $(wildcard $(PROJECT_DIR)/runtime-data/desktop/fonts/*)
+SDK ?= /home/wonder/ps4-payload-sdk
 TOOLCHAIN ?= /home/wonder/PS4Toolchain
-BOOT_JDK  ?= /tmp/jdk17-orbis
-JDK_IMAGE ?= /home/wonder/projects/jdk17u/build/$(JDK_CONF)/jdk
-JDK_SUPPORT ?= $(abspath $(JDK_IMAGE)/../support)
-JMOD      ?= $(BOOT_JDK)/bin/jmod
-JLINK     ?= $(BOOT_JDK)/bin/jlink
-RUNTIME_MODULES ?= java.base,java.logging,java.xml,java.net.http,java.transaction.xa,java.sql,java.naming,java.security.jgss,java.security.sasl,java.sql.rowset,java.xml.crypto,java.scripting,java.rmi,jdk.charsets,jdk.localedata,jdk.random,jdk.unsupported,jdk.zipfs,java.compiler,jdk.httpserver,jdk.naming.dns,jdk.naming.rmi,jdk.net,jdk.nio.mapmode,jdk.security.auth,jdk.security.jgss,jdk.xml.dom,jdk.dynalink
-COMPILE_MODULES ?= java.compiler,jdk.httpserver,jdk.net,jdk.nio.mapmode,jdk.security.auth,jdk.security.jgss,jdk.xml.dom,jdk.dynalink
-RUNTIME_VERSION ?= 17.0.20
-DOTNET    ?= dotnet
-PKGTOOL   ?= /home/wonder/pkgtool-net8/PkgTool.Core.dll
-
-TITLE      ?= Orbis Java 17
-VERSION    ?= 2.06
-TITLE_ID   ?= OJDK00001
-CONTENT_ID ?= IV0000-OJDK00001_00-ORBISJDKAPP00001
-PAID       ?= 0x3800000000000011
-
-APP_MAIN_CLASS ?= demo/Main
-APP_USER_DIR ?= /app0
-APP_LOG_PATH ?= /data/orbis-jdk/logs/orbis-java.log
-APP_TMP_DIR ?= /data/orbis-jdk/tmp
-APP_SOURCES ?= src/demo/Main.java
-APP_PROFILE_JAVA_OPTIONS ?= -Dsun.misc.URLClassPath.debug=true
-
-PAPERCLIP_JAR ?= /home/wonder/paper-1.18.2-388.jar
-PAPERCLIP_SHA256 ?= 0578f18f4d632b494b468ec56b3b414b5b56fea087ee7d39cf6dcdf4c9d01f05
-PAPER_SERVER_SHA256 ?= c1eb29c996952a6c8ff8bb53d223335394fbf396c40a19153db7897233319db2
-PAPER_LIBRARY_COUNT ?= 76
-PAPER_EXPANDED_ROOT ?= $(abspath build-paper/paper-expanded/cache)
-
-CC         := $(SDK)/bin/orbis-clang
-CXX        := $(SDK)/bin/orbis-clang++
-LD         := $(SDK)/bin/orbis-ld
-FSELF      := $(TOOLCHAIN)/bin/linux/create-fself
-CREATE_GP4 := $(TOOLCHAIN)/bin/linux/create-gp4
-PYTHON    ?= python3
-
-BUILD      := build
-CLASSES    := $(BUILD)/app-classes
-STAGE      := $(BUILD)/stage
-OUT        := $(BUILD)/output
-
-ifeq ($(PROFILE),paper)
-JDK_CONF := orbis-x86_64-paper-fastdebug
-JDK_IMAGE := /home/wonder/projects/jdk17u/build/$(JDK_CONF)/jdk
-JDK_SUPPORT := $(abspath $(JDK_IMAGE)/../support)
-TITLE := Orbis Paper 1.18.2
-VERSION := 0.01
-TITLE_ID := OJDK00002
-CONTENT_ID := IV0000-OJDK00002_00-ORBISPAPER018020
-BUILD := build-paper
-CLASSES := $(BUILD)/app-classes
+BOOT_JDK ?= /tmp/jdk17-orbis
+JDK_IMAGE ?= $(REPO_ROOT)/build/$(JDK_CONF)/jdk
+JNI_HEADERS ?= $(BOOT_JDK)/include
+JNI_PLATFORM ?= linux
+JMOD ?= $(BOOT_JDK)/bin/jmod
+JLINK ?= $(BOOT_JDK)/bin/jlink
+JIMAGE ?= $(BOOT_JDK)/bin/jimage
+PYTHON ?= python3
+DOTNET ?= dotnet
+PKGTOOL ?= /home/wonder/pkgtool-net8/PkgTool.Core.dll
+CC = $(SDK)/bin/orbis-clang
+CXX = $(SDK)/bin/orbis-clang++
+LD = $(SDK)/bin/orbis-ld
+FSELF ?= $(TOOLCHAIN)/bin/linux/create-fself
+TITLE ?= Orbis Java JAR Runner
+VERSION ?= 0.40
+TITLE_ID ?= OJDK00003
+CONTENT_ID ?= IV0000-OJDK00003_00-ORBISJARRUNNER01
+PAID ?= 0x3800000000000011
+BUILD := $(PROJECT_DIR)/build-runner
 STAGE := $(BUILD)/stage
 OUT := $(BUILD)/output
-APP_MAIN_CLASS := paperbootstrap/Main
-APP_USER_DIR := /data/orbis-jdk/paper
-APP_LOG_PATH := /data/orbis-jdk/logs/orbis-paper.log
-APP_TMP_DIR := /data/orbis-jdk/paper/tmp
-APP_SOURCES := src/paperbootstrap/Main.java
-APP_PROFILE_JAVA_OPTIONS := -Djava.awt.headless=true,-Dsun.nio.fs.chdirAllowed=true,-Dio.netty.transport.noNative=true,-Dio.netty.noUnsafe=true,-Dorg.jline.terminal.dumb=true,-Dorbis.paper.root=/app0/paper,-Djna.tmpdir=/data/orbis-jdk/paper/native,-Dio.netty.native.workdir=/data/orbis-jdk/paper/native,-Dorg.sqlite.tmpdir=/data/orbis-jdk/paper/native
-RUNTIME_MODULES := java.base,java.logging,java.xml,java.net.http,java.transaction.xa,java.sql,java.naming,java.security.jgss,java.security.sasl,java.sql.rowset,java.xml.crypto,java.scripting,java.rmi,jdk.charsets,jdk.localedata,jdk.random,jdk.unsupported,jdk.zipfs,java.compiler,jdk.httpserver,jdk.naming.dns,jdk.naming.rmi,jdk.net,jdk.nio.mapmode,jdk.security.auth,jdk.security.jgss,jdk.xml.dom,jdk.dynalink,java.datatransfer,java.desktop,java.management,java.prefs,jdk.crypto.ec,jdk.jfr
-COMPILE_MODULES := java.base
-endif
+CLASSES := $(BUILD)/app-classes
+EXPORT_BUILD := $(PROJECT_DIR)/build-jdk-$(JDK_CONF)$(if $(filter 1,$(DESKTOP)),-desktop)
+NATIVE := $(EXPORT_BUILD)/native
+RUNTIME_VERSION ?= 17.0.20
+JLINK_COMPRESS ?= 0
+RUNTIME_MODULES ?= java.desktop,java.datatransfer,java.prefs,java.base,java.logging,java.xml,java.net.http,java.transaction.xa,java.sql,java.naming,java.security.jgss,java.security.sasl,java.sql.rowset,java.xml.crypto,java.scripting,java.rmi,jdk.charsets,jdk.localedata,jdk.random,jdk.unsupported,jdk.zipfs,java.compiler,jdk.httpserver,jdk.naming.dns,jdk.naming.rmi,jdk.net,jdk.nio.mapmode,jdk.security.auth,jdk.security.jgss,jdk.xml.dom,jdk.dynalink,jdk.crypto.ec,java.management,jdk.management
+TARGET_FLAGS := --target=x86_64-pc-freebsd12-elf -fPIC -funwind-tables -Wno-writable-strings -isysroot $(TOOLCHAIN) -isystem $(TOOLCHAIN)/include
+APP_SOURCES := $(wildcard $(PROJECT_DIR)/src/runner/*.java)
 
-TARGET_FLAGS := --target=x86_64-pc-freebsd12-elf \
-                -fPIC -funwind-tables \
-                -Wno-writable-strings \
-                -isysroot $(TOOLCHAIN) \
-                -isystem $(TOOLCHAIN)/include
-
-comma := ,
-PROFILE_OPTION_ARGS = $(foreach option,$(subst $(comma), ,$(APP_PROFILE_JAVA_OPTIONS)),--java-option=$(option))
-
-.PHONY: all images package clean
-
+.PHONY: all runner package jdk-export check check-artifacts clean FORCE
 all: package
-
-images: package
-
-$(BUILD)/classes.stamp: $(APP_SOURCES)
+FORCE:
+# Compare content to track command-line settings without rebuilding on every make.
+$(BUILD)/settings: FORCE
+	@mkdir -p $(BUILD)
+	@printf '%s\n' '$(VERSION)|$(TITLE)|$(TITLE_ID)|$(CONTENT_ID)|$(PAID)|$(SDK)|$(TOOLCHAIN)|$(BOOT_JDK)|$(JNI_HEADERS)|$(JNI_PLATFORM)|$(CC)|$(CXX)|$(LD)|$(FSELF)|$(PKGTOOL)|$(TARGET_FLAGS)|$(DOTNET)' > $@.tmp
+	@sha256sum $(PROJECT_DIR)/Makefile >> $@.tmp
+	@cmp -s $@.tmp $@ && rm $@.tmp || mv $@.tmp $@
+$(EXPORT_BUILD)/settings: FORCE
+	@mkdir -p $(EXPORT_BUILD)
+	@printf '%s\n' '$(DESKTOP)|$(JDK_IMAGE)|$(RUNTIME_MODULES)|$(RUNTIME_VERSION)|$(JLINK_COMPRESS)|$(JMOD)|$(JLINK)|$(JIMAGE)|$(SDK)|$(TOOLCHAIN)|$(PAID)' > $@.tmp
+	@sha256sum $(PROJECT_DIR)/Makefile >> $@.tmp
+	@sha256sum $(PROJECT_DIR)/tools/orbis_native_modules.py $(PROJECT_DIR)/tools/audit_native_providers.py $(DESKTOP_FONT_INPUTS) >> $@.tmp
+	@cmp -s $@.tmp $@ && rm $@.tmp || mv $@.tmp $@
+$(BUILD)/classes.stamp: $(APP_SOURCES) $(BUILD)/settings
 	mkdir -p $(CLASSES)
-	$(BOOT_JDK)/bin/javac --release 17 --add-modules $(COMPILE_MODULES) -d $(CLASSES) $(APP_SOURCES)
+	$(BOOT_JDK)/bin/javac --release 17 -d $(CLASSES) $(APP_SOURCES)
 	touch $@
-
 $(BUILD)/app.jar: $(BUILD)/classes.stamp
 	$(BOOT_JDK)/bin/jar --create --file $@ -C $(CLASSES) .
-
-$(BUILD)/launcher_profile.h: Makefile tools/write_launcher_profile.py
-	mkdir -p $(BUILD)
-	$(PYTHON) tools/write_launcher_profile.py --output $@ \
-		--main-class '$(APP_MAIN_CLASS)' --user-dir '$(APP_USER_DIR)' \
-		--log-path '$(APP_LOG_PATH)' --tmp-dir '$(APP_TMP_DIR)' \
-		$(PROFILE_OPTION_ARGS)
-
-$(BUILD)/launcher.o: launcher.c tools/orbis_runtime.h $(BUILD)/launcher_profile.h Makefile
-	mkdir -p $(BUILD)
-	$(CXX) $(TARGET_FLAGS) \
-		-DORBIS_JAVA_BUILD_VERSION=\"$(VERSION)\" \
-		-I$(BUILD) \
-		-I$(JDK_IMAGE)/include \
-		-I$(JDK_IMAGE)/include/orbis \
-		-c $< -o $@
-
-$(BUILD)/orbis_runtime.o: tools/orbis_runtime.c tools/orbis_runtime.h
-	mkdir -p $(BUILD)
-	$(CC) $(TARGET_FLAGS) -c $< -o $@
-
-$(BUILD)/launcher.elf: $(BUILD)/launcher.o $(BUILD)/orbis_runtime.o
-	$(LD) -m elf_x86_64 -pie \
-		--script $(TOOLCHAIN)/link.x \
-		--eh-frame-hdr \
-		-L$(JDK_IMAGE)/lib/server \
-		-L$(TOOLCHAIN)/lib \
-		--rpath=/app0 \
-		--rpath=/app0/java/lib/server \
-		--rpath=/app0/java/lib \
-		--wrap=_exit \
-		-o $@ $^ \
-		$(TOOLCHAIN)/lib/crt1.o \
-		-lc -lkernel -lc++
-
+$(BUILD)/launcher_profile.h: $(PROJECT_DIR)/tools/write_launcher_profile.py $(BUILD)/settings
+	$(PYTHON) $< --output $@ --main-class runner/Main --user-dir /data/orbis-jdk/runner --log-path /data/orbis-jdk/logs/orbis-runner.log --tmp-dir /data/orbis-jdk/runner/tmp --runtime-jvm-options /data/orbis-jdk/runner/jvm-options.txt --screen-console --java-option=-Dsun.nio.fs.chdirAllowed=true --java-option=-XX:HeapBaseMinAddress=4g
+$(BUILD)/launcher.o: $(PROJECT_DIR)/launcher.c $(PROJECT_DIR)/tools/runner_config.h $(PROJECT_DIR)/tools/orbis_stat.h $(PROJECT_DIR)/tools/orbis_runtime.h $(PROJECT_DIR)/tools/orbis_mapping_probe.h $(PROJECT_DIR)/tools/orbis_screen_console.h $(PROJECT_DIR)/tools/orbis_input_service.h $(PROJECT_DIR)/tools/orbis_display_service.h $(PROJECT_DIR)/tools/orbis_desktop_bridge.h $(PROJECT_DIR)/tools/orbis_desktop_preflight.h $(BUILD)/launcher_profile.h $(BUILD)/settings
+	$(CXX) $(TARGET_FLAGS) -x c++ -DORBIS_JAVA_BUILD_VERSION=\"$(VERSION)\" -DORBIS_JAVA_BUILD_KIND=\"jar-runner-screen-console\" -I$(BUILD) -I$(JNI_HEADERS) -I$(JNI_HEADERS)/$(JNI_PLATFORM) -c $< -o $@
+$(BUILD)/%.o: $(PROJECT_DIR)/tools/%.c $(BUILD)/settings
+	$(CC) $(TARGET_FLAGS) -MMD -MP -c $< -o $@
+$(BUILD)/orbis_screen_console.o: $(PROJECT_DIR)/tools/orbis_screen_console.cpp $(PROJECT_DIR)/tools/orbis_screen_console.h $(PROJECT_DIR)/tools/orbis_screen_font.h $(PROJECT_DIR)/tools/orbis_input_service.h $(PROJECT_DIR)/tools/orbis_display_service.h $(BUILD)/settings
+	$(CXX) $(TARGET_FLAGS) -MMD -MP -c $< -o $@
+$(BUILD)/orbis_display_service.o: $(PROJECT_DIR)/tools/orbis_display_service.cpp $(PROJECT_DIR)/tools/orbis_display_service.h $(PROJECT_DIR)/tools/orbis_input_service.h $(BUILD)/settings
+	$(CXX) $(TARGET_FLAGS) -MMD -MP -c $< -o $@
+$(BUILD)/orbis_input_service.o: $(PROJECT_DIR)/tools/orbis_input_service.cpp $(PROJECT_DIR)/tools/orbis_input_service.h $(PROJECT_DIR)/tools/orbis_mouse_abi.h $(PROJECT_DIR)/tools/orbis_display_service.h $(BUILD)/settings
+	$(CXX) $(TARGET_FLAGS) -MMD -MP -c $< -o $@
+$(BUILD)/orbis_desktop_bridge.o: $(PROJECT_DIR)/tools/orbis_desktop_bridge.cpp $(PROJECT_DIR)/tools/orbis_desktop_bridge.h $(PROJECT_DIR)/tools/orbis_display_service.h $(PROJECT_DIR)/tools/orbis_input_service.h $(BUILD)/settings
+	$(CXX) $(TARGET_FLAGS) -MMD -MP -I$(JNI_HEADERS) -I$(JNI_HEADERS)/$(JNI_PLATFORM) -c $< -o $@
+$(BUILD)/orbis_desktop_preflight.o: $(PROJECT_DIR)/tools/orbis_desktop_preflight.cpp $(PROJECT_DIR)/tools/orbis_desktop_preflight.h $(PROJECT_DIR)/tools/runner_config.h $(BUILD)/settings
+	$(CXX) $(TARGET_FLAGS) -MMD -MP -c $< -o $@
+-include $(wildcard $(BUILD)/*.d)
+$(BUILD)/launcher.elf: $(BUILD)/orbis_desktop_bridge.o $(BUILD)/orbis_desktop_preflight.o $(BUILD)/launcher.o $(BUILD)/runner_config.o $(BUILD)/orbis_runtime.o $(BUILD)/orbis_mapping_probe.o $(BUILD)/orbis_screen_console.o $(BUILD)/orbis_display_service.o $(BUILD)/orbis_input_service.o
+	$(LD) -m elf_x86_64 -pie --script $(TOOLCHAIN)/link.x --eh-frame-hdr -L$(TOOLCHAIN)/lib --rpath=/app0 --wrap=_exit -o $@ $^ $(TOOLCHAIN)/lib/crt1.o -lc -lkernel -lc++ -lSceVideoOut -lSceKeyboard -lSceMouse -lSceSysmodule -lSceUserService
 $(STAGE)/eboot.bin: $(BUILD)/launcher.elf
 	mkdir -p $(STAGE)
-	$(FSELF) -in=$< -out=$(BUILD)/launcher.oelf \
-		--eboot $@ --paid $(PAID) \
-		--library-path $(JDK_IMAGE)/lib/server:$(JDK_IMAGE)/lib
-
+	$(FSELF) -in=$< -out=$(BUILD)/launcher.oelf --eboot $@ --paid $(PAID)
 $(STAGE)/app.jar: $(BUILD)/app.jar
 	mkdir -p $(STAGE)
 	cp $< $@
-
-ifeq ($(PROFILE),paper)
-$(PAPER_EXPANDED_ROOT)/.stamp: $(PAPERCLIP_JAR)
-	mkdir -p $(dir $(PAPER_EXPANDED_ROOT))
-	test "$$(sha256sum $(PAPERCLIP_JAR) | cut -d' ' -f1)" = "$(PAPERCLIP_SHA256)"
-	cd $(dir $(PAPER_EXPANDED_ROOT)) && \
-		$(BOOT_JDK)/bin/java -Dpaperclip.patchonly=true \
-		-DbundlerRepoDir=$(PAPER_EXPANDED_ROOT) -jar $(PAPERCLIP_JAR) nogui
-	touch $@
-
-$(STAGE)/paper/classpath.list: $(PAPER_EXPANDED_ROOT)/.stamp tools/stage_paper_payload.py
-	$(PYTHON) tools/stage_paper_payload.py \
-		--paperclip $(PAPERCLIP_JAR) \
-		--cache-root $(PAPER_EXPANDED_ROOT) \
-		--stage-root $(STAGE)/paper \
-		--paperclip-sha256 $(PAPERCLIP_SHA256) \
-		--server-sha256 $(PAPER_SERVER_SHA256) \
-		--library-count $(PAPER_LIBRARY_COUNT)
-
-PROFILE_STAGE_DEPS := $(STAGE)/paper/classpath.list
-else
-PROFILE_STAGE_DEPS :=
-endif
-
-JVM_OBJS := $(wildcard $(JDK_IMAGE)/../hotspot/variant-server/libjvm/objs/*.o)
-
-JDK_NATIVE_SOURCES := $(shell find ../src/java.base -path '*/native/*' -type f) \
-	$(shell find ../src/hotspot -type f)
-
-$(BUILD)/jdk-native.stamp: $(JDK_NATIVE_SOURCES)
-	$(MAKE) -C .. CONF=orbis-x86_64-server-fastdebug java.base-libs hotspot
-	touch $@
-
-$(BUILD)/jvm-link.x: $(TOOLCHAIN)/link.x tools/prepare_jvm_link.py
-	mkdir -p $(BUILD)
-	$(PYTHON) tools/prepare_jvm_link.py $< $@
-
-NATIVE_INPUTS := $(wildcard $(JDK_SUPPORT)/native/java.base/lib*/*.o) \
-                 $(wildcard $(JDK_SUPPORT)/native/java.base/lib*/*_link.cmdline) \
-                 $(wildcard $(JDK_SUPPORT)/native/java.base/lib*/*objectfilenames.txt)
-
-$(BUILD)/native.stamp: $(BUILD)/jdk-native.stamp $(JVM_OBJS) $(NATIVE_INPUTS) $(BUILD)/jvm-link.x \
-        tools/build_native_modules.py tools/native_dlfcn.c tools/orbis_tls.c \
-		tools/orbis_initializers.c tools/orbis_runtime.c tools/orbis_runtime.h \
-		tools/test_orbis_runtime_source.py tools/test_orbis_runtime_binary.py \
-		tools/test_prx_initializers.py \
-		tools/audit_orbis_binaries.py tools/test_audit_orbis_binaries.py \
-		tools/testdata/audit_binaries/manifest.json \
-		tools/test_native_dependency_order.py \
-		tools/test_orbis_file_length.py \
-		tools/test_orbis_file_channel_size.py \
-		tools/test_orbis_stat_abi.py \
-		tools/test_random_access_diagnostics.py \
-		tools/test_nio_filesystem_diagnostics.py \
-		tools/test_orbis_nio_access.py \
-		tools/test_orbis_signal_abi.py ../src/hotspot/os/orbis/signal.h Makefile \
-		tools/test_orbis_signal_diagnostic.py \
-		tools/test_orbis_condvar_clock.py \
-		tools/test_orbis_clock_abi.py \
-		tools/test_orbis_timed_parking.py \
-		../src/hotspot/os/posix/signals_posix.cpp \
-		tools/test_orbis_signal_diagnostic_binary.py \
-		tools/test_orbis_pipe_fallback.py \
-		tools/test_orbis_nio_tcp_nodelay.py \
-		tools/test_orbis_nio_nonblocking.py \
-		tools/testdata/orbis_nonblocking_test.c \
-		../src/java.base/unix/native/libnio/ch/orbis_nonblocking.h \
-		../src/java.base/unix/native/libnio/fs/orbis_errno.h \
-		../src/java.base/unix/native/libnio/ch/IOUtil.c \
-		../src/java.base/unix/native/libnio/ch/Net.c \
-		tools/test_orbis_missing_errno.py \
-		tools/testdata/orbis_missing_errno_test.c \
-		tools/test_orbis_delete_errno_source.py \
-		tools/test_orbis_lstat_source.py \
-		tools/orbis_native_policy.json tools/audit_orbis_sources.py \
-		tools/test_audit_orbis_sources.py \
-		tools/testdata/audit_sources/direct.c \
-		tools/testdata/audit_sources/prohibited.c \
-		tools/test_jdk_native_rebuild.py
-	$(PYTHON) tools/test_audit_orbis_sources.py
-	$(PYTHON) tools/audit_orbis_sources.py \
-		--policy tools/orbis_native_policy.json --root .. \
-		--output $(BUILD)/orbis-source-audit.json
-	$(PYTHON) tools/test_random_access_diagnostics.py
-	$(PYTHON) tools/test_nio_filesystem_diagnostics.py
-	$(PYTHON) tools/test_orbis_nio_access.py
-	$(PYTHON) tools/test_orbis_file_length.py
-	$(PYTHON) tools/test_orbis_file_channel_size.py
-	$(PYTHON) tools/test_orbis_stat_abi.py --cc $(CC) \
-		--toolchain $(TOOLCHAIN) --jdk ..
-	$(PYTHON) tools/test_native_dependency_order.py
-	$(PYTHON) tools/test_orbis_signal_abi.py --cc $(CC) \
-		--toolchain $(TOOLCHAIN) --jdk ..
-	$(PYTHON) tools/test_orbis_signal_diagnostic.py
-	$(PYTHON) tools/test_orbis_condvar_clock.py
-	$(PYTHON) tools/test_orbis_clock_abi.py --toolchain $(TOOLCHAIN) --sdk $(SDK)
-	$(PYTHON) tools/test_orbis_timed_parking.py
-	$(PYTHON) tools/test_orbis_pipe_fallback.py
-	$(PYTHON) tools/test_orbis_nio_tcp_nodelay.py
-	$(PYTHON) tools/test_orbis_nio_nonblocking.py
-	$(PYTHON) tools/test_orbis_missing_errno.py
-	$(PYTHON) tools/test_orbis_delete_errno_source.py
-	$(PYTHON) tools/test_orbis_lstat_source.py
-	$(PYTHON) tools/test_jdk_native_rebuild.py
-	$(PYTHON) tools/build_native_modules.py --sdk $(SDK) --toolchain $(TOOLCHAIN) \
-		--jdk $(JDK_IMAGE) --paid $(PAID) \
-		--policy tools/orbis_native_policy.json
-	$(PYTHON) tools/test_prx_initializers.py \
-		$(BUILD)/native/libjvm.so $(BUILD)/native/libjava.so \
-		$(BUILD)/native/libnet.so $(BUILD)/native/libnio.so \
-		$(BUILD)/native/libzip.so $(BUILD)/native/libverify.so \
-		$(BUILD)/native/libjimage.so
-	$(PYTHON) tools/test_orbis_signal_diagnostic_binary.py
-	touch $@
-
-
-$(BUILD)/runtime-jmods.stamp: $(JDK_IMAGE)/modules Makefile
-	mkdir -p $(BUILD)/jmods
-	rm -f $(BUILD)/jmods/*.jmod
-	module_list=$$(printf '%s' '$(RUNTIME_MODULES)' | tr ',' ' '); \
-	for module in $$module_list; do \
-		class_path="$(JDK_IMAGE)/modules/$$module"; \
-		test -d "$$class_path" || { echo "Missing selected module: $$module"; exit 1; }; \
-		$(JMOD) create --class-path "$$class_path" \
-			--module-version $(RUNTIME_VERSION) \
-			--target-platform orbis-x86_64 \
-			$(BUILD)/jmods/$$module.jmod; \
-	done
-	touch $@
-
-$(BUILD)/runtime-image.stamp: $(BUILD)/runtime-jmods.stamp
-	rm -rf $(BUILD)/runtime-image
-	$(JLINK) --module-path $(BUILD)/jmods \
-		--add-modules $(RUNTIME_MODULES) \
-		--output $(BUILD)/runtime-image \
-		--strip-debug --no-header-files --no-man-pages --compress=2
-	touch $@
-
-$(BUILD)/java-image.stamp: $(BUILD)/runtime-image.stamp \
-		$(BUILD)/native.stamp Makefile
-	mkdir -p $(STAGE)/java/lib
-	chmod -R u+w $(STAGE)/java
-	cp -a $(JDK_IMAGE)/conf $(STAGE)/java/
-	cp -a $(JDK_IMAGE)/lib/. $(STAGE)/java/lib/
-	cp -a $(JDK_IMAGE)/release $(STAGE)/java/
-	cp $(BUILD)/runtime-image/lib/modules $(STAGE)/java/lib/modules
-	# The JVM is loaded as a native PRX; remove obsolete raw ELF bridge/core.
-	rm -f $(STAGE)/libjvm.so $(STAGE)/jvm.so $(STAGE)/java/lib/server/libjvm.so
-	if test -d $(JDK_SUPPORT)/modules_libs; then \
-		mkdir -p $(STAGE)/support; \
-		cp -a $(JDK_SUPPORT)/modules_libs $(STAGE)/support/; \
-	fi
-	find $(STAGE) -type l -print | while IFS= read -r link; do \
-		target=$$(readlink -f "$$link"); \
-		test -f "$$target" || { echo "Unresolved JDK link: $$link"; exit 1; }; \
-		rm "$$link"; \
-		cp -p "$$target" "$$link"; \
-	done
-	rm -rf $(STAGE)/support
-	# Ship only converted native libraries for the startup dependency chain.
-	find $(STAGE)/java/lib -name '*.so' -delete
-	mkdir -p $(STAGE)/sce_module
-	cp $(BUILD)/native/libjvm.prx $(STAGE)/sce_module/libjvm.prx
-	for lib in java net nio zip verify jimage; do \
-		cp $(BUILD)/native/lib$$lib.prx $(STAGE)/java/lib/lib$$lib.so; \
-	done
-	$(PYTHON) tools/check_native_package.py $(STAGE)
-	touch $@
-
-$(STAGE)/sce_sys/param.sfo: Makefile
+$(STAGE)/runner/README.txt: $(PROJECT_DIR)/tools/runner-files-README.txt
+	mkdir -p $(dir $@)
+	cp $< $@
+runner: $(STAGE)/eboot.bin $(STAGE)/app.jar $(STAGE)/runner/README.txt
+$(STAGE)/sce_sys/param.sfo: $(BUILD)/settings
 	mkdir -p $(STAGE)/sce_sys/about $(STAGE)/sce_module
 	cp $(TOOLCHAIN)/samples/hello_world/sce_sys/icon0.png \
 		$(STAGE)/sce_sys/icon0.png
@@ -327,42 +115,66 @@ $(STAGE)/sce_sys/param.sfo: Makefile
 	$(DOTNET) $(PKGTOOL) sfo_setentry $@ TITLE_ID --type Utf8 --maxsize 12 --value '$(TITLE_ID)'
 	$(DOTNET) $(PKGTOOL) sfo_setentry $@ VERSION --type Utf8 --maxsize 8 --value '$(VERSION)'
 
-$(STAGE)/package.gp4: $(STAGE)/eboot.bin $(STAGE)/app.jar $(PROFILE_STAGE_DEPS) \
-		$(BUILD)/java-image.stamp $(STAGE)/sce_sys/param.sfo \
-		Makefile tools/make_gp4.py tools/test_launcher_modes.py \
-		tools/test_launcher_logging.py tools/test_orbis_probe_source.py \
-		tools/test_orbis_probe_logging.py tools/test_headless_module_probe_source.py \
-		tools/test_zipfs_diagnostics.py \
-		tools/test_probe_root_source.py tools/test_probe_app_jar_source.py \
-		tools/test_probe_failure_propagation.py \
-		tools/test_trace_redirect.py \
-		tools/test_orbis_signal_diagnostic_binary.py \
-		tools/test_release_consistency.py tools/test_runtime_modules.py \
-		tools/test_runtime_image_modules.py tools/test_exhaustive_probe_source.py
-	$(PYTHON) tools/test_launcher_modes.py
-	$(PYTHON) tools/test_launcher_logging.py
-	$(PYTHON) tools/test_orbis_probe_source.py
-	$(PYTHON) tools/test_orbis_probe_logging.py
-	$(PYTHON) tools/test_headless_module_probe_source.py
-	$(PYTHON) tools/test_zipfs_diagnostics.py
-	$(PYTHON) tools/test_probe_root_source.py
-	$(PYTHON) tools/test_probe_app_jar_source.py
-	$(PYTHON) tools/test_probe_failure_propagation.py
-	$(PYTHON) tools/test_trace_redirect.py
-	$(PYTHON) tools/test_orbis_signal_diagnostic_binary.py
-	$(PYTHON) tools/test_release_consistency.py
-	$(PYTHON) tools/test_runtime_modules.py
-	JIMAGE=$(BOOT_JDK)/bin/jimage $(PYTHON) tools/test_runtime_image_modules.py
-	$(PYTHON) tools/test_exhaustive_probe_source.py
-	$(PYTHON) tools/make_gp4.py --root $(STAGE) \
-		--out $@ --content-id $(CONTENT_ID)
-
+$(STAGE)/package.gp4: $(STAGE)/eboot.bin $(STAGE)/app.jar $(STAGE)/runner/README.txt $(STAGE)/sce_sys/param.sfo $(PROJECT_DIR)/tools/make_gp4.py
+	$(PYTHON) $(PROJECT_DIR)/tools/check_runner_package.py $(STAGE)
+	$(PYTHON) $(PROJECT_DIR)/tools/make_gp4.py --root $(STAGE) --out $@ --content-id $(CONTENT_ID)
 package: $(STAGE)/package.gp4
-	$(PYTHON) tools/check_native_package.py $(STAGE)
+	$(PYTHON) $(PROJECT_DIR)/tools/check_runner_package.py $(STAGE)
 	mkdir -p $(OUT)
 	$(DOTNET) $(PKGTOOL) pkg_build $< $(OUT)
-	$(DOTNET) $(PKGTOOL) pkg_validate --verbose \
-		$(OUT)/$(CONTENT_ID).pkg
+	$(DOTNET) $(PKGTOOL) pkg_validate --verbose $(OUT)/$(CONTENT_ID).pkg
 
+$(EXPORT_BUILD)/jvm-link.x: $(TOOLCHAIN)/link.x $(PROJECT_DIR)/tools/prepare_jvm_link.py
+	mkdir -p $(dir $@)
+	$(PYTHON) $(PROJECT_DIR)/tools/prepare_jvm_link.py $< $@
+# Content-compared input inventories detect removals and replacements with older
+# mtimes. These recipes run only when export intermediates are requested.
+$(EXPORT_BUILD)/native-inputs: FORCE
+	@mkdir -p $(EXPORT_BUILD)
+	@find $(JDK_IMAGE)/../hotspot/variant-server/libjvm/objs $(JDK_IMAGE)/../support/native $(TOOLCHAIN)/lib/libc.a -type f -printf '%p %T@ %C@ %s %i\n' > $@.unsorted || { rm -f $@.unsorted; exit 1; }
+	@LC_ALL=C sort $@.unsorted > $@.tmp
+	@rm $@.unsorted
+	@cmp -s $@.tmp $@ && rm $@.tmp || mv $@.tmp $@
+$(EXPORT_BUILD)/module-inputs: FORCE
+	@mkdir -p $(EXPORT_BUILD)
+	@find $(JDK_IMAGE)/modules -type f -printf '%p %T@ %C@ %s %i\n' > $@.unsorted || { rm -f $@.unsorted; exit 1; }
+	@LC_ALL=C sort $@.unsorted > $@.tmp
+	@rm $@.unsorted
+	@cmp -s $@.tmp $@ && rm $@.tmp || mv $@.tmp $@
+NATIVE_INPUTS := $(if $(filter jdk-export,$(MAKECMDGOALS)),$(shell find $(JDK_IMAGE)/../hotspot/variant-server/libjvm/objs $(JDK_IMAGE)/../support/native $(TOOLCHAIN)/lib/libc.a -type f 2>/dev/null))
+$(EXPORT_BUILD)/native.stamp: $(EXPORT_BUILD)/native-inputs $(NATIVE_INPUTS) $(EXPORT_BUILD)/settings $(EXPORT_BUILD)/jvm-link.x $(wildcard $(PROJECT_DIR)/tools/*.c $(PROJECT_DIR)/tools/*.h) $(PROJECT_DIR)/tools/build_native_modules.py $(PROJECT_DIR)/tools/orbis_native_modules.py $(PROJECT_DIR)/tools/audit_native_providers.py $(DESKTOP_FONT_INPUTS) $(PROJECT_DIR)/tools/orbis_native_policy.json $(PROJECT_DIR)/tools/audit_orbis_binaries.py $(REPO_ROOT)/src/java.base/bsd/native/libnet/bsd_close.c
+	cd $(PROJECT_DIR) && $(PYTHON) $(PROJECT_DIR)/tools/build_native_modules.py --sdk $(SDK) --toolchain $(TOOLCHAIN) --jdk $(JDK_IMAGE) --paid $(PAID) --policy $(PROJECT_DIR)/tools/orbis_native_policy.json --output $(NATIVE) --link-script $(EXPORT_BUILD)/jvm-link.x $(DESKTOP_FLAG)
+	touch $@
+MODULE_INPUTS := $(if $(filter jdk-export,$(MAKECMDGOALS)),$(shell find $(JDK_IMAGE)/modules -type f 2>/dev/null))
+$(EXPORT_BUILD)/runtime-jmods.stamp: $(EXPORT_BUILD)/module-inputs $(MODULE_INPUTS) $(EXPORT_BUILD)/settings
+	mkdir -p $(EXPORT_BUILD)/jmods
+	rm -f $(EXPORT_BUILD)/jmods/*.jmod
+	for module in $$(printf '%s' '$(RUNTIME_MODULES)' | tr ',' ' '); do $(JMOD) create --class-path $(JDK_IMAGE)/modules/$$module --module-version $(RUNTIME_VERSION) --target-platform orbis-x86_64 $(EXPORT_BUILD)/jmods/$$module.jmod || exit; done
+	touch $@
+$(EXPORT_BUILD)/runtime-image.stamp: $(EXPORT_BUILD)/runtime-jmods.stamp
+	rm -rf $(EXPORT_BUILD)/runtime-image
+	$(JLINK) --module-path $(EXPORT_BUILD)/jmods --add-modules $(RUNTIME_MODULES) --output $(EXPORT_BUILD)/runtime-image --strip-debug --no-header-files --no-man-pages $(if $(filter 0,$(JLINK_COMPRESS)),,--compress=$(JLINK_COMPRESS))
+	touch $@
+# Always assemble fresh so changed configuration/legal/data cannot survive stale staging.
+jdk-export: $(EXPORT_BUILD)/native.stamp $(EXPORT_BUILD)/runtime-image.stamp
+	$(PYTHON) $(PROJECT_DIR)/tools/export_jdk.py --jdk $(JDK_IMAGE) --runtime-image $(EXPORT_BUILD)/runtime-image --native $(NATIVE) --output $(EXPORT_BUILD)/export --jimage $(JIMAGE) $(DESKTOP_FLAG)
+	$(PYTHON) $(PROJECT_DIR)/tools/check_native_package.py $(EXPORT_BUILD)/export --jimage $(JIMAGE)
+check:
+	cd $(PROJECT_DIR) && PYTHONDONTWRITEBYTECODE=1 $(PYTHON) tests/run_checks.py --sdk $(SDK) --toolchain $(TOOLCHAIN)
+check-artifacts:
+	cd $(PROJECT_DIR) && PYTHONDONTWRITEBYTECODE=1 $(PYTHON) tests/test_audit_orbis_binaries.py --launcher $(BUILD)/launcher.elf --native $(NATIVE)
+	cd $(PROJECT_DIR) && $(PYTHON) tests/test_prx_initializers.py $(NATIVE)/*.so
+	cd $(PROJECT_DIR) && $(PYTHON) tests/test_orbis_runtime_binary.py $(BUILD)/launcher.elf $(NATIVE)/*.so
+	cd $(PROJECT_DIR) && $(PYTHON) tests/test_orbis_signal_diagnostic_binary.py $(NATIVE)/libjvm.prx
+	cd $(PROJECT_DIR) && RUNTIME_IMAGE=$(EXPORT_BUILD)/runtime-image JIMAGE=$(JIMAGE) RUNTIME_MODULES='$(RUNTIME_MODULES)' $(PYTHON) tests/test_runtime_image_modules.py
 clean:
-	rm -rf $(BUILD)
+	rm -rf $(BUILD) $(PROJECT_DIR)/build-jdk-*
+
+CACIO_SOURCE := $(PROJECT_DIR)/build-cacio/source
+CACIO_EXPORT := $(PROJECT_DIR)/build-cacio/export
+CACIO_INPUTS := $(wildcard $(PROJECT_DIR)/tools/cacio-source.json $(PROJECT_DIR)/tools/build_cacio.py $(PROJECT_DIR)/cacio/patches/* $(shell find $(PROJECT_DIR)/src-desktop -type f -name '*.java' 2>/dev/null))
+.PHONY: cacio-source cacio-export
+cacio-source:
+	$(PYTHON) $(PROJECT_DIR)/tools/build_cacio.py --prepare-source
+cacio-export: $(CACIO_INPUTS)
+	$(PYTHON) $(PROJECT_DIR)/tools/build_cacio.py --source $(CACIO_SOURCE) --output $(CACIO_EXPORT) --jdk $(BOOT_JDK)

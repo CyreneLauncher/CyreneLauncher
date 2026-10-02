@@ -17,11 +17,72 @@ static const uint32_t orbis_crt_extended_allocation = 1;
 
 #define ORBIS_HEAP_PAGE_SIZE 0x4000u
 #define ORBIS_HEAP_ARENA_SIZE (1024u * 1024u)
+static int heap_failure_probed;
 
-// The toolchain libc's expand_heap.lo grows each arena exponentially.  Orbis
-// eventually rejects the oversized mmap with EINVAL even when malloc only
-// needs a small block.  malloc.lo resolves this public hook at final link, so
-// provide bounded arenas while preserving its size-in/out contract.
+static void *map_direct_heap(size_t size, off_t *direct_offset_out) {
+    off_t direct_offset = 0;
+    int allocate_result = sceKernelAllocateDirectMemory(
+            0, ORBIS_KERNEL_MAIN_DMEM_SIZE, size, ORBIS_HEAP_PAGE_SIZE,
+            ORBIS_KERNEL_WB_ONION, &direct_offset);
+    if (allocate_result != 0) {
+        char diagnostic[160];
+        int length = snprintf(diagnostic, sizeof(diagnostic),
+                              "orbis-runtime: direct heap allocation failed size=%zu result=0x%x\n",
+                              size, (unsigned int)allocate_result);
+        if (length > 0)
+            sceKernelDebugOutText(0, diagnostic);
+        errno = ENOMEM;
+        return MAP_FAILED;
+    }
+
+    void *mapping = NULL;
+    int map_result = sceKernelMapDirectMemory(
+            &mapping, size, PROT_READ | PROT_WRITE, 0, direct_offset,
+            ORBIS_HEAP_PAGE_SIZE);
+    if (map_result != 0 || mapping == NULL) {
+        int release_result = sceKernelReleaseDirectMemory(direct_offset, size);
+        char diagnostic[192];
+        int length = snprintf(diagnostic, sizeof(diagnostic),
+                              "orbis-runtime: direct heap mapping failed size=%zu result=0x%x release=0x%x\n",
+                              size, (unsigned int)map_result,
+                              (unsigned int)release_result);
+        if (length > 0)
+            sceKernelDebugOutText(0, diagnostic);
+        errno = ENOMEM;
+        return MAP_FAILED;
+    }
+
+    *direct_offset_out = direct_offset;
+    return mapping;
+}
+
+static void probe_heap_mapping_sizes(void) {
+    static const size_t probe_sizes[] = {
+        0x4000, 0x8000, 0x10000, 0x18000, 0x20000, 0x40000, 0x100000
+    };
+    const int saved_errno = errno;
+    for (size_t i = 0; i < sizeof(probe_sizes) / sizeof(probe_sizes[0]); ++i) {
+        errno = 0;
+        void *probe = mmap(NULL, probe_sizes[i], PROT_READ | PROT_WRITE,
+                           MAP_PRIVATE | MAP_ANON, -1, 0);
+        const int probe_errno = errno;
+        int unmapped = 1;
+        if (probe != MAP_FAILED)
+            unmapped = munmap(probe, probe_sizes[i]) == 0;
+        char diagnostic[160];
+        int length = snprintf(diagnostic, sizeof(diagnostic),
+                              "orbis-runtime: mmap probe size=%zu result=%p errno=%d unmapped=%d\n",
+                              probe_sizes[i], probe, probe_errno, unmapped);
+        if (length > 0)
+            sceKernelDebugOutText(0, diagnostic);
+    }
+    errno = saved_errno;
+}
+
+// Give each OpenOrbis libc heap growth its own mapping, with a 1-MiB minimum.
+// If anonymous mmap cannot supply that growth, retry it with Orbis direct
+// memory. The fallback is per growth so it does not reserve a large virtual
+// range ahead of HotSpot's own heap and CodeCache reservations.
 void *__expand_heap(size_t *size) {
     if (size == NULL || *size > SIZE_MAX - (ORBIS_HEAP_PAGE_SIZE - 1)) {
         errno = ENOMEM;
@@ -31,10 +92,37 @@ void *__expand_heap(size_t *size) {
             & ~(size_t)(ORBIS_HEAP_PAGE_SIZE - 1);
     if (mapping_size < ORBIS_HEAP_ARENA_SIZE)
         mapping_size = ORBIS_HEAP_ARENA_SIZE;
+
     void *mapping = mmap(NULL, mapping_size, PROT_READ | PROT_WRITE,
                          MAP_PRIVATE | MAP_ANON, -1, 0);
-    if (mapping == MAP_FAILED)
+    if (mapping == MAP_FAILED) {
+        const int map_errno = errno;
+        char diagnostic[192];
+        int length = snprintf(diagnostic, sizeof(diagnostic),
+                              "orbis-runtime: heap mapping failed requested=%zu mapped=%zu errno=%d\n",
+                              *size, mapping_size, map_errno);
+        if (length > 0)
+            sceKernelDebugOutText(0, diagnostic);
+        if (!heap_failure_probed) {
+            heap_failure_probed = 1;
+            probe_heap_mapping_sizes();
+        }
+        off_t direct_offset = 0;
+        mapping = map_direct_heap(mapping_size, &direct_offset);
+        if (mapping != MAP_FAILED) {
+            char direct_diagnostic[192];
+            int direct_length = snprintf(
+                    direct_diagnostic, sizeof(direct_diagnostic),
+                    "orbis-runtime: direct heap fallback size=%zu offset=0x%llx address=%p\n",
+                    mapping_size, (unsigned long long)direct_offset, mapping);
+            if (direct_length > 0)
+                sceKernelDebugOutText(0, direct_diagnostic);
+            *size = mapping_size;
+            return mapping;
+        }
+        errno = map_errno;
         return NULL;
+    }
     *size = mapping_size;
     return mapping;
 }

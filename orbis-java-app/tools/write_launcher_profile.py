@@ -15,15 +15,12 @@ parser.add_argument("--main-class", required=True)
 parser.add_argument("--user-dir", required=True)
 parser.add_argument("--log-path", required=True)
 parser.add_argument("--tmp-dir", required=True)
+parser.add_argument("--runtime-jvm-options", default="")
+parser.add_argument("--screen-console", action="store_true")
 parser.add_argument("--java-option", action="append", default=[])
 args = parser.parse_args()
 
 base_options = [
-    "-Djava.home=/app0/java",
-    "-Djava.class.path=/app0/app.jar",
-    "-Djava.library.path=/app0:/app0/java/lib/server:/app0/java/lib",
-    f"-Djava.io.tmpdir={args.tmp_dir}",
-    f"-Duser.dir={args.user_dir}",
     "-Xms32m",
     "-Xmx256m",
     "-XX:CompressedClassSpaceSize=32m",
@@ -39,6 +36,8 @@ lines = [
     f"#define ORBIS_PROFILE_LOG_PATH {c_string(args.log_path)}",
     f"#define ORBIS_PROFILE_ROTATED_LOG_PATH {c_string(rotated_path)}",
     f"#define ORBIS_PROFILE_TMP_DIR {c_string(args.tmp_dir)}",
+    f"#define ORBIS_PROFILE_RUNTIME_JVM_OPTIONS {c_string(args.runtime_jvm_options)}",
+    f"#define ORBIS_PROFILE_SCREEN_CONSOLE {1 if args.screen_console else 0}",
     "static const char *const orbis_profile_vm_options[] = {",
 ]
 lines.extend(f"    {c_string(option)}," for option in options)
