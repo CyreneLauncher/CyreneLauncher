@@ -68,6 +68,7 @@ public final class VersionMetadataResolver {
         Map<String, Path> classpath = new LinkedHashMap<>();
         Map<String, String> lwjglModules = new TreeMap<>();
         Map<String, String> lwjglSha1 = new TreeMap<>();
+        Map<String, Path> lwjglPaths = new TreeMap<>();
         List<String> skippedNatives = new ArrayList<>();
 
         for (int index = 0; index < libraries.size(); ++index) {
@@ -117,10 +118,11 @@ public final class VersionMetadataResolver {
                     throw new LaunchPlanException(LWJGL_CONFLICT, module + " selected at both "
                             + existing + " and " + coordinate[2]);
                 lwjglSha1.put(module, verified.sha1);
+                lwjglPaths.put(module, verified.path);
             }
         }
         return new ResolvedLaunchPlan(id, mainClass, new ArrayList<>(classpath.values()),
-                lwjglModules, lwjglSha1, skippedNatives);
+                lwjglModules, lwjglSha1, lwjglPaths, skippedNatives);
     }
 
     private static String[] coordinate(String name, String where) throws LaunchPlanException {

@@ -111,6 +111,9 @@ public final class VersionMetadataResolverTest {
             equal("3.2.2", plan.lwjglModules().get("org.lwjgl:" + module), module + " version");
             equal(TestSupport.hash("SHA-1", fixture.libraries.resolve("org/lwjgl/" + module + "/3.2.2/"
                     + module + "-3.2.2.jar")), plan.lwjglSha1().get("org.lwjgl:" + module), module + " SHA-1");
+            equal(fixture.libraries.toRealPath().resolve("org/lwjgl/" + module + "/3.2.2/" + module + "-3.2.2.jar"),
+                    plan.lwjglPaths().get("org.lwjgl:" + module), module + " path");
+            check(plan.classpath().contains(plan.lwjglPaths().get("org.lwjgl:" + module)), module + " on classpath");
         }
         equal(List.copyOf(plan.lwjglModules().keySet()).stream().sorted().toList(),
                 List.copyOf(plan.lwjglModules().keySet()), "modules sorted");

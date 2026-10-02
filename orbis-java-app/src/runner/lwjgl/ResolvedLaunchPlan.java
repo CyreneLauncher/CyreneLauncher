@@ -14,15 +14,17 @@ import java.util.TreeMap;
  * @param classpath      verified common JARs in metadata order, without duplicates
  * @param lwjglModules   {@code org.lwjgl:<module>} to selected version, sorted by module
  * @param lwjglSha1      {@code org.lwjgl:<module>} to the selected Java artifact SHA-1
+ * @param lwjglPaths     {@code org.lwjgl:<module>} to the selected Java artifact, a classpath entry
  * @param skippedNatives native classifier artifacts declared by metadata and not used
  */
 public record ResolvedLaunchPlan(String versionId, String mainClass, List<Path> classpath,
         Map<String, String> lwjglModules, Map<String, String> lwjglSha1,
-        List<String> skippedNatives) {
+        Map<String, Path> lwjglPaths, List<String> skippedNatives) {
     public ResolvedLaunchPlan {
         classpath = List.copyOf(classpath);
         lwjglModules = Collections.unmodifiableMap(new TreeMap<>(lwjglModules));
         lwjglSha1 = Collections.unmodifiableMap(new TreeMap<>(lwjglSha1));
+        lwjglPaths = Collections.unmodifiableMap(new TreeMap<>(lwjglPaths));
         skippedNatives = List.copyOf(skippedNatives);
     }
 }

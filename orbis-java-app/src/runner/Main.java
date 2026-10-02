@@ -64,7 +64,10 @@ public final class Main {
                     throw new IOException("Upload a JAR to " + TARGET);
                 return null;
             });
-            String mainClass = readMainClass(debug);
+            boolean gpuMode = "gpu".equals(System.getProperty("runner.display", "console"));
+            String metadataMain = gpuMode
+                    ? boundary(debug, "gpu launch preparation", runner.gpu.GpuLaunch::prepare) : null;
+            String mainClass = readMainClass(debug, metadataMain);
             List<String> args = readArguments(debug);
             System.out.println("runner: main-class=" + mainClass + " arguments=" + args.size());
 
@@ -141,13 +144,18 @@ public final class Main {
         }
     }
 
-    private static String readMainClass(DebugLog debug) throws Throwable {
+    /** main-class.txt wins; otherwise GPU metadata's mainClass, else the JAR manifest. */
+    private static String readMainClass(DebugLog debug, String metadataMain) throws Throwable {
         String override = boundary(debug, "main override read path=" + MAIN_OVERRIDE, () -> {
             if (!Files.isRegularFile(MAIN_OVERRIDE)) return "";
             return Files.readString(MAIN_OVERRIDE, StandardCharsets.UTF_8).trim();
         });
         debug.write("main override result present=" + !override.isEmpty() + " main-class=" + override);
         if (!override.isEmpty()) return override;
+        if (metadataMain != null) {
+            debug.write("metadata main-class=" + metadataMain);
+            return metadataMain;
+        }
         return boundary(debug, "JAR manifest read path=" + TARGET, () -> {
             try (JarFile jar = new JarFile(TARGET.toFile())) {
                 Manifest manifest = jar.getManifest();

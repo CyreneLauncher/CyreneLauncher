@@ -1026,10 +1026,11 @@ int main(int argc, char **argv) {
         close(debug_fd);
         runner_debug_ready = 1;
         runner_debug("SESSION start build=%s; configuration load completed path=%s", ORBIS_JAVA_BUILD_VERSION, RUNNER_CONFIG_PATH);
-        runner_debug("CONFIG java_home=%s jar=%s working_directory=%s output_log=%s temporary_directory=%s debug=true display=%s desktop_bundle=%s graphics_bundle=%s",
+        runner_debug("CONFIG java_home=%s jar=%s working_directory=%s output_log=%s temporary_directory=%s debug=true display=%s desktop_bundle=%s graphics_bundle=%s version_metadata=%s libraries=%s",
             runner_config.java_home, runner_config.jar, runner_config.working_directory,
             runner_config.output_log, runner_config.temporary_directory, runner_display_name(),
-            runner_config.desktop_bundle, runner_config.graphics_bundle);
+            runner_config.desktop_bundle, runner_config.graphics_bundle,
+            runner_config.version_metadata, runner_config.libraries);
         runner_debug("EARLY startup log opened; configuration loaded before display/input ownership was selected");
     }
     runner_debug("ENTER prepare directories");
@@ -1264,7 +1265,7 @@ int main(int argc, char **argv) {
     }
 
     constexpr int runtime_option_capacity = 32;
-    constexpr int configured_option_count = 16;
+    constexpr int configured_option_count = 18;
     constexpr int desktop_option_capacity = 32;
     int desktop_option_count = runner_display_desktop() ? static_cast<int>(runner_desktop_option_count()) : 0;
     if (desktop_option_count > desktop_option_capacity) { startup_error("desktop option capacity exceeded"); return 3; }
@@ -1290,7 +1291,8 @@ int main(int argc, char **argv) {
         "-Dorbis.module.finder.imageFallback=true",
         "-Dorbis.runner.screen.enabled=%s", "-Drunner.debug.log=%s",
         "-Drunner.display=%s", "-Drunner.desktop.bundle=%s",
-        "-Djava.system.class.loader=%s", "-Drunner.graphics.bundle=%s"
+        "-Djava.system.class.loader=%s", "-Drunner.graphics.bundle=%s",
+        "-Drunner.gpu.metadata=%s", "-Drunner.gpu.libraries=%s"
     };
     // GPU mode appends the graphics bundle's natives after the JDK search path.
     char library_path[2048];
@@ -1320,7 +1322,8 @@ int main(int argc, char **argv) {
         ORBIS_PROFILE_SCREEN_CONSOLE && !runner_display_gpu() ? "true" : "false",
         runner_config.debug ? RUNNER_DEBUG_LOG : "",
         runner_display_name(), runner_config.desktop_bundle,
-        "runner.RunnerSystemClassLoader", runner_config.graphics_bundle };
+        "runner.RunnerSystemClassLoader", runner_config.graphics_bundle,
+        runner_config.version_metadata, runner_config.libraries };
     for (int i = 0; i < configured_option_count; ++i) {
         int length = snprintf(configured_storage[i], sizeof(configured_storage[i]), configured_formats[i],
                  configured_values[i], configured_values[i]);

@@ -59,7 +59,7 @@ public final class LwjglProfileRegistryTest {
     private static ResolvedLaunchPlan plan(Map<String, String> modules, Map<String, String> sha1) {
         Map<String, String> pins = new TreeMap<>(sha1);
         pins.keySet().retainAll(modules.keySet());
-        return new ResolvedLaunchPlan("1.18.2", "net.minecraft.client.main.Main", List.of(), modules, pins, List.of());
+        return new ResolvedLaunchPlan("1.18.2", "net.minecraft.client.main.Main", List.of(), modules, pins, Map.of(), List.of());
     }
 
     private static void bundleChecks() throws Exception {

@@ -16,6 +16,8 @@ typedef struct RunnerConfig {
     char temporary_directory[RUNNER_PATH_CAPACITY];
     char desktop_bundle[RUNNER_PATH_CAPACITY];
     char graphics_bundle[RUNNER_PATH_CAPACITY];
+    char version_metadata[RUNNER_PATH_CAPACITY];
+    char libraries[RUNNER_PATH_CAPACITY];
     int debug;
     int display;
 } RunnerConfig;

@@ -10,3 +10,5 @@ debug=false
 display=console
 desktop_bundle=/data/orbis-jdk/cacio
 graphics_bundle=/data/orbis-jdk/graphics
+version_metadata=/data/orbis-jdk/runner/version.json
+libraries=/data/orbis-jdk/libraries

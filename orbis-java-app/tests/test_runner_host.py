@@ -39,10 +39,7 @@ with tempfile.TemporaryDirectory() as directory:
     classes = tmp / "classes"
     classes.mkdir()
     subprocess.run([str(javac), "--release", "17", "-d", str(classes),
-                    str(root / "src/runner/Main.java"),
-                    str(root / "src/runner/NativeConsoleOutputStream.java"),
-                    str(root / "src/runner/NativeConsoleInputStream.java"),
-                    str(root / "src/runner/RunnerSystemClassLoader.java")],
+                    *map(str, sorted((root / "src/runner").rglob("*.java")))],
                    check=True)
     completed = subprocess.run([
         str(java), "-Dorbis.runner.root=" + str(app),

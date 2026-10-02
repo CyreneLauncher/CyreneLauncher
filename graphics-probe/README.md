@@ -77,3 +77,15 @@ comes from the runner's input service (`runner.gpu.NativeInput`). Host checks:
 `test_platform_prx.py`, `test_lwjgl_natives.py`, `test_lwjgl_facade.py`,
 `test_graphics_bundle.py`. None of this has run on a console yet; see `legal/README.md` in the
 bundle for licensing items still open.
+
+### LWJGL smoke test (Task 5)
+
+`make -C graphics-probe lwjgl-smoke` writes `build/lwjgl-smoke/`: a smoke `target.jar`
+(`lwjgl-smoke/src/orbis/smoke/LwjglSmoke.java`), a version JSON listing the seven official
+LWJGL 3.2.2 JARs (`tools/make_lwjgl_metadata.py`), that `libraries/` tree, a `display=gpu`
+`runner.conf` and `jvm-options.txt`, and `UPLOAD.txt` with the upload and log-collection
+steps. Each stage logs `SMOKE stage=<name> result=<ok|fail|skip>`: versions, init, window,
+context, capabilities (GL strings), shader, pixels (first-frame `glReadPixels` check), frames,
+input, teardown, summary. `-Dorbis.smoke.fail=<stage>` injects a failure after a stage to
+exercise teardown. `tests/test_lwjgl_smoke_contract.py` runs the init/window/context failure
+paths on the host; GL, pixels, presentation and input need the console.

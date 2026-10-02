@@ -46,9 +46,10 @@ static int debug_log_collision(const char *path) {
 int runner_config_load(const char *path, RunnerConfig *config, char *error, size_t size) {
     RunnerConfig parsed = {"/data/orbis-jdk/jdk", RUNNER_ROOT "/target.jar",
         RUNNER_ROOT, RUNNER_ROOT "/runner-output.log", RUNNER_ROOT "/tmp",
-        "/data/orbis-jdk/cacio", "/data/orbis-jdk/graphics", 0, RUNNER_DISPLAY_CONSOLE};
-    const char *keys[] = {"java_home", "jar", "working_directory", "output_log", "temporary_directory", "debug", "display", "desktop_bundle", "graphics_bundle"};
-    char *values[] = {parsed.java_home, parsed.jar, parsed.working_directory, parsed.output_log, parsed.temporary_directory, NULL, NULL, parsed.desktop_bundle, parsed.graphics_bundle};
+        "/data/orbis-jdk/cacio", "/data/orbis-jdk/graphics", RUNNER_ROOT "/version.json",
+        "/data/orbis-jdk/libraries", 0, RUNNER_DISPLAY_CONSOLE};
+    const char *keys[] = {"java_home", "jar", "working_directory", "output_log", "temporary_directory", "debug", "display", "desktop_bundle", "graphics_bundle", "version_metadata", "libraries"};
+    char *values[] = {parsed.java_home, parsed.jar, parsed.working_directory, parsed.output_log, parsed.temporary_directory, NULL, NULL, parsed.desktop_bundle, parsed.graphics_bundle, parsed.version_metadata, parsed.libraries};
     unsigned seen = 0;
     if (size) error[0] = 0;
     FILE *file = fopen(path, "rb");
@@ -118,7 +119,7 @@ done:
     return result;
 }
 int runner_option_reserved(const char *option) {
-    static const char *properties[] = {"java.home", "java.class.path", "java.library.path", "java.io.tmpdir", "user.dir", "java.system.class.loader", "runner.display", "runner.desktop.bundle", "runner.graphics.bundle", "runner.jar", "runner.output.log", "runner.debug.log", "orbis.runner.root", "orbis.runner.screen.enabled", "orbis.module.finder.imageFallback", "orbis.module.names.file", "orbis.module.names.list", "jdk.module.path", "jdk.module.upgrade.path", "jdk.module.main", "jdk.module.addmods", "sun.boot.library.path", "sun.boot.class.path"};
+    static const char *properties[] = {"java.home", "java.class.path", "java.library.path", "java.io.tmpdir", "user.dir", "java.system.class.loader", "runner.display", "runner.desktop.bundle", "runner.graphics.bundle", "runner.gpu.metadata", "runner.gpu.libraries", "runner.jar", "runner.output.log", "runner.debug.log", "orbis.runner.root", "orbis.runner.screen.enabled", "orbis.module.finder.imageFallback", "orbis.module.names.file", "orbis.module.names.list", "jdk.module.path", "jdk.module.upgrade.path", "jdk.module.main", "jdk.module.addmods", "sun.boot.library.path", "sun.boot.class.path"};
     if (!strncmp(option, "-D", 2)) {
         const char *key = option + 2;
         size_t n = strcspn(key, "=");
