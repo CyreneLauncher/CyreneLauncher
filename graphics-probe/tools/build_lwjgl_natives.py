@@ -6,19 +6,16 @@ the 3.2.2 tree). dyncall 1.0 replaces the prebuilt Linux libdyncall*_s.a LWJGL d
 Each module uses the shared Orbis JNI recipe (orbis_prx.py). Linux natives are never used.
 """
 import argparse
-import hashlib
 import json
-import shutil
 import sys
-import tarfile
-import urllib.request
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import lwjgl_sources  # noqa: E402
 import orbis_prx  # noqa: E402
 
 ROOT = orbis_prx.ROOT
-LOCK = json.loads((ROOT / 'lwjgl/lwjgl-sources.lock.json').read_text())
+LOCK = lwjgl_sources.LOCK
 # dyncall 1.0 x86-64 SysV; the arch-specific files are #included by these units.
 DYNCALL_SOURCES = (
     'dyncall/dyncall_api.c', 'dyncall/dyncall_callvm.c', 'dyncall/dyncall_callvm_base.c',
@@ -41,33 +38,9 @@ tools = orbis_prx.Toolchain(arguments.sdk, arguments.toolchain)
 downloads, out = Path(arguments.downloads).resolve(), Path(arguments.output).resolve()
 
 
-def pinned_archive(entry):
-    path = downloads / entry['filename']
-    if not path.is_file():
-        if not arguments.fetch:
-            raise SystemExit(f'missing {path}; download {entry["url"]} or pass --fetch')
-        downloads.mkdir(parents=True, exist_ok=True)
-        with urllib.request.urlopen(entry['url']) as response, path.open('wb') as target:
-            shutil.copyfileobj(response, target)
-    digest = hashlib.sha256(path.read_bytes()).hexdigest()
-    if digest != entry['sha256']:
-        raise SystemExit(f'{path} SHA-256 {digest} is not the pinned {entry["sha256"]}')
-    return path
-
-
-def extract(archive, destination):
-    if destination.exists():
-        shutil.rmtree(destination)
-    destination.mkdir(parents=True)
-    with tarfile.open(archive) as tar:
-        tar.extractall(destination, filter='data')
-    (top,) = destination.iterdir()
-    return top
-
-
 sources = out / 'sources'
-lwjgl = extract(pinned_archive(LOCK['lwjgl']), sources / 'lwjgl') / 'modules/lwjgl'
-dyncall = extract(pinned_archive(LOCK['dyncall']), sources / 'dyncall')
+lwjgl = lwjgl_sources.extract(lwjgl_sources.archive('lwjgl', downloads, arguments.fetch), sources / 'lwjgl') / 'modules/lwjgl'
+dyncall = lwjgl_sources.extract(lwjgl_sources.archive('dyncall', downloads, arguments.fetch), sources / 'dyncall')
 script, runtime = orbis_prx.runtime_objects(tools, out / 'runtime')
 jni = ('-I', arguments.jni_headers, '-I', Path(arguments.jni_headers) / arguments.jni_platform)
 # LWJGL's Linux flags, minus glibc-specific -U_FORTIFY_SOURCE handling and LTO.

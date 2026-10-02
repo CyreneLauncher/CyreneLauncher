@@ -7,6 +7,10 @@ package orbis.graphics;
  * Callers serialise lifecycle calls and finish GPU work before destroying the window.
  */
 public final class NativePlatform {
+    static {
+        System.loadLibrary("orbis_lwjgl_platform");
+    }
+
     private NativePlatform() {}
 
     /** Seeds Mesa's environment and initialises EGL; arenaMib 0 keeps Mesa's ladder. */
