@@ -23,6 +23,9 @@ bool stopping;
 bool lifecycle_busy;
 bool desktop_enabled;
 bool focus_toggle_enabled = true;
+bool diagnostics_enabled;
+uint32_t keyboard_samples_logged;
+uint32_t keyboard_transitions_logged;
 bool swallowed_keys[256];
 int keyboard_handle = -1;
 int mouse_handle = -1;
@@ -186,7 +189,31 @@ void enqueue_locked(const orbis_input_event &event) {
     pthread_cond_broadcast(&changed);
 }
 
+/* Bounded UART evidence for the reverse-engineered keyboard ABI (debug mode only). */
+void log_keyboard_sample(const OrbisKeyboardData &sample) {
+    if (!diagnostics_enabled || keyboard_samples_logged >= 24) return;
+    const uint8_t *bytes = reinterpret_cast<const uint8_t *>(&sample);
+    bool active = false;
+    for (size_t i = 16; i < sizeof(sample); ++i) active |= bytes[i] != 0 && i != 16;
+    if (!active) return;
+    ++keyboard_samples_logged;
+    char line[400];
+    int used = snprintf(line, sizeof(line), "orbis-java-input: kbd sample %u size=%u nkeys=%d mods=0x%x bytes=",
+                        keyboard_samples_logged, static_cast<unsigned>(sizeof(sample)), sample.nkeys, sample.mods);
+    for (size_t i = 0; i < sizeof(sample) && used < static_cast<int>(sizeof(line)) - 3; ++i)
+        used += snprintf(line + used, sizeof(line) - used, "%02x", bytes[i]);
+    snprintf(line + used, sizeof(line) - used, "\n");
+    sceKernelDebugOutText(0, line);
+}
+
 void transition_locked(uint32_t type, uint32_t raw_key, uint32_t scalar) {
+    if (diagnostics_enabled && keyboard_transitions_logged < 64 && type <= ORBIS_INPUT_EVENT_TEXT) {
+        ++keyboard_transitions_logged;
+        char line[128];
+        snprintf(line, sizeof(line), "orbis-java-input: kbd transition type=%u raw=%u scalar=%u focus=%u\n",
+                 type, raw_key, scalar, static_cast<unsigned>(focus));
+        sceKernelDebugOutText(0, line);
+    }
     orbis_input_event event{};
     snapshot_event(&event, type);
     event.raw_key = raw_key;
@@ -253,6 +280,7 @@ void *collect(void *) {
             }
         }
         bool keyboard_sample_valid = handle >= 0 && result >= 0;
+        if (keyboard_sample_valid) log_keyboard_sample(sample);
         if (keyboard_sample_valid && (sample.nkeys < 0 || sample.nkeys > 32)) {
             pthread_mutex_lock(&lock);
             reset_keyboard_locked();
@@ -583,6 +611,12 @@ extern "C" int32_t orbis_input_set_focus_toggle_enabled(int32_t enabled) {
     focus_toggle_enabled = enabled != 0;
     pthread_mutex_unlock(&lock);
     return 0;
+}
+
+extern "C" void orbis_input_set_diagnostics(int32_t enabled) {
+    pthread_mutex_lock(&lock);
+    diagnostics_enabled = enabled != 0;
+    pthread_mutex_unlock(&lock);
 }
 
 extern "C" int32_t orbis_input_set_pointer(int32_t x, int32_t y) {

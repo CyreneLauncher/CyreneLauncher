@@ -79,6 +79,9 @@ final class OrbisGLFW {
     private static GLFWVidMode.Buffer modes;
     private static PointerBuffer monitors;
     private static final int[] packet = new int[NativeInput.EVENT_WORDS];
+    /** -Dorbis.glfw.traceInput=true logs the first input packets to standard output. */
+    private static final boolean TRACE_INPUT = Boolean.getBoolean("orbis.glfw.traceInput");
+    private static int traced;
 
     static { glfwDefaultWindowHints(); }
 
@@ -820,6 +823,12 @@ final class OrbisGLFW {
     private static void dispatch(int[] event) {
         int type = event[NativeInput.TYPE];
         int raw = event[NativeInput.RAW_KEY];
+        if (TRACE_INPUT && traced < 400) {
+            ++traced;
+            System.out.println("orbis-glfw: input type=" + type + " raw=" + raw + " scalar="
+                    + event[NativeInput.UNICODE_SCALAR] + " mods=0x" + Integer.toHexString(event[NativeInput.MODIFIERS])
+                    + " x=" + event[NativeInput.X] + " y=" + event[NativeInput.Y] + " button=" + event[NativeInput.BUTTON]);
+        }
         boolean keyEvent = type == NativeInput.EVENT_KEY_DOWN || type == NativeInput.EVENT_KEY_UP
                 || type == NativeInput.EVENT_TEXT;
         if (keyEvent && raw < HID_FIRST_KEY) return;
