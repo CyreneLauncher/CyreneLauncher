@@ -28,6 +28,9 @@ uint32_t keyboard_samples_logged;
 uint32_t keyboard_transitions_logged;
 bool swallowed_keys[256];
 int keyboard_handle = -1;
+/* Slots 1-3: combo receivers and some keyboards report keys on a slot other than 0. */
+constexpr int kExtraKeyboardSlots = 3;
+int extra_keyboard_handles[kExtraKeyboardSlots] = {-1, -1, -1};
 int mouse_handle = -1;
 bool keyboard_initialized;
 bool mouse_initialized;
@@ -197,28 +200,28 @@ void enqueue_locked(const orbis_input_event &event) {
  */
 constexpr size_t kKeyboardReadBytes = 256;
 constexpr uint8_t kKeyboardCanary = 0xa5;
-uint8_t keyboard_last_dump[kKeyboardReadBytes];
-bool keyboard_size_logged;
+uint8_t keyboard_last_dump[1 + kExtraKeyboardSlots][kKeyboardReadBytes];
+bool keyboard_size_logged[1 + kExtraKeyboardSlots];
 
-void log_keyboard_read(const uint8_t *bytes, int32_t result) {
+void log_keyboard_read(int slot, const uint8_t *bytes, int32_t result) {
     if (!diagnostics_enabled) return;
     size_t written = kKeyboardReadBytes;
     while (written > 0 && bytes[written - 1] == kKeyboardCanary) --written;
-    if (!keyboard_size_logged) {
-        keyboard_size_logged = true;
+    if (!keyboard_size_logged[slot]) {
+        keyboard_size_logged[slot] = true;
         char line[160];
-        snprintf(line, sizeof(line), "orbis-java-input: kbd read result=0x%08x wrote %u of %u bytes (sdk struct %u)\n",
-                 static_cast<unsigned>(result), static_cast<unsigned>(written),
+        snprintf(line, sizeof(line), "orbis-java-input: kbd slot %d read result=0x%08x wrote %u of %u bytes (sdk struct %u)\n",
+                 slot, static_cast<unsigned>(result), static_cast<unsigned>(written),
                  static_cast<unsigned>(kKeyboardReadBytes), static_cast<unsigned>(sizeof(OrbisKeyboardData)));
         sceKernelDebugOutText(0, line);
     }
-    if (keyboard_samples_logged >= 48 || memcmp(bytes, keyboard_last_dump, kKeyboardReadBytes) == 0) return;
-    memcpy(keyboard_last_dump, bytes, kKeyboardReadBytes);
+    if (keyboard_samples_logged >= 48 || memcmp(bytes, keyboard_last_dump[slot], kKeyboardReadBytes) == 0) return;
+    memcpy(keyboard_last_dump[slot], bytes, kKeyboardReadBytes);
     ++keyboard_samples_logged;
     size_t shown = written < 160 ? written : 160;
     char line[420];
-    int used = snprintf(line, sizeof(line), "orbis-java-input: kbd change %u wrote=%u bytes=",
-                        keyboard_samples_logged, static_cast<unsigned>(written));
+    int used = snprintf(line, sizeof(line), "orbis-java-input: kbd slot %d change %u wrote=%u bytes=",
+                        slot, keyboard_samples_logged, static_cast<unsigned>(written));
     for (size_t i = 0; i < shown && used < static_cast<int>(sizeof(line)) - 3; ++i)
         used += snprintf(line + used, sizeof(line) - used, "%02x", bytes[i]);
     snprintf(line + used, sizeof(line) - used, "\n");
@@ -238,6 +241,60 @@ void transition_locked(uint32_t type, uint32_t raw_key, uint32_t scalar) {
     event.raw_key = raw_key;
     event.unicode_scalar = scalar;
     enqueue_locked(event);
+}
+
+/* Opens keyboard slots 1-3 best effort; slot 0 keeps the existing retry path. */
+void open_extra_keyboards() {
+    for (int i = 0; i < kExtraKeyboardSlots; ++i) {
+        if (extra_keyboard_handles[i] >= 0) continue;
+        int32_t handle = sceKeyboardOpen(user_id, 0, i + 1, nullptr);
+        if (diagnostics_enabled) {
+            char line[96];
+            snprintf(line, sizeof(line), "orbis-java-input: kbd slot %d open 0x%08x\n", i + 1,
+                     static_cast<unsigned>(handle));
+            sceKernelDebugOutText(0, line);
+        }
+        if (handle >= 0) extra_keyboard_handles[i] = handle;
+    }
+}
+
+void close_extra_keyboards() {
+    for (int i = 0; i < kExtraKeyboardSlots; ++i) {
+        if (extra_keyboard_handles[i] >= 0) sceKeyboardClose(extra_keyboard_handles[i]);
+        extra_keyboard_handles[i] = -1;
+    }
+}
+
+/* Unions every slot's keys and modifiers into sample; key code 0 means "no key" and is dropped. */
+void merge_extra_keyboards(OrbisKeyboardData *sample) {
+    int32_t count = 0;
+    for (int32_t i = 0; i < sample->nkeys && i < 32; ++i)
+        if (sample->keycodes[i] != 0) sample->keycodes[count++] = sample->keycodes[i];
+    for (int slot = 0; slot < kExtraKeyboardSlots; ++slot) {
+        int32_t handle = extra_keyboard_handles[slot];
+        if (handle < 0) continue;
+        alignas(16) uint8_t raw[kKeyboardReadBytes];
+        memset(raw, kKeyboardCanary, sizeof(raw));
+        int32_t result = sceKeyboardReadState(handle, reinterpret_cast<OrbisKeyboardData *>(raw));
+        log_keyboard_read(slot + 1, raw, result);
+        if (result < 0) {
+            sceKeyboardClose(handle);
+            extra_keyboard_handles[slot] = -1;
+            continue;
+        }
+        OrbisKeyboardData extra{};
+        memcpy(&extra, raw, sizeof(extra));
+        if (extra.nkeys < 0 || extra.nkeys > 32) continue;
+        sample->mods |= extra.mods;
+        sample->locks |= extra.locks;
+        for (int32_t i = 0; i < extra.nkeys; ++i) {
+            uint16_t key = extra.keycodes[i];
+            bool present = key == 0;
+            for (int32_t j = 0; j < count && !present; ++j) present = sample->keycodes[j] == key;
+            if (!present && count < 32) sample->keycodes[count++] = key;
+        }
+    }
+    sample->nkeys = count;
 }
 
 void *collect(void *) {
@@ -284,7 +341,7 @@ void *collect(void *) {
             memset(raw_sample, kKeyboardCanary, sizeof(raw_sample));
             result = sceKeyboardReadState(handle, reinterpret_cast<OrbisKeyboardData *>(raw_sample));
             memcpy(&sample, raw_sample, sizeof(sample));
-            log_keyboard_read(raw_sample, result);
+            log_keyboard_read(0, raw_sample, result);
         }
         if (result < 0) {
             keyboard_retry_after = now_us() + 1000000;
@@ -304,6 +361,7 @@ void *collect(void *) {
             }
         }
         bool keyboard_sample_valid = handle >= 0 && result >= 0;
+        if (keyboard_sample_valid) merge_extra_keyboards(&sample);
         if (keyboard_sample_valid && (sample.nkeys < 0 || sample.nkeys > 32)) {
             pthread_mutex_lock(&lock);
             reset_keyboard_locked();
@@ -505,6 +563,7 @@ int32_t initialize_devices() {
     result = sceUserServiceGetInitialUser(&user_id);
     if (result < 0 || user_id < 0) return result < 0 ? result : user_id;
     int32_t keyboard_result = open_keyboard();
+    open_extra_keyboards();
     if (keyboard_result < 0) {
         char message[128];
         snprintf(message, sizeof(message),
@@ -554,6 +613,7 @@ extern "C" int32_t orbis_input_start(void) {
         pthread_mutex_lock(&lock); started = false; pthread_mutex_unlock(&lock);
         if (keyboard_handle >= 0) sceKeyboardClose(keyboard_handle);
         keyboard_handle = -1;
+        close_extra_keyboards();
         if (mouse_handle >= 0) sceMouseClose(mouse_handle);
         mouse_handle = -1;
         pthread_mutex_lock(&lock);
@@ -580,6 +640,7 @@ extern "C" void orbis_input_stop(void) {
     pthread_join(collector, nullptr);
     if (keyboard_handle >= 0) sceKeyboardClose(keyboard_handle);
     keyboard_handle = -1;
+    close_extra_keyboards();
     if (mouse_handle >= 0) sceMouseClose(mouse_handle);
     mouse_handle = -1;
     pthread_mutex_lock(&lock);
