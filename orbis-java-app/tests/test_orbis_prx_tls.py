@@ -72,6 +72,18 @@ with tempfile.TemporaryDirectory() as directory:
         '-o', prx, *objects, toolchain / 'lib/crtlib.o', '-L' + str(toolchain / 'lib'),
         '--start-group', '-lc', '-lclang_rt.builtins-x86_64', '--end-group', '-lkernel')
     check_tls_imports(prx)
+    bss_source = tmp / 'tbss_only.c'
+    bss_source.write_text('__thread long only_cleared[4];\nlong *e(void) { return only_cleared; }\n')
+    bss_object = tmp / 'tbss_only.o'
+    run(sdk / 'bin/clang', '--target=x86_64-pc-freebsd12-elf', '-fPIC', '-fdata-sections', '-O2',
+        '-isysroot', toolchain, '-isystem', toolchain / 'include', '-c', bss_source, '-o', bss_object)
+    bss_prx = tmp / 'libtbssonly.so'
+    run(sdk / 'bin/ld.lld', '--shared', '--no-undefined', '-Bsymbolic', '-e', 'module_start', '--script', script,
+        '-o', bss_prx, bss_object, objects[1], toolchain / 'lib/crtlib.o', '-L' + str(toolchain / 'lib'),
+        '--start-group', '-lc', '-lclang_rt.builtins-x86_64', '--end-group', '-lkernel')
+    bss_tls = [line.split() for line in readelf('-l', bss_prx).splitlines() if line.strip().startswith('TLS ')]
+    assert len(bss_tls) == 1 and bss_tls[0][4] == bss_tls[0][5] and int(bss_tls[0][4], 16) > 0, \
+        '.tbss-only module needs an initialised TLS image: ' + str(bss_tls)
 
     tls_segments = [line.split() for line in readelf('-l', prx).splitlines() if line.strip().startswith('TLS ')]
     assert len(tls_segments) == 1, tls_segments

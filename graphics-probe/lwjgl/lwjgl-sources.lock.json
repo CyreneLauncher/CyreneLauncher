@@ -1,0 +1,18 @@
+{
+  "lwjgl": {
+    "version": "3.2.2",
+    "tag_commit": "330c01908605ac1b87194b36c2902d605a45e182",
+    "url": "https://github.com/LWJGL/lwjgl3/archive/refs/tags/3.2.2.tar.gz",
+    "filename": "lwjgl3-3.2.2.tar.gz",
+    "sha256": "e98805dbcab98f09df27848a229d7cb80687d9ce986b43d1f20b0712e1215f6e",
+    "license": "BSD-3-Clause (LICENSE.md in the archive)"
+  },
+  "dyncall": {
+    "version": "1.0",
+    "url": "https://www.dyncall.org/r1.0/dyncall-1.0.tar.gz",
+    "filename": "dyncall-1.0.tar.gz",
+    "sha256": "d1b6d9753d67dcd4d9ea0708ed4a3018fb5bfc1eca5f37537fba2bc4f90748f2",
+    "license": "ISC (LICENSE in the archive)",
+    "selection": "LWJGL 3.2.2 bundles dyncall headers that equal 1.0's except for the copyright year"
+  }
+}

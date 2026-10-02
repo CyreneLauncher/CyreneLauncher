@@ -39,6 +39,13 @@ static void orbis_prx_tls_template(const unsigned char **image, size_t *file_siz
 }
 #endif
 
+/*
+ * With no initialised thread-local in a module, lld emits .tls as NOBITS and the
+ * image bounds would cover unrelated bytes. This anchor keeps .tls PROGBITS, so the
+ * merged .tbss is zero-filled in the image every block is copied from.
+ */
+__attribute__((used, visibility("hidden"))) __thread unsigned char orbis_prx_tls_anchor = 1;
+
 static pthread_key_t tls_key;
 static pthread_mutex_t tls_setup_lock = PTHREAD_MUTEX_INITIALIZER;
 static int tls_ready;
