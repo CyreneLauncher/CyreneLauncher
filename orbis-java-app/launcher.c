@@ -698,10 +698,19 @@ static int register_screen_console_input(JNIEnv *env) {
 }
 #endif
 
+/* libSceGnmDriver: a process that submitted GPU work cannot be suspended (closed from the
+ * PS menu) until it calls this, so a parked GPU-mode runner keeps calling it. */
+extern "C" int32_t sceGnmSubmitDone(void);
+
 static void park_after_error(void) {
     runner_debug("ENTER park_after_error (waiting indefinitely)");
     for (;;) {
-        sceKernelUsleep(1000000);
+        if (runner_display_gpu()) {
+            sceGnmSubmitDone();
+            sceKernelUsleep(100000);
+        } else {
+            sceKernelUsleep(1000000);
+        }
     }
 }
 

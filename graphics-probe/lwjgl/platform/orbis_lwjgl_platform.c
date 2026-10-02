@@ -17,6 +17,9 @@
 #include <stdlib.h>
 #include <string.h>
 
+/* libSceGnmDriver: the system will not suspend a process that submitted GPU work until it calls this. */
+int32_t sceGnmSubmitDone(void);
+
 #define PLATFORM_WINDOW 1 /* the only window handle */
 
 static pthread_mutex_t platform_lock = PTHREAD_MUTEX_INITIALIZER;
@@ -186,6 +189,7 @@ JNIEXPORT jboolean JNICALL Java_orbis_graphics_NativePlatform_nSwapBuffers(
         record_egl("eglSwapBuffers");
         return JNI_FALSE;
     }
+    sceGnmSubmitDone();
     return JNI_TRUE;
 }
 
