@@ -396,7 +396,7 @@ def prepare(version: str, output: Path, cache: Path, username: str, *,
         # 1.5 GiB heap and a 256 MiB Metaspace trigger: every early full collection was "Metadata GC
         # Threshold".
         jvm_options = ['-Xms1536m', '-Xmx1536m', '-XX:+UseParallelGC', '-XX:MetaspaceSize=256m',
-                       '-Dorbis.graphics.arenaMib=1024', '-Djava.awt.headless=true',
+                       '-Dorbis.graphics.arenaMib=1536', '-Djava.awt.headless=true',
                        '-Djava.net.preferIPv4Stack=true']
         if fabric:
             jvm_options.extend(FABRIC_JVM_OPTIONS)
