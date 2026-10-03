@@ -2412,6 +2412,16 @@
     },
     {
       "classification": "compile-verified",
+      "evidence": "os_orbis.cpp logs the main thread's priority with its affinity in the -Xlog:os report; libkernel import; console result pending.",
+      "route": "direct",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp"
+      ],
+      "subsystem": "threads",
+      "symbol": "scePthreadGetprio"
+    },
+    {
+      "classification": "compile-verified",
       "evidence": "os::Bsd::initialize_system_info counts the main thread's affinity mask as the processor count, because sysconf(_SC_NPROCESSORS_ONLN) reports 1 on Orbis. libkernel import; console result pending (logged by os::init_2 under -Xlog:os).",
       "route": "direct",
       "source_globs": [
