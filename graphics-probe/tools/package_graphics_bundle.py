@@ -33,6 +33,7 @@ parser.add_argument('--platform', default=str(ROOT / 'build/platform'))
 parser.add_argument('--lwjgl', default=str(ROOT / 'build/lwjgl'))
 parser.add_argument('--facade', default=str(ROOT / 'build/lwjgl-facade'))
 parser.add_argument('--optional', default=str(ROOT / 'build/lwjgl-optional'))
+parser.add_argument('--openal', default=str(ROOT / 'build/openal'))
 parser.add_argument('--output', default=str(ROOT / 'build/graphics-bundle'))
 arguments = parser.parse_args()
 platform, lwjgl, facade, optional = (Path(p).resolve() for p in
@@ -50,6 +51,8 @@ platform_audit = load_audit(platform / 'platform-audit.json')
 lwjgl_audit = load_audit(lwjgl / 'lwjgl-audit.json')
 facade_audit = load_audit(facade / 'facade-audit.json')
 optional_audit = load_audit(optional / 'optional-audit.json')
+openal = Path(arguments.openal).resolve()
+openal_audit = load_audit(openal / 'openal-audit.json')
 sources = ROOT / 'build/sources'
 lwjgl_tree = next((lwjgl / 'sources/lwjgl').iterdir())
 dyncall_tree = next((lwjgl / 'sources/dyncall').iterdir())
@@ -62,7 +65,7 @@ shutil.copyfile(lwjgl / 'liblwjgl.prx', out / 'lib/liblwjgl.so')
 shutil.copyfile(lwjgl / 'liblwjgl_opengl.prx', out / 'lib/liblwjgl_opengl.so')
 shutil.copyfile(lwjgl / 'liblwjgl_stb.prx', out / 'lib/liblwjgl_stb.so')
 shutil.copyfile(optional / 'liblwjgl_tinyfd.prx', out / 'lib/liblwjgl_tinyfd.so')
-shutil.copyfile(optional / 'libopenal.prx', out / 'lib/libopenal.so')
+shutil.copyfile(openal / 'libopenal.prx', out / 'lib/libopenal.so')
 shutil.copyfile(facade / ADAPTER, out / 'lib' / ADAPTER)
 for name in NATIVES:
     if (out / 'lib' / name).read_bytes()[:4] != b'O\x15=\x1d':
@@ -72,6 +75,7 @@ legal = out / 'legal'
 legal.mkdir()
 shutil.copyfile(sources / 'mesa/docs/license.rst', legal / 'mesa-license.rst')
 shutil.copyfile(sources / 'mesa/subprojects/zlib-1.3.1/LICENSE', legal / 'zlib-LICENSE')
+shutil.copyfile(next((openal / 'sources').iterdir()) / 'COPYING', legal / 'openal-soft-COPYING')
 shutil.copyfile(lwjgl_tree / 'LICENSE.md', legal / 'lwjgl-LICENSE.md')
 shutil.copyfile(dyncall_tree / 'LICENSE', legal / 'dyncall-LICENSE')
 shutil.copyfile(lwjgl_tree / 'modules/lwjgl/tinyfd/src/main/c/tinyfiledialogs.h',
@@ -92,8 +96,9 @@ if (sources / 'orbis-compat/licenses').is_dir():
   their headers state public-domain or MIT dual licensing. The generated JNI is LWJGL BSD-3-Clause.
 - `liblwjgl_tinyfd.so` uses LWJGL generated JNI (BSD-3-Clause) and the bounded
   original Orbis implementation of tinyfiledialogs (Zlib; see `tinyfiledialogs.h`).
-- `libopenal.so` is the original Orbis silent/no-device provider (BSD-3-Clause).
-  It never advertises playback or opens a device. TinyFD file and message dialogs cancel.
+- `libopenal.so` is OpenAL Soft 1.23.1 (LGPL-2.1-or-later, `openal-soft-COPYING`) built
+  unmodified as a separate dynamically loaded module, plus an Orbis AudioOut playback backend
+  added at build time (graphics-probe/lwjgl/openal/). TinyFD file and message dialogs cancel.
 - All six modules also contain the runner's own Orbis runtime objects and SDK libc/libc++.
 - Compatibility fixture provenance and the DejaVu font license are in the separate
   `lwjgl-compat/runner/fixtures/` upload set; fixtures are not shipped in this bundle.
@@ -115,7 +120,9 @@ build_info = {
     'optional': {'behavior_mode': optional_audit['behavior_mode'],
                  'modules': {name: {k: audit[k] for k in ('needed', 'imports', 'jni_natives', 'tls')}
                              for name, audit in optional_audit['modules'].items()}},
-    'compatibility': {'dialogs': 'cancel', 'audio': 'no-device',
+    'openal': {k: openal_audit[k] for k in ('openal_soft', 'source_sha256', 'backend')}
+              | {k: openal_audit['module'][k] for k in ('needed', 'imports', 'tls')},
+    'compatibility': {'dialogs': 'cancel', 'audio': 'orbis-audioout',
                       'device_callback_and_gl_debug_gate': 'pending device run',
                       'fixture_provenance': 'separate lwjgl-compat upload set'},
     'facade': {k: facade_audit[k] for k in ('classes', 'official_classes', 'glfw_methods')}

@@ -21,5 +21,13 @@
     "lwjgl-opengl-3.2.2.jar": "6ac5bb88b44c43ea195a570aab059f63da004cd8",
     "lwjgl-glfw-3.2.2.jar": "d3ad4df38e400b8afba1de63f84338809399df5b",
     "lwjgl-stb-3.2.2.jar": "3b8e6ebc5851dd3d17e37e5cadce2eff2a429f0f"
+  },
+  "openal-soft": {
+    "version": "1.23.1",
+    "url": "https://github.com/kcat/openal-soft/releases/download/1.23.1/openal-soft-1.23.1.tar.bz2",
+    "filename": "openal-soft-1.23.1.tar.bz2",
+    "sha256": "796f4b89134c4e57270b7f0d755f0fa3435b90da437b745160a49bd41c845b21",
+    "license": "LGPL-2.1-or-later (COPYING in the archive)",
+    "selection": "Last C++14 release line; builds with the Orbis SDK's libc++ 11. Provides the libopenal LWJGL loads, with an Orbis AudioOut backend added at build time."
   }
 }

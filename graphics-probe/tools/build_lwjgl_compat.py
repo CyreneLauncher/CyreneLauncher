@@ -68,11 +68,11 @@ libraries=/data/orbis-jdk/libraries
    Keep the runner PKG (OJDK00003), JDK, graphics bundle and probe tree separate.
 5. Launch the runner. Collect runner-output.log (COMPAT stage= lines),
    runner-debug.log, /data/orbis-jdk/logs/orbis-runner.log, and UART.
-   Require native-load, all STB stages, alc-no-device, tinyfd-cancel, glfw-policy,
+   Require native-load, all STB stages, alc (tone on a device, else no-device contract), tinyfd-cancel, glfw-policy,
    gl-debug-callback, teardown and summary result=ok. A required stage cannot
    be accepted as skip. GL debug stage verifies invocation when advertised.
 6. Repeat after adding -Dorbis.compat.fail=<native-load|stb-image|stb-font|
-   stb-vorbis|stb-callback|alc-no-device|tinyfd-cancel|glfw-init|glfw-window|
+   stb-vorbis|stb-callback|alc|tinyfd-cancel|glfw-init|glfw-window|
    glfw-policy|gl-context|gl-capabilities|gl-debug-callback> to jvm-options.txt;
    each injected run must have summary result=fail and reverse-order teardown.
    Remove the option before the normal run. Save failure logs and memory evidence.

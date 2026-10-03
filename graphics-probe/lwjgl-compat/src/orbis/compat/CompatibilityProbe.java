@@ -118,8 +118,7 @@ public final class CompatibilityProbe {
         StbChecks.run(fixtures); // Aggregate fixture contract remains reusable for host and device.
         stage("callback-pool", stressCallbacks());
 
-        OptionalChecks.checkAudio();
-        stage("alc-no-device", "official ALC bootstrap, no device, one-shot error, no context");
+        stage("alc", OptionalChecks.checkAudio());
         OptionalChecks.checkDialogs();
         stage("tinyfd-cancel", "official TinyFD wrappers return cancellation");
         OptionalChecks.run(); // Also checks repeated bootstrap/teardown as a combined contract.

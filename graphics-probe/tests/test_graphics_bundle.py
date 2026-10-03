@@ -8,7 +8,8 @@ from pathlib import Path
 
 root = Path(__file__).resolve().parents[1]
 inputs = [root / 'build/platform/platform-audit.json', root / 'build/lwjgl/lwjgl-audit.json',
-          root / 'build/lwjgl-facade/facade-audit.json', root / 'build/lwjgl-optional/optional-audit.json']
+          root / 'build/lwjgl-facade/facade-audit.json', root / 'build/lwjgl-optional/optional-audit.json',
+          root / 'build/openal/openal-audit.json']
 if not all(path.is_file() for path in inputs):
     raise SystemExit('graphics bundle test missing component audits; run make -C graphics-probe graphics-bundle first')
 with tempfile.TemporaryDirectory() as directory:
@@ -31,7 +32,8 @@ with tempfile.TemporaryDirectory() as directory:
     for path, digest in manifest['files'].items():
         assert hashlib.sha256((out / path).read_bytes()).hexdigest() == digest, path
     info = json.loads((out / 'build-info.json').read_text())
-    assert info['optional']['behavior_mode'] == 'no-device'
+    assert info['openal']['openal_soft'] == '1.23.1' and 'libSceAudioOut.so' in info['openal']['needed']
+    assert (out / 'legal/openal-soft-COPYING').is_file()
     assert info['stb']['jni_natives'] == 205
     assert sorted(p.relative_to(out).parts[0] for p in out.iterdir()) == \
         ['build-info.json', 'graphics-bundle.json', 'legal', 'lib']

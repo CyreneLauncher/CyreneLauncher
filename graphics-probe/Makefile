@@ -18,6 +18,7 @@ FETCH ?=
 graphics-bundle:
 	$(PYTHON) $(PROJECT_DIR)/tools/build_platform_prx.py --sdk $(ORBIS_SDK) --toolchain $(SDK)
 	$(PYTHON) $(PROJECT_DIR)/tools/build_lwjgl_natives.py --sdk $(ORBIS_SDK) --toolchain $(SDK) $(FETCH)
+	$(PYTHON) $(PROJECT_DIR)/tools/build_openal.py --sdk $(ORBIS_SDK) --toolchain $(SDK) $(FETCH)
 	$(PYTHON) $(PROJECT_DIR)/tools/build_lwjgl_optional.py --sdk $(ORBIS_SDK) --toolchain $(SDK) --jars $(LWJGL_JARS)
 	$(PYTHON) $(PROJECT_DIR)/tools/build_lwjgl_facade.py --jars $(LWJGL_JARS) $(FETCH)
 	$(PYTHON) $(PROJECT_DIR)/tools/package_graphics_bundle.py

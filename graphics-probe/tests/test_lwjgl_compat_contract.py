@@ -85,7 +85,7 @@ class CompatibilityContract(unittest.TestCase):
                                       self.out / 'runner/target.jar',
                                       *(JARS / f'{module}-3.2.2.jar' for module in
                                         ('lwjgl', 'lwjgl-opengl', 'lwjgl-stb', 'lwjgl-openal', 'lwjgl-tinyfd'))])
-        for stage in ('native-load', 'stb-callback', 'alc-no-device', 'tinyfd-cancel', 'glfw-init', 'glfw-window', 'glfw-policy'):
+        for stage in ('native-load', 'stb-callback', 'alc', 'tinyfd-cancel', 'glfw-init', 'glfw-window', 'glfw-policy'):
             result = subprocess.run([str(JAVA / 'java'), '-Dorg.lwjgl.system.allocator=system',
                                      '-Dorg.lwjgl.librarypath=' + str(native),
                                      '-Dorg.lwjgl.opengl.libname=/nonexistent/libGL.so',
