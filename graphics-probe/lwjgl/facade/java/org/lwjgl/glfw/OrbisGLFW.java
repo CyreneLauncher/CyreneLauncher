@@ -90,6 +90,8 @@ final class OrbisGLFW {
     // ---------------------------------------------------------------- errors
 
     static void error(int code, String description) {
+        // Applications often keep only the code (Minecraft prints the text pointer as a number).
+        System.err.println("orbis-glfw: error 0x" + Integer.toHexString(code) + ": " + description);
         synchronized (OrbisGLFW.class) {
             lastError = code;
             if (lastErrorText != null) memFree(lastErrorText);
