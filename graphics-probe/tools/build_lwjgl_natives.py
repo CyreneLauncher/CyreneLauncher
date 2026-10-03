@@ -20,7 +20,7 @@ LOCK = lwjgl_sources.LOCK
 DYNCALL_SOURCES = (
     'dyncall/dyncall_api.c', 'dyncall/dyncall_callvm.c', 'dyncall/dyncall_callvm_base.c',
     'dyncall/dyncall_call.S', 'dyncall/dyncall_callf.c', 'dyncall/dyncall_vector.c',
-    'dyncall/dyncall_struct.c', 'dyncallback/dyncall_alloc_wx.c', 'dyncallback/dyncall_args.c',
+    'dyncall/dyncall_struct.c', 'dyncallback/dyncall_args.c',
     'dyncallback/dyncall_callback.c', 'dyncallback/dyncall_callback_arch.S',
     'dyncallback/dyncall_thunk.c', 'dynload/dynload.c', 'dynload/dynload_syms.c')
 
@@ -57,7 +57,9 @@ def compile_all(files, directory, *flags):
     return objects
 
 
-dyncall_objects = compile_all([dyncall / s for s in DYNCALL_SOURCES], out / 'obj/dyncall', '-O2',
+# dyncall_alloc_wx_mmap.c is replaced: one 16 KiB mapping per callback exhausts Orbis memory.
+dyncall_objects = compile_all([dyncall / s for s in DYNCALL_SOURCES] + [ROOT / 'lwjgl/dyncall/orbis_dyncall_alloc_wx.c'],
+                              out / 'obj/dyncall', '-O2',
                               '-I', dyncall / 'dyncall', '-I', dyncall / 'dyncallback', '-I', dyncall / 'dynload')
 core_sources = (sorted((lwjgl / 'core/src/main/c').glob('*.c')) + sorted((lwjgl / 'core/src/generated/c').glob('*.c'))
                 + sorted((lwjgl / 'core/src/generated/c/linux').glob('*.c')))

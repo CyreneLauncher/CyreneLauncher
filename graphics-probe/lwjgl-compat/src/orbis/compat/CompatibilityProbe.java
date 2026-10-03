@@ -64,6 +64,35 @@ public final class CompatibilityProbe {
             throw new IllegalStateException("compatibility probe failed; inspect COMPAT lines");
     }
 
+    /** Minecraft creates a read callback per texture on several threads; keep thousands alive at once. */
+    private static String stressCallbacks() throws InterruptedException {
+        final int live = 2000, rounds = 5, threads = 4;
+        AtomicInteger created = new AtomicInteger();
+        Throwable[] failure = new Throwable[1];
+        Thread[] workers = new Thread[threads];
+        for (int t = 0; t < threads; t++) {
+            workers[t] = new Thread(() -> {
+                try {
+                    for (int r = 0; r < rounds; r++) {
+                        STBIReadCallback[] held = new STBIReadCallback[live / threads];
+                        for (int i = 0; i < held.length; i++) {
+                            held[i] = STBIReadCallback.create((user, data, size) -> 0);
+                            created.incrementAndGet();
+                        }
+                        for (STBIReadCallback callback : held) callback.free();
+                    }
+                } catch (Throwable e) {
+                    synchronized (failure) { if (failure[0] == null) failure[0] = e; }
+                }
+            });
+            workers[t].start();
+        }
+        for (Thread worker : workers) worker.join();
+        if (failure[0] != null)
+            throw new IllegalStateException("callback creation failed after " + created.get() + " callbacks", failure[0]);
+        return created.get() + " callbacks on " + threads + " threads, " + live + " alive at once, all freed";
+    }
+
     private static void run(Path fixtures) throws Exception {
         Library.initialize(); // Actually loads liblwjgl, including JNI and dyncall.
         ByteBuffer allocation = MemoryUtil.memAlloc(16);
@@ -87,6 +116,7 @@ public final class CompatibilityProbe {
         stage("stb-callback", "PNG write/read dyncall roundtrip read=" + callbackCounts[0]
                 + " skip=" + callbackCounts[1] + " eof=" + callbackCounts[2] + " callbacks freed");
         StbChecks.run(fixtures); // Aggregate fixture contract remains reusable for host and device.
+        stage("callback-pool", stressCallbacks());
 
         OptionalChecks.checkAudio();
         stage("alc-no-device", "official ALC bootstrap, no device, one-shot error, no context");
