@@ -132,12 +132,17 @@ set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)
     # The SDK libc++ calls __cxa_thread_atexit_impl, which its libc lacks; orbis-compat provides it.
     atexit = tools.compile(ROOT / 'build/sources/orbis-compat/src/orbis_thread_atexit.c',
                            out / 'orbis_thread_atexit.o', '-std=c11', '-O2')
+    # libc++abi's static-initialisation guards tell threads apart by getpid() (the SDK maps
+    # SYS_gettid to it), so two threads initialising one static abort as "recursive
+    # initialization"; orbis-compat's guards replace them.
+    guard = tools.compile(ROOT / 'build/sources/orbis-compat/src/orbis_cxa_guard.c',
+                          out / 'orbis_cxa_guard.o', '-std=gnu11', '-O2')
     # A defined no-op for the weak thread-local init hook create-fself cannot leave undefined.
     tls_init = tools.compile(ROOT / 'lwjgl/openal/orbis_openal_tls_init.c', out / 'orbis_openal_tls_init.o',
                              '-std=c11', '-O2')
     script, runtime = orbis_prx.runtime_objects(tools, out / 'runtime')
     elf = out / 'libopenal.so'
-    orbis_prx.link(tools, script, runtime, elf, [*objects, atexit, tls_init],
+    orbis_prx.link(tools, script, runtime, elf, [*objects, atexit, guard, tls_init],
                    system_libraries=('SceAudioOut', 'SceUserService'))
     audit, _ = orbis_prx.audit(elf, allowed_needed=('libkernel.so', 'libSceAudioOut.so', 'libSceUserService.so'),
                                jni_prefix=None, jni_count=None, require_onload=False, required_c_exports=CORE)
