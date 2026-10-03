@@ -58,6 +58,10 @@ MODS = {
                'sodium-fabric-mc1.18.2-0.4.1%2Bbuild.15.jar',
                'sodium-fabric-mc1.18.2-0.4.1+build.15.jar',
                'f839863a6be7014b8d80058ea1f361521148d049', 1318645),
+    # Defers DataFixerUpper's rule optimisation until a save needs upgrading: on the console it
+    # otherwise holds a core for minutes after the title screen.
+    'lazydfu': ('https://cdn.modrinth.com/data/hvFnDODi/versions/0.1.2/lazydfu-0.1.2.jar',
+                'lazydfu-0.1.2.jar', '2efec5781f1271bdcdae462eee402ccb97bff6fe', 15517),
 }
 
 
@@ -385,7 +389,10 @@ def prepare(version: str, output: Path, cache: Path, username: str, *,
         # Sodium on Fancy exhausted a 512 MiB graphics arena ("out of device VA"); the console reports
         # 4.6 GiB of direct memory, so a 1 GiB heap and a 1 GiB arena leave headroom.
         # Orbis rejects IPv6 multicast options (LAN discovery: "Protocol not available"); IPv4-only sockets.
-        jvm_options = ['-Xms512m', '-Xmx1024m', '-Dorbis.graphics.arenaMib=1024', '-Djava.awt.headless=true',
+        # About 700 MiB stays live in a Sodium world, so a 1 GiB heap ran back-to-back collections and
+        # multi-second full GCs; G1 keeps pauses short now that the VM sees the console's cores.
+        jvm_options = ['-Xms1024m', '-Xmx1536m', '-XX:+UseG1GC', '-XX:MaxGCPauseMillis=50',
+                       '-Dorbis.graphics.arenaMib=1024', '-Djava.awt.headless=true',
                        '-Djava.net.preferIPv4Stack=true']
         if fabric:
             jvm_options.extend(FABRIC_JVM_OPTIONS)
