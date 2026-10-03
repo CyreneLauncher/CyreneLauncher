@@ -391,9 +391,12 @@ def prepare(version: str, output: Path, cache: Path, username: str, *,
         # Orbis rejects IPv6 multicast options (LAN discovery: "Protocol not available"); IPv4-only sockets.
         # The Orbis JVM is built with the Serial collector only (no G1/Parallel). A 1.5 GiB heap left too
         # little direct memory for thread stacks once the VM saw all six cores.
-        # Serial explicitly: with six cores the VM counts as server-class and would choose Parallel,
-        # whose flexible-memory use left no room for Mesa's and the input service's thread stacks.
-        jvm_options = ['-Xms512m', '-Xmx1024m', '-XX:+UseSerialGC', '-Dorbis.graphics.arenaMib=1024', '-Djava.awt.headless=true',
+        # Serial explicitly: with six cores the VM counts as server-class and would choose Parallel, under
+        # which threads created from the render thread fail with EAGAIN (unresolved). A full 1.5 GiB heap
+        # and a 256 MiB Metaspace trigger: every full collection had been "Metadata GC Threshold", and the
+        # old generation (~400 MiB live in a Sodium world) now fills about every 4-5 minutes, not 2.
+        jvm_options = ['-Xms1536m', '-Xmx1536m', '-XX:+UseSerialGC', '-XX:MetaspaceSize=256m',
+                       '-Dorbis.graphics.arenaMib=1024', '-Djava.awt.headless=true',
                        '-Djava.net.preferIPv4Stack=true']
         if fabric:
             jvm_options.extend(FABRIC_JVM_OPTIONS)
