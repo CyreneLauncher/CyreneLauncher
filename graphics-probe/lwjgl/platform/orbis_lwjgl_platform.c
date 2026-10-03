@@ -96,6 +96,8 @@ int __real_pthread_create(pthread_t *thread, const pthread_attr_t *attr,
 int32_t sceKernelAvailableFlexibleMemorySize(size_t *size) __asm__("sceKernelAvailableFlexibleMemorySize");
 int sceKernelUsleep(unsigned int microseconds);
 
+static void report_get_profile(void);
+
 static void diag(const char *fmt, ...) {
     va_list ap;
     va_start(ap, fmt);
@@ -420,6 +422,7 @@ JNIEXPORT jboolean JNICALL Java_orbis_graphics_NativePlatform_nSwapBuffers(
     EGLSurface current_surface = surface;
     pthread_mutex_unlock(&platform_lock);
     if (!valid) return JNI_FALSE;
+    report_get_profile();
     if (!eglSwapBuffers(current_display, current_surface)) {
         record_egl("eglSwapBuffers");
         return JNI_FALSE;
@@ -440,6 +443,41 @@ JNIEXPORT jboolean JNICALL Java_orbis_graphics_NativePlatform_nSwapInterval(
     return JNI_TRUE;
 }
 
+/* glGetIntegerv profile: under glthread most queries synchronise with the worker thread, so
+ * which ones Minecraft repeats per frame matters. Counted per pname, reported at swaps. */
+typedef void (*get_integerv_fn)(unsigned int pname, int *data);
+static get_integerv_fn real_get_integerv;
+#define GET_PROFILE_SLOTS 64
+static unsigned int get_profile_pname[GET_PROFILE_SLOTS];
+static unsigned long get_profile_count[GET_PROFILE_SLOTS];
+static unsigned long get_profile_frames;
+static int get_profile_reports;
+
+static void counted_get_integerv(unsigned int pname, int *data) {
+    for (int i = 0; i < GET_PROFILE_SLOTS; i++) {
+        if (get_profile_count[i] == 0) { get_profile_pname[i] = pname; get_profile_count[i] = 1; break; }
+        if (get_profile_pname[i] == pname) { get_profile_count[i]++; break; }
+    }
+    real_get_integerv(pname, data);
+}
+
+static void report_get_profile(void) {
+    if (!real_get_integerv || get_profile_reports >= 6 || ++get_profile_frames < 600) return;
+    get_profile_reports++;
+    char line[1024];
+    int used = snprintf(line, sizeof(line), "gl profile: glGetIntegerv per frame over %lu frames:",
+                        get_profile_frames);
+    for (int i = 0; i < GET_PROFILE_SLOTS && get_profile_count[i]; i++) {
+        if (get_profile_count[i] * 10 < get_profile_frames) continue;   /* < 0.1 per frame */
+        used += snprintf(line + used, sizeof(line) - used, " 0x%04x=%.1f", get_profile_pname[i],
+                         (double)get_profile_count[i] / get_profile_frames);
+        if (used >= (int)sizeof(line) - 24) break;
+    }
+    diag("%s", line);
+    memset(get_profile_count, 0, sizeof(get_profile_count));
+    get_profile_frames = 0;
+}
+
 /* GL entry point for LWJGL's FunctionProvider; 0 when Mesa does not provide it. */
 JNIEXPORT jlong JNICALL Java_orbis_graphics_NativePlatform_nGetProcAddress(
         JNIEnv *env, jclass klass, jstring function) {
@@ -448,6 +486,10 @@ JNIEXPORT jlong JNICALL Java_orbis_graphics_NativePlatform_nGetProcAddress(
     const char *name = (*env)->GetStringUTFChars(env, function, NULL);
     if (!name) return 0;
     jlong address = (jlong)(intptr_t)eglGetProcAddress(name);
+    if (address && strcmp(name, "glGetIntegerv") == 0) {
+        real_get_integerv = (get_integerv_fn)(intptr_t)address;
+        address = (jlong)(intptr_t)counted_get_integerv;
+    }
     (*env)->ReleaseStringUTFChars(env, function, name);
     return address;
 }

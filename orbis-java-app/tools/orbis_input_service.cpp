@@ -1021,6 +1021,22 @@ extern "C" int32_t orbis_input_set_pointer(int32_t x, int32_t y) {
 extern "C" int32_t orbis_input_read_event(orbis_input_focus requested,
         orbis_input_event *out, uint32_t timeout_ms) {
     if (out == nullptr || (requested != ORBIS_INPUT_FOCUS_CONSOLE && requested != ORBIS_INPUT_FOCUS_DESKTOP)) return -1;
+    if (timeout_ms == 0) {
+        /* The per-frame poll: never block the render thread. The collector holds the lock across
+         * sceKeyboardGetKey2Char (an IPC), so a busy lock means "nothing yet" - the events are
+         * there for the next frame - and an empty queue returns without a timed wait. */
+        if (pthread_mutex_trylock(&lock) != 0) return 1;
+        for (uint32_t i = 0; i < queue_size; ++i) if (queue[i].focus == requested) {
+            *out = queue[i];
+            memmove(&queue[i], &queue[i + 1], (queue_size - i - 1) * sizeof(queue[0]));
+            --queue_size;
+            pthread_mutex_unlock(&lock);
+            return 0;
+        }
+        int status = (!started || stopping) ? -2 : 1;
+        pthread_mutex_unlock(&lock);
+        return status;
+    }
     struct timespec deadline{};
     clock_gettime(CLOCK_REALTIME, &deadline);
     deadline.tv_sec += timeout_ms / 1000;
