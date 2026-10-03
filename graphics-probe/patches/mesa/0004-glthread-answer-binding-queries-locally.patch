@@ -1,0 +1,67 @@
+diff --git a/src/mesa/main/glthread.h b/src/mesa/main/glthread.h
+index c2debd7..1cd11b7 100644
+--- a/src/mesa/main/glthread.h
++++ b/src/mesa/main/glthread.h
+@@ -260,6 +260,9 @@ struct glthread_state
+    GLuint CurrentPixelPackBufferName;
+    GLuint CurrentPixelUnpackBufferName;
+    GLuint CurrentQueryBufferName;
++   /* Tracked so glGetIntegerv can answer without syncing (Sodium/LWJGL query them per draw). */
++   GLuint CurrentCopyReadBufferName;
++   GLuint CurrentCopyWriteBufferName;
+ 
+    /**
+     * The batch index of the last occurence of glLinkProgram or
+diff --git a/src/mesa/main/glthread_bufferobj.c b/src/mesa/main/glthread_bufferobj.c
+index 09b0fbe..1bebd5c 100644
+--- a/src/mesa/main/glthread_bufferobj.c
++++ b/src/mesa/main/glthread_bufferobj.c
+@@ -224,6 +224,12 @@ _mesa_glthread_BindBuffer(struct gl_context *ctx, GLenum target, GLuint buffer)
+    case GL_QUERY_BUFFER:
+       glthread->CurrentQueryBufferName = buffer;
+       break;
++   case GL_COPY_READ_BUFFER:
++      glthread->CurrentCopyReadBufferName = buffer;
++      break;
++   case GL_COPY_WRITE_BUFFER:
++      glthread->CurrentCopyWriteBufferName = buffer;
++      break;
+    }
+ }
+ 
+@@ -317,6 +323,10 @@ _mesa_glthread_DeleteBuffers(struct gl_context *ctx, GLsizei n,
+          _mesa_glthread_BindBuffer(ctx, GL_PIXEL_PACK_BUFFER, 0);
+       if (id == glthread->CurrentPixelUnpackBufferName)
+          _mesa_glthread_BindBuffer(ctx, GL_PIXEL_UNPACK_BUFFER, 0);
++      if (id == glthread->CurrentCopyReadBufferName)
++         _mesa_glthread_BindBuffer(ctx, GL_COPY_READ_BUFFER, 0);
++      if (id == glthread->CurrentCopyWriteBufferName)
++         _mesa_glthread_BindBuffer(ctx, GL_COPY_WRITE_BUFFER, 0);
+    }
+ }
+ 
+diff --git a/src/mesa/main/glthread_get.c b/src/mesa/main/glthread_get.c
+index e11e010..32a134b 100644
+--- a/src/mesa/main/glthread_get.c
++++ b/src/mesa/main/glthread_get.c
+@@ -53,6 +53,20 @@ _mesa_marshal_GetIntegerv(GLenum pname, GLint *p)
+    case GL_ARRAY_BUFFER_BINDING:
+       *p = ctx->GLThread.CurrentArrayBufferName;
+       return;
++   /* Tracked by glthread already (or by patch 0004); answering them locally keeps the
++    * render thread from waiting on the GL worker several times per frame. */
++   case GL_ELEMENT_ARRAY_BUFFER_BINDING:
++      *p = ctx->GLThread.CurrentVAO->CurrentElementBufferName;
++      return;
++   case GL_VERTEX_ARRAY_BINDING:
++      *p = ctx->GLThread.CurrentVAO->Name;
++      return;
++   case GL_COPY_READ_BUFFER_BINDING:
++      *p = ctx->GLThread.CurrentCopyReadBufferName;
++      return;
++   case GL_COPY_WRITE_BUFFER_BINDING:
++      *p = ctx->GLThread.CurrentCopyWriteBufferName;
++      return;
+    case GL_ATTRIB_STACK_DEPTH:
+       *p = ctx->GLThread.AttribStackDepth;
+       return;
