@@ -37,7 +37,11 @@ PLAIN_PATH = re.compile(r'[A-Za-z0-9._+\-/]+\Z')
 FABRIC_LOADER = '0.19.5'
 FABRIC_MAVEN = 'https://maven.fabricmc.net/'
 FABRIC_MAIN = 'net.fabricmc.loader.impl.launch.knot.KnotClient'
-FABRIC_JVM_OPTIONS = ('-DFabricMcEmu=net.minecraft.client.main.Main',)
+# Knot loads the game libraries (the GLFW adapter included) itself and refuses classes from
+# code sources it was not told about. The adapter reaches runner.gpu.NativeInput, whose natives
+# the launcher registers on the copy in the runner's own JAR: keep that JAR a system library.
+FABRIC_JVM_OPTIONS = ('-DFabricMcEmu=net.minecraft.client.main.Main',
+                      '-Dfabric.systemLibraries=/app0/app.jar')
 FABRIC_LIBRARIES = (
     ('org.ow2.asm:asm:9.10.1', 'ada2141c0cc52ee8f5c48cd5fa4ce0e794f22236', 126151),
     ('org.ow2.asm:asm-analysis:9.10.1', '8d49f14d51f632cb1d87c88d1ceaf50db0d8af1b', 35140),
