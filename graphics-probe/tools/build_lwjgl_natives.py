@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Cross-build LWJGL 3.2.2 core and OpenGL natives as JVM-loadable Orbis PRXs.
+"""Cross-build LWJGL 3.2.2 core, OpenGL and STB natives as Orbis PRXs.
 
 Sources are the pinned archives in lwjgl/lwjgl-sources.lock.json (generated C is part of
 the 3.2.2 tree). dyncall 1.0 replaces the prebuilt Linux libdyncall*_s.a LWJGL downloads.
@@ -65,11 +65,17 @@ core_objects = compile_all(core_sources, out / 'obj/core', *lwjgl_flags,
                            '-I', lwjgl / 'core/src/main/c/dyncall')
 opengl_objects = compile_all(sorted((lwjgl / 'opengl/src/generated/c').glob('*.c')), out / 'obj/opengl',
                              *lwjgl_flags, '-I', lwjgl / 'opengl/src/main/c')
+stb_sources = sorted((lwjgl / 'stb/src/generated/c').glob('*.c'))
+if len(stb_sources) != 11:
+    raise SystemExit(f'expected 11 pinned STB generated translation units, found {len(stb_sources)}')
+stb_objects = compile_all(stb_sources, out / 'obj/stb', *lwjgl_flags,
+                          '-I', lwjgl / 'stb/src/main/c')
 
 summary = {'lwjgl': LOCK['lwjgl']['version'], 'dyncall': LOCK['dyncall']['version'], 'modules': {}}
 for name, objects, prefix, onload in (
         ('liblwjgl', core_objects + dyncall_objects, 'Java_org_lwjgl_system_', True),
-        ('liblwjgl_opengl', opengl_objects, 'Java_org_lwjgl_opengl_', False)):
+        ('liblwjgl_opengl', opengl_objects, 'Java_org_lwjgl_opengl_', False),
+        ('liblwjgl_stb', stb_objects, 'Java_org_lwjgl_stb_', False)):
     elf = out / f'{name}.so'
     orbis_prx.link(tools, script, runtime, elf, objects)
     audit, natives = orbis_prx.audit(elf, allowed_needed=('libkernel.so',), jni_prefix=prefix,

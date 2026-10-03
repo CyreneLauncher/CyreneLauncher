@@ -67,7 +67,7 @@ def readelf(elf, *args):
     return run('llvm-readelf', '--wide', *args, elf, stdout=subprocess.PIPE).stdout
 
 
-def audit(elf, *, allowed_needed, jni_prefix, jni_count, require_onload=True):
+def audit(elf, *, allowed_needed, jni_prefix, jni_count, require_onload=True, required_c_exports=()):
     """Checks shared by all graphics PRXs; returns a JSON-ready summary."""
     if EXEC_TLS.search(readelf(elf, '-r')):
         raise SystemExit(f'{elf.name}: exec-model TLS relocation')
@@ -82,15 +82,25 @@ def audit(elf, *, allowed_needed, jni_prefix, jni_count, require_onload=True):
         raise SystemExit(f'{elf.name}: __tls_get_addr must be module-local')
     missing = [name for name in REQUIRED_EXPORTS + (('JNI_OnLoad',) if require_onload else ())
                if name not in exports]
-    natives = sorted(name for name in exports if name.startswith(jni_prefix))
-    if missing or (jni_count is not None and len(natives) != jni_count) or not natives:
+    missing.extend(name for name in required_c_exports if name not in exports)
+    natives = sorted(name for name in exports if name.startswith(jni_prefix)) if jni_prefix else []
+    if missing or (jni_prefix is not None and ((jni_count is not None and len(natives) != jni_count) or not natives)):
         raise SystemExit(f'{elf.name}: missing exports {missing} or {len(natives)} {jni_prefix}* natives')
     needed = set(re.findall(r'\(NEEDED\)\s+Shared library: \[([^\]]+)\]', readelf(elf, '-d')))
     if not needed <= set(allowed_needed):
         raise SystemExit(f'{elf.name}: unexpected dependencies {sorted(needed - set(allowed_needed))}')
     tls = [line.split() for line in readelf(elf, '-l').splitlines() if line.strip().startswith('TLS ')]
+    # Inventory the actual API namespace, including exports beyond the required floor.
+    # Derive prefixes from required C functions so other audit callers keep their contract.
+    prefixes = {match.group(1) for name in required_c_exports
+                if (match := re.match(r'([a-z]+)[A-Z]', name))}
+    c_exports = sorted(name for name in exports
+                       if any(re.match(re.escape(prefix) + r'[A-Z]', name) for prefix in prefixes))
     summary = {'elf': str(elf), 'needed': sorted(needed), 'imports': len(imports),
-               'jni_natives': len(natives), 'size': elf.stat().st_size, 'tls': None}
+               'jni_natives': len(natives), 'jni_exports': natives,
+               'c_exports': c_exports, 'required_c_exports': sorted(required_c_exports),
+               'import_symbols': sorted(imports),
+               'size': elf.stat().st_size, 'tls': None}
     if tls:
         if len(tls) != 1:
             raise SystemExit(f'{elf.name}: expected one PT_TLS segment')

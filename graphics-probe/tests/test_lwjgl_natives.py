@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Every native method in the LWJGL 3.2.2 core/OpenGL JARs has an exported JNI symbol.
+"""Every native method in the LWJGL 3.2.2 core/OpenGL/STB JARs has a JNI export.
 
 Reads ACC_NATIVE methods straight from the class files, applies JNI short/long name
 mangling and compares with the natives build_lwjgl_natives.py recorded for each PRX.
@@ -9,12 +9,14 @@ import os
 import struct
 import sys
 import zipfile
+from collections import Counter
 from pathlib import Path
 
 root = Path(__file__).resolve().parents[1]
 build = Path(os.environ.get('ORBIS_LWJGL_BUILD', root / 'build/lwjgl'))
 jars = Path(os.environ.get('ORBIS_LWJGL_JARS', '/tmp/lwjgl-audit'))
-MODULES = {'liblwjgl': 'lwjgl-3.2.2.jar', 'liblwjgl_opengl': 'lwjgl-opengl-3.2.2.jar'}
+MODULES = {'liblwjgl': 'lwjgl-3.2.2.jar', 'liblwjgl_opengl': 'lwjgl-opengl-3.2.2.jar',
+           'liblwjgl_stb': 'lwjgl-stb-3.2.2.jar'}
 ACC_NATIVE = 0x0100
 # Natives of other platforms are not built for Linux either; LWJGL never loads these classes there.
 OTHER_PLATFORMS = ('org/lwjgl/system/windows/', 'org/lwjgl/system/macosx/')
@@ -87,24 +89,33 @@ def mangle(text):
     return ''.join(out)
 
 
-if not all((build / f'{module}-natives.txt').is_file() for module in MODULES) or \
-        not all((jars / jar).is_file() for jar in MODULES.values()):
-    print('LWJGL native symbol contract skipped: build LWJGL natives and set ORBIS_LWJGL_JARS')
-    sys.exit(0)
+missing_inputs = ([str(build / f'{module}-natives.txt') for module in MODULES
+                   if not (build / f'{module}-natives.txt').is_file()] +
+                  [str(jars / jar) for jar in MODULES.values() if not (jars / jar).is_file()])
+if missing_inputs:
+    raise SystemExit('LWJGL native symbol contract missing prerequisites: ' + ', '.join(missing_inputs))
 
 for module, jar in MODULES.items():
     exported = set((build / f'{module}-natives.txt').read_text().split())
     missing, total = [], 0
     with zipfile.ZipFile(jars / jar) as archive:
+        declarations = []
         for entry in archive.namelist():
             if not entry.endswith('.class') or entry.startswith(('META-INF/',) + OTHER_PLATFORMS):
                 continue
-            for klass, method, descriptor in native_methods(archive.read(entry)):
-                total += 1
-                short = 'Java_' + mangle(klass) + '_' + mangle(method)
-                arguments = descriptor[1:descriptor.index(')')]
-                if short not in exported and short + '__' + mangle(arguments) not in exported:
-                    missing.append(f'{klass}.{method}{descriptor}')
+            declarations.extend(native_methods(archive.read(entry)))
+        total = len(declarations)
+        counts = Counter((klass, method) for klass, method, _ in declarations)
+        overloaded = {key for key, count in counts.items() if count > 1}
+        for klass, method, descriptor in declarations:
+            short = 'Java_' + mangle(klass) + '_' + mangle(method)
+            arguments = descriptor[1:descriptor.index(')')]
+            long = short + '__' + mangle(arguments)
+            # An overloaded Java native must resolve to its full parameter signature.
+            if long not in exported and ((klass, method) in overloaded or short not in exported):
+                missing.append(f'{klass}.{method}{descriptor}')
     assert total > 0, f'{jar} declares no native methods'
+    if module == 'liblwjgl_stb':
+        assert total == 205, f'expected 205 pinned STB natives, found {total}'
     assert not missing, f'{module}: {len(missing)} of {total} natives unexported, e.g. {missing[:5]}'
     print(f'{module}: all {total} native methods of {jar} are exported')

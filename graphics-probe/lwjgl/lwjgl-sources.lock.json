@@ -19,6 +19,7 @@
     "description": "Official Mojang/Maven 3.2.2 Java JARs the facade and natives are checked against (SHA-1 as in the 1.18.2 metadata and the runner profile).",
     "lwjgl-3.2.2.jar": "8ad6294407e15780b43e84929c40e4c5e997972e",
     "lwjgl-opengl-3.2.2.jar": "6ac5bb88b44c43ea195a570aab059f63da004cd8",
-    "lwjgl-glfw-3.2.2.jar": "d3ad4df38e400b8afba1de63f84338809399df5b"
+    "lwjgl-glfw-3.2.2.jar": "d3ad4df38e400b8afba1de63f84338809399df5b",
+    "lwjgl-stb-3.2.2.jar": "3b8e6ebc5851dd3d17e37e5cadce2eff2a429f0f"
   }
 }

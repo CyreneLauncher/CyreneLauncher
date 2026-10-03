@@ -232,12 +232,54 @@ final class OrbisGLFW {
         switch (hint) {
             case GLFW_CONTEXT_VERSION_MAJOR: hintMajor = value; break;
             case GLFW_CONTEXT_VERSION_MINOR: hintMinor = value; break;
-            case GLFW_OPENGL_PROFILE: hintProfile = value; break;
+            case GLFW_OPENGL_PROFILE:
+                if (value != GLFW_OPENGL_ANY_PROFILE && value != GLFW_OPENGL_CORE_PROFILE) {
+                    error(GLFW_INVALID_VALUE, "Only the core OpenGL profile is available");
+                    break;
+                }
+                hintProfile = value; break;
             case GLFW_OPENGL_FORWARD_COMPAT: hintForwardCompat = value != GLFW_FALSE; break;
-            case GLFW_CLIENT_API: hintClientApi = value; break;
+            case GLFW_CLIENT_API:
+                if (value != GLFW_OPENGL_API) {
+                    error(GLFW_INVALID_VALUE, "Only desktop OpenGL is available");
+                    break;
+                }
+                hintClientApi = value; break;
+            case GLFW_CONTEXT_CREATION_API:
+                if (value != GLFW_NATIVE_CONTEXT_API)
+                    error(GLFW_INVALID_VALUE, "Only the native EGL-backed context is available");
+                break;
+            case GLFW_OPENGL_DEBUG_CONTEXT:
+            case GLFW_CONTEXT_NO_ERROR:
+            case GLFW_STEREO:
+            case GLFW_SRGB_CAPABLE:
+                if (value != GLFW_FALSE)
+                    error(GLFW_INVALID_VALUE, "Context/framebuffer option 0x"
+                            + Integer.toHexString(hint) + " is unavailable");
+                break;
+            case GLFW_CONTEXT_ROBUSTNESS:
+                if (value != GLFW_NO_ROBUSTNESS)
+                    error(GLFW_INVALID_VALUE, "Context robustness is unavailable");
+                break;
+            case GLFW_CONTEXT_RELEASE_BEHAVIOR:
+                if (value != GLFW_ANY_RELEASE_BEHAVIOR)
+                    error(GLFW_INVALID_VALUE, "Context release behavior is fixed");
+                break;
+            case GLFW_SAMPLES:
+                if (value != 0)
+                    error(GLFW_INVALID_VALUE, "Multisampling cannot be requested on the fixed scanout");
+                break;
             case GLFW_DEPTH_BITS: hintDepth = value == GLFW_DONT_CARE ? 0 : value; break;
             case GLFW_STENCIL_BITS: hintStencil = value == GLFW_DONT_CARE ? 0 : value; break;
-            default: break; // Window decoration/size hints have no meaning on a full-screen scanout.
+            // The fullscreen VideoOut surface has no window-manager decorations.
+            case GLFW_RESIZABLE: case GLFW_VISIBLE: case GLFW_DECORATED: case GLFW_FOCUSED:
+            case GLFW_AUTO_ICONIFY: case GLFW_FLOATING: case GLFW_MAXIMIZED:
+            case GLFW_CENTER_CURSOR: case GLFW_TRANSPARENT_FRAMEBUFFER:
+            case GLFW_FOCUS_ON_SHOW: case GLFW_SCALE_TO_MONITOR:
+                break;
+            default:
+                error(GLFW_INVALID_ENUM, "Unsupported window hint 0x" + Integer.toHexString(hint));
+                break;
         }
     }
 

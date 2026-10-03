@@ -4,6 +4,8 @@ import java.util.List;
 import org.lwjgl.PointerBuffer;
 import org.lwjgl.glfw.Callbacks;
 import org.lwjgl.glfw.GLFWErrorCallback;
+import org.lwjgl.glfw.GLFWImage;
+import org.lwjgl.glfw.GLFWKeyCallback;
 import org.lwjgl.glfw.GLFWVidMode;
 import org.lwjgl.opengl.GL;
 import org.lwjgl.system.Platform;
@@ -34,11 +36,29 @@ public final class FacadeBehaviorTest {
         long monitor = glfwGetPrimaryMonitor();
         PointerBuffer monitors = glfwGetMonitors();
         check(monitor != 0 && monitors.get(0) == monitor && monitors.remaining() == 1, "one monitor");
+        GLFWVidMode initialMode = glfwGetVideoMode(monitor);
+        check(initialMode.width() == NativeInput.WIDTH && initialMode.height() == NativeInput.HEIGHT,
+                "pre-window monitor dimensions are the input scanout fallback");
         int[] mx = {-1}, my = {-1};
         glfwGetMonitorPos(monitor, mx, my);
         check(mx[0] == 0 && my[0] == 0, "monitor at origin");
 
         glfwDefaultWindowHints();
+        glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_API);
+        glfwWindowHint(GLFW_CONTEXT_CREATION_API, GLFW_NATIVE_CONTEXT_API);
+        glfwWindowHint(GLFW_DECORATED, GLFW_FALSE);
+        glfwWindowHint(GLFW_VISIBLE, GLFW_TRUE);
+        check(glfwGetError(null) == GLFW_NO_ERROR, "documented decoration and native context hints accepted");
+        glfwWindowHint(0x7ffffffe, 1);
+        check(glfwGetError(null) == GLFW_INVALID_ENUM, "unknown hint rejected");
+        glfwWindowHint(GLFW_CONTEXT_CREATION_API, GLFW_EGL_CONTEXT_API);
+        check(glfwGetError(null) == GLFW_INVALID_VALUE, "unsupported EGL context hint rejected");
+        glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, GLFW_TRUE);
+        check(glfwGetError(null) == GLFW_INVALID_VALUE, "debug context request rejected");
+        glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, GLFW_FALSE);
+        check(glfwGetError(null) == GLFW_NO_ERROR, "default non-debug context accepted");
+        glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_ES_API);
+        check(glfwGetError(null) == GLFW_INVALID_VALUE, "unsupported ES API hint rejected");
         glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
         glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 2);
         glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
@@ -59,7 +79,14 @@ public final class FacadeBehaviorTest {
         check(glfwGetWindowMonitor(window) == 0, "windowed until set");
         glfwSetWindowMonitor(window, monitor, 0, 0, 1920, 1080, 60);
         check(glfwGetWindowMonitor(window) == monitor, "full-screen flag");
+        glfwSetWindowMonitor(window, 0, 20, 20, 854, 480, 60);
+        check(glfwGetWindowMonitor(window) == 0, "windowed flag restored on fixed scanout");
+        glfwGetFramebufferSize(window, w, h);
+        check(w[0] == 1920 && h[0] == 1080, "fixed scanout after monitor transition");
         glfwSetWindowIcon(window, null);
+        try (GLFWImage.Buffer ignoredIcon = GLFWImage.calloc(1)) {
+            glfwSetWindowIcon(window, ignoredIcon);
+        }
         glfwSetWindowTitle(window, "title");
 
         glfwMakeContextCurrent(window);
@@ -68,6 +95,14 @@ public final class FacadeBehaviorTest {
         glfwSwapBuffers(window);
         check(NativePlatform.swaps == 1, "swap reaches EGL");
 
+        GLFWKeyCallback firstKeyCallback = GLFWKeyCallback.create((win, key, scancode, action, mods) -> {});
+        GLFWKeyCallback secondKeyCallback = GLFWKeyCallback.create((win, key, scancode, action, mods) -> {});
+        check(glfwSetKeyCallback(window, firstKeyCallback) == null, "first key callback has no predecessor");
+        check(glfwSetKeyCallback(window, secondKeyCallback) == firstKeyCallback,
+                "callback replacement returns previous callback object");
+        firstKeyCallback.free();
+        check(glfwSetKeyCallback(window, null) == secondKeyCallback, "callback can be cleared and freed");
+        secondKeyCallback.free();
         glfwSetKeyCallback(window, (win, key, scancode, action, mods) ->
                 events.add("key " + key + " " + scancode + " " + action + " " + mods));
         glfwSetCharModsCallback(window, (win, codepoint, mods) -> events.add("char " + codepoint + " " + mods));

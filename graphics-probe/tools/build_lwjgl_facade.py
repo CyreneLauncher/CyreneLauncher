@@ -62,6 +62,9 @@ REQUIRED = {
     'glfwGetProcAddress (Ljava/lang/CharSequence;)J', 'glfwGetVersionString ()Ljava/lang/String;',
     'glfwSetWindowCloseCallback (JLorg/lwjgl/glfw/GLFWWindowCloseCallbackI;)Lorg/lwjgl/glfw/GLFWWindowCloseCallback;',
     'glfwGetMouseButton (JI)I', 'glfwGetCursorPos (J[D[D)V',
+    # Generic policy/ownership exercised by the compatibility probe and host facade fixture.
+    'glfwGetInputMode (JI)I', 'glfwGetWindowAttrib (JI)I',
+    'glfwSetCharCallback (JLorg/lwjgl/glfw/GLFWCharCallbackI;)Lorg/lwjgl/glfw/GLFWCharCallback;',
 }
 
 parser = argparse.ArgumentParser()

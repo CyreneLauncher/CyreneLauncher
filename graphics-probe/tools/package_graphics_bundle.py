@@ -5,7 +5,7 @@ Upload the CONTENTS of the output directory to the runner's graphics_bundle path
 (default /data/orbis-jdk/graphics). Layout:
   graphics-bundle.json   schema 1 (runner.lwjgl.GraphicsBundle): files, profiles
   build-info.json        source pins and build audits
-  lib/                   liborbis_lwjgl_platform.so, liblwjgl.so, liblwjgl_opengl.so (SELF
+  lib/                   six SELF PRXs with .so names
                          modules with .so names, as in the JDK export) and the adapter JAR
   legal/                 licence texts of what the modules contain
 The bundle never contains runner or JDK files. Building it does not deploy it.
@@ -24,16 +24,19 @@ PROFILE_ID = 'minecraft-1.18.2-lwjgl-3.2.2-orbis-v1'
 MODULES = {f'org.lwjgl:{m}': '3.2.2' for m in
            ('lwjgl', 'lwjgl-glfw', 'lwjgl-jemalloc', 'lwjgl-openal', 'lwjgl-opengl', 'lwjgl-stb', 'lwjgl-tinyfd')}
 ADAPTER = 'orbis-lwjgl-3.2.2-adapter.jar'
-NATIVES = ('liborbis_lwjgl_platform.so', 'liblwjgl.so', 'liblwjgl_opengl.so')
+NATIVES = ('liborbis_lwjgl_platform.so', 'liblwjgl.so', 'liblwjgl_opengl.so',
+           'liblwjgl_stb.so', 'liblwjgl_tinyfd.so', 'libopenal.so')
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--boot-jdk', default='/usr/lib/jvm/java-17-openjdk-amd64')
 parser.add_argument('--platform', default=str(ROOT / 'build/platform'))
 parser.add_argument('--lwjgl', default=str(ROOT / 'build/lwjgl'))
 parser.add_argument('--facade', default=str(ROOT / 'build/lwjgl-facade'))
+parser.add_argument('--optional', default=str(ROOT / 'build/lwjgl-optional'))
 parser.add_argument('--output', default=str(ROOT / 'build/graphics-bundle'))
 arguments = parser.parse_args()
-platform, lwjgl, facade = (Path(p).resolve() for p in (arguments.platform, arguments.lwjgl, arguments.facade))
+platform, lwjgl, facade, optional = (Path(p).resolve() for p in
+                                     (arguments.platform, arguments.lwjgl, arguments.facade, arguments.optional))
 out = Path(arguments.output).resolve()
 
 
@@ -46,6 +49,7 @@ def load_audit(path):
 platform_audit = load_audit(platform / 'platform-audit.json')
 lwjgl_audit = load_audit(lwjgl / 'lwjgl-audit.json')
 facade_audit = load_audit(facade / 'facade-audit.json')
+optional_audit = load_audit(optional / 'optional-audit.json')
 sources = ROOT / 'build/sources'
 lwjgl_tree = next((lwjgl / 'sources/lwjgl').iterdir())
 dyncall_tree = next((lwjgl / 'sources/dyncall').iterdir())
@@ -56,6 +60,9 @@ if out.exists():
 shutil.copyfile(platform / 'liborbis_lwjgl_platform.prx', out / 'lib/liborbis_lwjgl_platform.so')
 shutil.copyfile(lwjgl / 'liblwjgl.prx', out / 'lib/liblwjgl.so')
 shutil.copyfile(lwjgl / 'liblwjgl_opengl.prx', out / 'lib/liblwjgl_opengl.so')
+shutil.copyfile(lwjgl / 'liblwjgl_stb.prx', out / 'lib/liblwjgl_stb.so')
+shutil.copyfile(optional / 'liblwjgl_tinyfd.prx', out / 'lib/liblwjgl_tinyfd.so')
+shutil.copyfile(optional / 'libopenal.prx', out / 'lib/libopenal.so')
 shutil.copyfile(facade / ADAPTER, out / 'lib' / ADAPTER)
 for name in NATIVES:
     if (out / 'lib' / name).read_bytes()[:4] != b'O\x15=\x1d':
@@ -67,6 +74,8 @@ shutil.copyfile(sources / 'mesa/docs/license.rst', legal / 'mesa-license.rst')
 shutil.copyfile(sources / 'mesa/subprojects/zlib-1.3.1/LICENSE', legal / 'zlib-LICENSE')
 shutil.copyfile(lwjgl_tree / 'LICENSE.md', legal / 'lwjgl-LICENSE.md')
 shutil.copyfile(dyncall_tree / 'LICENSE', legal / 'dyncall-LICENSE')
+shutil.copyfile(lwjgl_tree / 'modules/lwjgl/tinyfd/src/main/c/tinyfiledialogs.h',
+                legal / 'tinyfiledialogs.h')
 for name in ('LICENSE', 'LICENSING.md', 'NOTICE.md'):
     shutil.copyfile(sources / 'orbis-compat' / name, legal / f'orbis-compat-{name}')
 if (sources / 'orbis-compat/licenses').is_dir():
@@ -76,9 +85,18 @@ if (sources / 'orbis-compat/licenses').is_dir():
 - `liborbis_lwjgl_platform.so`: Mesa (see `mesa-license.rst`; component licences vary),
   zlib (`zlib-LICENSE`), orbis-compat and the OpenOrbis SDK runtime it links statically
   (`orbis-compat-*`, `orbis-compat-licenses/`).
-- `liblwjgl.so`, `liblwjgl_opengl.so`, `orbis-lwjgl-3.2.2-adapter.jar`: LWJGL 3.2.2
+- `liblwjgl.so`, `liblwjgl_opengl.so`, `liblwjgl_stb.so`,
+  `orbis-lwjgl-3.2.2-adapter.jar`: LWJGL 3.2.2
   (`lwjgl-LICENSE.md`) and dyncall 1.0 (`dyncall-LICENSE`).
-- All three modules also contain the runner's own Orbis runtime objects and SDK libc/libc++.
+- STB sources in `liblwjgl_stb.so` are upstream stb headers bundled by LWJGL 3.2.2;
+  their headers state public-domain or MIT dual licensing. The generated JNI is LWJGL BSD-3-Clause.
+- `liblwjgl_tinyfd.so` uses LWJGL generated JNI (BSD-3-Clause) and the bounded
+  original Orbis implementation of tinyfiledialogs (Zlib; see `tinyfiledialogs.h`).
+- `libopenal.so` is the original Orbis silent/no-device provider (BSD-3-Clause).
+  It never advertises playback or opens a device. TinyFD file and message dialogs cancel.
+- All six modules also contain the runner's own Orbis runtime objects and SDK libc/libc++.
+- Compatibility fixture provenance and the DejaVu font license are in the separate
+  `lwjgl-compat/runner/fixtures/` upload set; fixtures are not shipped in this bundle.
 
 Open items, not settled by this build: a component-level audit of the Mesa drivers linked
 here, the questions recorded in `orbis-compat-LICENSING.md` section 5, and the licence of the
@@ -93,6 +111,13 @@ build_info = {
     'platform': {k: platform_audit[k] for k in ('needed', 'imports', 'tls')},
     'lwjgl': {name: {k: audit[k] for k in ('needed', 'imports', 'jni_natives', 'tls')}
               for name, audit in lwjgl_audit['modules'].items()},
+    'stb': {k: lwjgl_audit['modules']['liblwjgl_stb'][k] for k in ('needed', 'imports', 'jni_natives', 'tls')},
+    'optional': {'behavior_mode': optional_audit['behavior_mode'],
+                 'modules': {name: {k: audit[k] for k in ('needed', 'imports', 'jni_natives', 'tls')}
+                             for name, audit in optional_audit['modules'].items()}},
+    'compatibility': {'dialogs': 'cancel', 'audio': 'no-device',
+                      'device_callback_and_gl_debug_gate': 'pending device run',
+                      'fixture_provenance': 'separate lwjgl-compat upload set'},
     'facade': {k: facade_audit[k] for k in ('classes', 'official_classes', 'glfw_methods')}
               | {'implemented': len(facade_audit['implemented']), 'unsupported': len(facade_audit['unsupported'])},
 }
