@@ -110,6 +110,64 @@ static int pool_headroom(void) {
     return n;
 }
 
+/* A thread that only creates threads on others' behalf, started before Mesa initialises. Under
+ * Parallel GC, creation requested by the render thread fails with EAGAIN while JVM-thread
+ * requests succeed; a failed request is handed to this thread to tell the creator apart. */
+static pthread_mutex_t creator_lock = PTHREAD_MUTEX_INITIALIZER;
+static pthread_cond_t creator_wake = PTHREAD_COND_INITIALIZER;
+static int creator_started;
+static struct {
+    int pending, done, rc;
+    pthread_t *thread;
+    const pthread_attr_t *attr;
+    void *(*start)(void *);
+    void *arg;
+} creator_request;
+
+static void *creator_main(void *unused) {
+    (void)unused;
+    pthread_mutex_lock(&creator_lock);
+    for (;;) {
+        while (!creator_request.pending) pthread_cond_wait(&creator_wake, &creator_lock);
+        creator_request.rc = __real_pthread_create(creator_request.thread, creator_request.attr,
+                                                   creator_request.start, creator_request.arg);
+        creator_request.pending = 0;
+        creator_request.done = 1;
+        pthread_cond_broadcast(&creator_wake);
+    }
+    return NULL;
+}
+
+static void start_creator(void) {
+    pthread_mutex_lock(&creator_lock);
+    if (!creator_started) {
+        pthread_t creator;
+        int rc = __real_pthread_create(&creator, NULL, creator_main, NULL);
+        creator_started = rc == 0 ? 1 : -1;
+        pthread_mutex_unlock(&creator_lock);
+        diag("thread diag: creator thread start rc=%d", rc);
+        return;
+    }
+    pthread_mutex_unlock(&creator_lock);
+}
+
+static int create_via_creator(pthread_t *thread, const pthread_attr_t *attr, void *(*start)(void *), void *arg) {
+    pthread_mutex_lock(&creator_lock);
+    if (creator_started != 1) { pthread_mutex_unlock(&creator_lock); return -1; }
+    while (creator_request.pending) pthread_cond_wait(&creator_wake, &creator_lock);
+    creator_request.thread = thread;
+    creator_request.attr = attr;
+    creator_request.start = start;
+    creator_request.arg = arg;
+    creator_request.done = 0;
+    creator_request.pending = 1;
+    pthread_cond_broadcast(&creator_wake);
+    while (!creator_request.done) pthread_cond_wait(&creator_wake, &creator_lock);
+    int rc = creator_request.rc;
+    pthread_mutex_unlock(&creator_lock);
+    return rc;
+}
+
 int __wrap_pthread_create(pthread_t *thread, const pthread_attr_t *attr,
                           void *(*start)(void *), void *arg) {
     int rc = __real_pthread_create(thread, attr, start, arg);
@@ -124,6 +182,9 @@ int __wrap_pthread_create(pthread_t *thread, const pthread_attr_t *attr,
          "pool headroom %d mutexes (cap 4096), flexible %zu MiB",
          rc, (long)now.tv_sec, now.tv_nsec / 1000000, (void *)pthread_self(), attr ? "set" : "NULL",
          stack / 1024, pool_headroom(), flexible >> 20);
+    rc = create_via_creator(thread, attr, start, arg);
+    diag("thread diag: same request through the creator thread: rc=%d", rc);
+    if (rc == 0) return 0;
     static const unsigned delays[] = {0, 1000, 10000, 100000, 500000};
     for (unsigned i = 0; i < sizeof(delays) / sizeof(delays[0]); i++) {
         if (delays[i]) sceKernelUsleep(delays[i]);
@@ -165,6 +226,7 @@ JNIEXPORT jint JNICALL Java_orbis_graphics_NativePlatform_nInitialize(
     if (!env_failed && log_file && *log_file)
         env_failed = setenv("MESA_LOG_FILE", log_file, 0) != 0;
     install_compat_logger(log_file);
+    start_creator();
     if (log_file) (*env)->ReleaseStringUTFChars(env, mesa_log_file, log_file);
     if (env_failed) { record("cannot seed Mesa environment"); goto done; }
     EGLDisplay candidate = eglGetDisplay(EGL_DEFAULT_DISPLAY);
