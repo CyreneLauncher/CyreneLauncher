@@ -1,0 +1,158 @@
+diff --git a/src/mesa/main/glthread.c b/src/mesa/main/glthread.c
+index bbde478..4109a35 100644
+--- a/src/mesa/main/glthread.c
++++ b/src/mesa/main/glthread.c
+@@ -102,9 +102,71 @@ glthread_update_global_locking(struct gl_context *ctx)
+    ctx->GLThread.LockGlobalMutexes = lock_mutexes;
+ }
+ 
++#include <inttypes.h>
++#include <x86intrin.h>
++#include <time.h>
++#include "util/log.h"
++
++/* Orbis glthread profile: every ~5 s the render thread reports how long it waited for queue
++ * space (add_job), for the worker in _mesa_glthread_finish, and executing leftovers itself;
++ * plus the worker's busy time and its most expensive commands. TSC is calibrated once. */
++static double orbis_tsc_per_ms;
++
++static void
++orbis_glthread_report(struct glthread_state *glthread)
++{
++   uint64_t now = __rdtsc();
++   if (!glthread->prof_window_start) {
++      glthread->prof_window_start = now;
++      return;
++   }
++   if (orbis_tsc_per_ms == 0) {
++      struct timespec a, b;
++      clock_gettime(CLOCK_MONOTONIC, &a);
++      uint64_t t0 = __rdtsc();
++      do clock_gettime(CLOCK_MONOTONIC, &b);
++      while ((b.tv_sec - a.tv_sec) * 1000000000LL + (b.tv_nsec - a.tv_nsec) < 2000000);
++      orbis_tsc_per_ms = (double)(__rdtsc() - t0) /
++         (((b.tv_sec - a.tv_sec) * 1000000000LL + (b.tv_nsec - a.tv_nsec)) / 1e6);
++   }
++   double window_ms = (now - glthread->prof_window_start) / orbis_tsc_per_ms;
++   if (window_ms < 5000)
++      return;
++   int top[8];
++   for (int k = 0; k < 8; k++) {
++      top[k] = -1;
++      for (int i = 0; i < 2048; i++) {
++         bool taken = false;
++         for (int j = 0; j < k; j++) taken |= top[j] == i;
++         if (!taken && glthread->prof_cmd_ticks[i] &&
++             (top[k] < 0 || glthread->prof_cmd_ticks[i] > glthread->prof_cmd_ticks[top[k]]))
++            top[k] = i;
++      }
++   }
++   char cmds[512];
++   int used = 0;
++   for (int k = 0; k < 8 && top[k] >= 0; k++)
++      used += snprintf(cmds + used, sizeof(cmds) - used, " %d:%.0fms/%u", top[k],
++                       glthread->prof_cmd_ticks[top[k]] / orbis_tsc_per_ms,
++                       glthread->prof_cmd_count[top[k]]);
++   mesa_logi("glthread profile over %.0f ms: render thread waited %.0f ms for queue space, "
++             "%.0f ms in %" PRIu64 " finishes (+%.0f ms running leftovers); worker busy %.0f ms "
++             "over %" PRIu64 " batches; top worker cmds (id:time/count):%s",
++             window_ms, glthread->prof_add_job_wait / orbis_tsc_per_ms,
++             glthread->prof_finish_wait / orbis_tsc_per_ms, glthread->prof_finishes,
++             glthread->prof_finish_direct / orbis_tsc_per_ms,
++             glthread->prof_worker_busy / orbis_tsc_per_ms, glthread->prof_batches, cmds);
++   glthread->prof_window_start = now;
++   glthread->prof_add_job_wait = glthread->prof_finish_wait = glthread->prof_finish_direct = 0;
++   glthread->prof_worker_busy = glthread->prof_batches = glthread->prof_finishes = 0;
++   memset(glthread->prof_cmd_ticks, 0, sizeof(glthread->prof_cmd_ticks));
++   memset(glthread->prof_cmd_count, 0, sizeof(glthread->prof_cmd_count));
++}
++
+ static void
+ glthread_unmarshal_batch(void *job, void *gdata, int thread_index)
+ {
++   uint64_t orbis_batch_start = __rdtsc();
+    struct glthread_batch *batch = (struct glthread_batch*)job;
+    struct gl_context *ctx = batch->ctx;
+    unsigned pos = 0;
+@@ -134,11 +196,19 @@ glthread_unmarshal_batch(void *job, void *gdata, int thread_index)
+       ctx->TexturesLocked = true;
+    }
+ 
++   struct glthread_state *orbis_gt = &ctx->GLThread;
+    while (pos < used) {
+       const struct marshal_cmd_base *cmd =
+          (const struct marshal_cmd_base *)&buffer[pos];
++      unsigned id = cmd->cmd_id;
++      uint64_t t0 = __rdtsc();
++
++      pos += _mesa_unmarshal_dispatch[id](ctx, cmd);
+ 
+-      pos += _mesa_unmarshal_dispatch[cmd->cmd_id](ctx, cmd);
++      if (id < 2048) {
++         orbis_gt->prof_cmd_ticks[id] += __rdtsc() - t0;
++         orbis_gt->prof_cmd_count[id]++;
++      }
+    }
+ 
+    if (lock_mutexes) {
+@@ -156,6 +226,8 @@ glthread_unmarshal_batch(void *job, void *gdata, int thread_index)
+    _mesa_glthread_signal_call(&ctx->GLThread.LastDListChangeBatchIndex, batch_index);
+ 
+    p_atomic_inc(&ctx->GLThread.stats.num_batches);
++   ctx->GLThread.prof_worker_busy += __rdtsc() - orbis_batch_start;
++   ctx->GLThread.prof_batches++;
+ }
+ 
+ static void
+@@ -373,8 +445,11 @@ _mesa_glthread_flush_batch(struct gl_context *ctx)
+ 
+    struct glthread_batch *next = glthread->next_batch;
+ 
++   uint64_t orbis_t0 = __rdtsc();
+    util_queue_add_job(&glthread->queue, next, &next->fence,
+                       glthread_unmarshal_batch, NULL, 0);
++   glthread->prof_add_job_wait += __rdtsc() - orbis_t0;
++   orbis_glthread_report(glthread);
+    glthread->last = glthread->next;
+    glthread->next = (glthread->next + 1) % MARSHAL_MAX_BATCHES;
+    glthread->next_batch = &glthread->batches[glthread->next];
+@@ -406,9 +481,12 @@ _mesa_glthread_finish(struct gl_context *ctx)
+    bool synced = false;
+ 
+    if (!util_queue_fence_is_signalled(&last->fence)) {
++      uint64_t orbis_t0 = __rdtsc();
+       util_queue_fence_wait(&last->fence);
++      glthread->prof_finish_wait += __rdtsc() - orbis_t0;
+       synced = true;
+    }
++   glthread->prof_finishes++;
+ 
+    glthread_apply_thread_sched_policy(ctx, false);
+ 
+@@ -419,7 +497,9 @@ _mesa_glthread_finish(struct gl_context *ctx)
+        * restore it after it's done.
+        */
+       struct _glapi_table *dispatch = GET_DISPATCH();
++      uint64_t orbis_t0 = __rdtsc();
+       glthread_unmarshal_batch(next, NULL, 0);
++      glthread->prof_finish_direct += __rdtsc() - orbis_t0;
+       _mesa_glapi_set_dispatch(dispatch);
+ 
+       /* It's not a sync because we don't enqueue partial batches, but
+diff --git a/src/mesa/main/glthread.h b/src/mesa/main/glthread.h
+index c2debd7..973190d 100644
+--- a/src/mesa/main/glthread.h
++++ b/src/mesa/main/glthread.h
+@@ -203,6 +203,12 @@ struct glthread_state
+    /** This is sent to the driver for framebuffer overlay / HUD. */
+    struct util_queue_monitoring stats;
+ 
++   /* Orbis profiling (patch 0005), in TSC ticks: render-thread waits and worker time. */
++   uint64_t prof_window_start, prof_add_job_wait, prof_finish_wait, prof_finish_direct;
++   uint64_t prof_worker_busy, prof_batches, prof_finishes;
++   uint64_t prof_cmd_ticks[2048];
++   uint32_t prof_cmd_count[2048];
++
+    /** Whether GLThread is enabled. */
+    bool enabled;
+    bool inside_begin_end;
