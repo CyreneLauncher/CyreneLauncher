@@ -60,6 +60,31 @@ static int valid_window_locked(jlong window) {
     return 1;
 }
 
+/* orbis-compat's diagnostics (thread stack floors, failed thread creation with callers) are
+ * silent until a logger is installed; they go to "<mesa log>.compat", or stderr without one. */
+void orbis_set_log(void (*fn)(const char *fmt, va_list ap));
+static FILE *compat_log;
+static pthread_mutex_t compat_log_lock = PTHREAD_MUTEX_INITIALIZER;
+
+static void compat_logger(const char *fmt, va_list ap) {
+    pthread_mutex_lock(&compat_log_lock);
+    FILE *out = compat_log ? compat_log : stderr;
+    fputs("orbis-compat: ", out);
+    vfprintf(out, fmt, ap);
+    fputc('\n', out);
+    fflush(out);
+    pthread_mutex_unlock(&compat_log_lock);
+}
+
+static void install_compat_logger(const char *mesa_log_file) {
+    if (mesa_log_file && *mesa_log_file && strcmp(mesa_log_file, "stderr") != 0) {
+        char path[512];
+        if (snprintf(path, sizeof(path), "%s.compat", mesa_log_file) < (int)sizeof(path))
+            compat_log = fopen(path, "w");
+    }
+    orbis_set_log(compat_logger);
+}
+
 JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *vm, void *reserved) {
     (void)vm; (void)reserved;
     return JNI_VERSION_1_8;
@@ -88,6 +113,7 @@ JNIEXPORT jint JNICALL Java_orbis_graphics_NativePlatform_nInitialize(
     const char *log_file = mesa_log_file ? (*env)->GetStringUTFChars(env, mesa_log_file, NULL) : NULL;
     if (!env_failed && log_file && *log_file)
         env_failed = setenv("MESA_LOG_FILE", log_file, 0) != 0;
+    install_compat_logger(log_file);
     if (log_file) (*env)->ReleaseStringUTFChars(env, mesa_log_file, log_file);
     if (env_failed) { record("cannot seed Mesa environment"); goto done; }
     EGLDisplay candidate = eglGetDisplay(EGL_DEFAULT_DISPLAY);
