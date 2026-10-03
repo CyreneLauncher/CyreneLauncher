@@ -55,6 +55,7 @@ public final class Main {
                     System.setIn(new NativeConsoleInputStream());
                 return null;
             });
+            ThreadDumpWatcher.start(ROOT);
             System.out.println("runner: entered Java bootstrap");
             System.out.println("runner: target=" + TARGET);
             System.out.println("runner: Java output log=" + OUTPUT_LOG + " (max 256 KiB)");
