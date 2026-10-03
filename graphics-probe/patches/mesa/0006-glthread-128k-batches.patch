@@ -1,0 +1,16 @@
+diff --git a/src/mesa/main/glthread.h b/src/mesa/main/glthread.h
+index c2debd7..3ef2957 100644
+--- a/src/mesa/main/glthread.h
++++ b/src/mesa/main/glthread.h
+@@ -33,7 +33,10 @@
+  *   chance of experiencing CPU cache thrashing
+  * but it should be high enough so that u_queue overhead remains negligible.
+  */
+-#define MARSHAL_MAX_CMD_BUFFER_SIZE (8 * 1024)
++/* Orbis: 128 KiB (patch 0006). With 8 KiB, every glBufferData above ~8 KiB - Minecraft's
++ * per-draw vertex uploads - made the render thread wait for the worker to drain, 400-700
++ * times a second; the render thread spent 16-35% of its time in those waits. */
++#define MARSHAL_MAX_CMD_BUFFER_SIZE (128 * 1024)
+ 
+ /* We need to leave 1 slot at the end to insert the END marker for unmarshal
+  * calls that look ahead to know where the batch ends.

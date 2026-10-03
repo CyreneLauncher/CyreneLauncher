@@ -1,8 +1,8 @@
 diff --git a/src/mesa/main/glthread.c b/src/mesa/main/glthread.c
-index bbde478..4109a35 100644
+index bbde478..971a00e 100644
 --- a/src/mesa/main/glthread.c
 +++ b/src/mesa/main/glthread.c
-@@ -102,9 +102,71 @@ glthread_update_global_locking(struct gl_context *ctx)
+@@ -102,9 +102,78 @@ glthread_update_global_locking(struct gl_context *ctx)
     ctx->GLThread.LockGlobalMutexes = lock_mutexes;
  }
  
@@ -47,12 +47,19 @@ index bbde478..4109a35 100644
 +            top[k] = i;
 +      }
 +   }
-+   char cmds[512];
++   char cmds[768];
 +   int used = 0;
 +   for (int k = 0; k < 8 && top[k] >= 0; k++)
 +      used += snprintf(cmds + used, sizeof(cmds) - used, " %d:%.0fms/%u", top[k],
 +                       glthread->prof_cmd_ticks[top[k]] / orbis_tsc_per_ms,
 +                       glthread->prof_cmd_count[top[k]]);
++   used += snprintf(cmds + used, sizeof(cmds) - used, "; syncs by call:");
++   for (int i = 0; i < 16 && glthread->prof_sync_func[i]; i++) {
++      if (glthread->prof_sync_count[i])
++         used += snprintf(cmds + used, sizeof(cmds) - used, " %s=%u",
++                          glthread->prof_sync_func[i], glthread->prof_sync_count[i]);
++      glthread->prof_sync_count[i] = 0;
++   }
 +   mesa_logi("glthread profile over %.0f ms: render thread waited %.0f ms for queue space, "
 +             "%.0f ms in %" PRIu64 " finishes (+%.0f ms running leftovers); worker busy %.0f ms "
 +             "over %" PRIu64 " batches; top worker cmds (id:time/count):%s",
@@ -74,7 +81,7 @@ index bbde478..4109a35 100644
     struct glthread_batch *batch = (struct glthread_batch*)job;
     struct gl_context *ctx = batch->ctx;
     unsigned pos = 0;
-@@ -134,11 +196,19 @@ glthread_unmarshal_batch(void *job, void *gdata, int thread_index)
+@@ -134,11 +203,19 @@ glthread_unmarshal_batch(void *job, void *gdata, int thread_index)
        ctx->TexturesLocked = true;
     }
  
@@ -95,7 +102,7 @@ index bbde478..4109a35 100644
     }
  
     if (lock_mutexes) {
-@@ -156,6 +226,8 @@ glthread_unmarshal_batch(void *job, void *gdata, int thread_index)
+@@ -156,6 +233,8 @@ glthread_unmarshal_batch(void *job, void *gdata, int thread_index)
     _mesa_glthread_signal_call(&ctx->GLThread.LastDListChangeBatchIndex, batch_index);
  
     p_atomic_inc(&ctx->GLThread.stats.num_batches);
@@ -104,7 +111,7 @@ index bbde478..4109a35 100644
  }
  
  static void
-@@ -373,8 +445,11 @@ _mesa_glthread_flush_batch(struct gl_context *ctx)
+@@ -373,8 +452,11 @@ _mesa_glthread_flush_batch(struct gl_context *ctx)
  
     struct glthread_batch *next = glthread->next_batch;
  
@@ -116,7 +123,7 @@ index bbde478..4109a35 100644
     glthread->last = glthread->next;
     glthread->next = (glthread->next + 1) % MARSHAL_MAX_BATCHES;
     glthread->next_batch = &glthread->batches[glthread->next];
-@@ -406,9 +481,12 @@ _mesa_glthread_finish(struct gl_context *ctx)
+@@ -406,9 +488,12 @@ _mesa_glthread_finish(struct gl_context *ctx)
     bool synced = false;
  
     if (!util_queue_fence_is_signalled(&last->fence)) {
@@ -129,7 +136,7 @@ index bbde478..4109a35 100644
  
     glthread_apply_thread_sched_policy(ctx, false);
  
-@@ -419,7 +497,9 @@ _mesa_glthread_finish(struct gl_context *ctx)
+@@ -419,7 +504,9 @@ _mesa_glthread_finish(struct gl_context *ctx)
         * restore it after it's done.
         */
        struct _glapi_table *dispatch = GET_DISPATCH();
@@ -139,11 +146,23 @@ index bbde478..4109a35 100644
        _mesa_glapi_set_dispatch(dispatch);
  
        /* It's not a sync because we don't enqueue partial batches, but
+@@ -435,6 +522,11 @@ _mesa_glthread_finish(struct gl_context *ctx)
+ void
+ _mesa_glthread_finish_before(struct gl_context *ctx, const char *func)
+ {
++   struct glthread_state *gt = &ctx->GLThread;
++   for (int i = 0; i < 16; i++) {
++      if (!gt->prof_sync_func[i]) gt->prof_sync_func[i] = func;
++      if (gt->prof_sync_func[i] == func) { gt->prof_sync_count[i]++; break; }
++   }
+    _mesa_glthread_finish(ctx);
+ 
+    /* Uncomment this if you want to know where glthread syncs. */
 diff --git a/src/mesa/main/glthread.h b/src/mesa/main/glthread.h
-index c2debd7..973190d 100644
+index c2debd7..5eb5f99 100644
 --- a/src/mesa/main/glthread.h
 +++ b/src/mesa/main/glthread.h
-@@ -203,6 +203,12 @@ struct glthread_state
+@@ -203,6 +203,14 @@ struct glthread_state
     /** This is sent to the driver for framebuffer overlay / HUD. */
     struct util_queue_monitoring stats;
  
@@ -152,6 +171,8 @@ index c2debd7..973190d 100644
 +   uint64_t prof_worker_busy, prof_batches, prof_finishes;
 +   uint64_t prof_cmd_ticks[2048];
 +   uint32_t prof_cmd_count[2048];
++   const char *prof_sync_func[16];
++   uint32_t prof_sync_count[16];
 +
     /** Whether GLThread is enabled. */
     bool enabled;
