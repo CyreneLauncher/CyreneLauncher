@@ -83,11 +83,8 @@ $(BUILD)/orbis_gpu_input_bridge.o: $(PROJECT_DIR)/tools/orbis_gpu_input_bridge.c
 $(BUILD)/orbis_desktop_preflight.o: $(PROJECT_DIR)/tools/orbis_desktop_preflight.cpp $(PROJECT_DIR)/tools/orbis_desktop_preflight.h $(PROJECT_DIR)/tools/runner_config.h $(BUILD)/settings
 	$(CXX) $(TARGET_FLAGS) -MMD -MP -c $< -o $@
 -include $(wildcard $(BUILD)/*.d)
-# crt1.o with a flexible-memory size in its process parameters (tools/orbis_crt1.S).
-$(BUILD)/orbis_crt1.o: $(PROJECT_DIR)/tools/orbis_crt1.S $(BUILD)/settings
-	$(CC) $(TARGET_FLAGS) -c $< -o $@
-$(BUILD)/launcher.elf: $(BUILD)/orbis_desktop_bridge.o $(BUILD)/orbis_gpu_input_bridge.o $(BUILD)/orbis_desktop_preflight.o $(BUILD)/launcher.o $(BUILD)/runner_config.o $(BUILD)/orbis_runtime.o $(BUILD)/orbis_mapping_probe.o $(BUILD)/orbis_screen_console.o $(BUILD)/orbis_display_service.o $(BUILD)/orbis_input_service.o $(BUILD)/orbis_crt1.o
-	$(LD) -m elf_x86_64 -pie --script $(TOOLCHAIN)/link.x --eh-frame-hdr -L$(TOOLCHAIN)/lib --rpath=/app0 --wrap=_exit -o $@ $^ -lc -lkernel -lc++ -lSceVideoOut -lSceGnmDriver -lSceKeyboard -lSceMouse -lSceSysmodule -lSceUserService
+$(BUILD)/launcher.elf: $(BUILD)/orbis_desktop_bridge.o $(BUILD)/orbis_gpu_input_bridge.o $(BUILD)/orbis_desktop_preflight.o $(BUILD)/launcher.o $(BUILD)/runner_config.o $(BUILD)/orbis_runtime.o $(BUILD)/orbis_mapping_probe.o $(BUILD)/orbis_screen_console.o $(BUILD)/orbis_display_service.o $(BUILD)/orbis_input_service.o
+	$(LD) -m elf_x86_64 -pie --script $(TOOLCHAIN)/link.x --eh-frame-hdr -L$(TOOLCHAIN)/lib --rpath=/app0 --wrap=_exit -o $@ $^ $(TOOLCHAIN)/lib/crt1.o -lc -lkernel -lc++ -lSceVideoOut -lSceGnmDriver -lSceKeyboard -lSceMouse -lSceSysmodule -lSceUserService
 $(STAGE)/eboot.bin: $(BUILD)/launcher.elf
 	mkdir -p $(STAGE)
 	$(FSELF) -in=$< -out=$(BUILD)/launcher.oelf --eboot $@ --paid $(PAID)
