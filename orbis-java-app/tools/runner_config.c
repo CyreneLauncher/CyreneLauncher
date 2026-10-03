@@ -47,9 +47,9 @@ int runner_config_load(const char *path, RunnerConfig *config, char *error, size
     RunnerConfig parsed = {"/data/orbis-jdk/jdk", RUNNER_ROOT "/target.jar",
         RUNNER_ROOT, RUNNER_ROOT "/runner-output.log", RUNNER_ROOT "/tmp",
         "/data/orbis-jdk/cacio", "/data/orbis-jdk/graphics", RUNNER_ROOT "/version.json",
-        "/data/orbis-jdk/libraries", 0, RUNNER_DISPLAY_CONSOLE};
-    const char *keys[] = {"java_home", "jar", "working_directory", "output_log", "temporary_directory", "debug", "display", "desktop_bundle", "graphics_bundle", "version_metadata", "libraries"};
-    char *values[] = {parsed.java_home, parsed.jar, parsed.working_directory, parsed.output_log, parsed.temporary_directory, NULL, NULL, parsed.desktop_bundle, parsed.graphics_bundle, parsed.version_metadata, parsed.libraries};
+        "/data/orbis-jdk/libraries", 0, RUNNER_DISPLAY_CONSOLE, 0};
+    const char *keys[] = {"java_home", "jar", "working_directory", "output_log", "temporary_directory", "debug", "display", "desktop_bundle", "graphics_bundle", "version_metadata", "libraries", "input_diagnostics"};
+    char *values[] = {parsed.java_home, parsed.jar, parsed.working_directory, parsed.output_log, parsed.temporary_directory, NULL, NULL, parsed.desktop_bundle, parsed.graphics_bundle, parsed.version_metadata, parsed.libraries, NULL};
     unsigned seen = 0;
     if (size) error[0] = 0;
     FILE *file = fopen(path, "rb");
@@ -89,6 +89,13 @@ int runner_config_load(const char *path, RunnerConfig *config, char *error, size
             if (!strcmp(value, "true")) parsed.debug = 1;
             else if (!strcmp(value, "false")) parsed.debug = 0;
             else { result = fail(error, size, "%s line %u: debug requires true or false", path, number); goto done; }
+            seen |= 1u << i;
+            continue;
+        }
+        if (i == 11) {
+            if (!strcmp(value, "true")) parsed.input_diagnostics = 1;
+            else if (!strcmp(value, "false")) parsed.input_diagnostics = 0;
+            else { result = fail(error, size, "%s line %u: input_diagnostics requires true or false", path, number); goto done; }
             seen |= 1u << i;
             continue;
         }

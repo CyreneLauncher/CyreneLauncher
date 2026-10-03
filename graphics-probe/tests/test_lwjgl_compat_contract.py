@@ -46,7 +46,7 @@ class CompatibilityContract(unittest.TestCase):
             _fields_ = [(name, ctypes.c_char * 512) for name in
                         ('java_home', 'jar', 'working_directory', 'output_log', 'temporary_directory',
                          'desktop_bundle', 'graphics_bundle', 'version_metadata', 'libraries')] + [
-                             ('debug', ctypes.c_int), ('display', ctypes.c_int)]
+                             ('debug', ctypes.c_int), ('display', ctypes.c_int), ('input_diagnostics', ctypes.c_int)]
         library = self.work / 'runner-config.so'
         subprocess.run(['cc', '-std=c11', '-shared', '-fPIC',
                         str(ROOT.parent / 'orbis-java-app/tools/runner_config.c'),

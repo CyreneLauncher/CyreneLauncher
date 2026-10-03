@@ -28,7 +28,7 @@ if not all((jars / jar).is_file() for jar in needed) or not (root / 'build/downl
 class Config(ctypes.Structure):
     _fields_ = [(name, ctypes.c_char * 512) for name in (
         'java_home', 'jar', 'working_directory', 'output_log', 'temporary_directory', 'desktop_bundle',
-        'graphics_bundle', 'version_metadata', 'libraries')] + [('debug', ctypes.c_int), ('display', ctypes.c_int)]
+        'graphics_bundle', 'version_metadata', 'libraries')] + [('debug', ctypes.c_int), ('display', ctypes.c_int), ('input_diagnostics', ctypes.c_int)]
 
 
 with tempfile.TemporaryDirectory() as directory:

@@ -228,6 +228,14 @@ constexpr size_t kKeyboardRecordBytes = 96;
 bool buffered_reads = true;
 uint64_t last_keyboard_stamp;
 OrbisKeyboardData last_slot0;
+/* Slots 1-3 have never reported a key on the tested setup, yet each read can block the
+ * collector for hundreds of ms: poll them every 250 ms, and every pass for 2 s after one
+ * reports a key or modifier. Between polls their last state is reused. */
+constexpr uint64_t kIdleExtraPollUs = 250000;
+constexpr uint64_t kActiveExtraUs = 2000000;
+OrbisKeyboardData cached_extras;
+uint64_t extras_due;
+uint64_t extras_active_until;
 uint32_t buffered_reads_logged;
 bool keyboard_size_logged[1 + kExtraKeyboardSlots];
 
@@ -682,10 +690,15 @@ void *collect(void *) {
         }
         bool refresh_cursor = false;
         if (handle >= 0 && result >= 0) {
-            OrbisKeyboardData extras{};
             uint64_t extras_before = now_us();
-            read_extra_keyboards(&extras);
-            note_slow("extra keyboard slots", now_us() - extras_before);
+            if (extras_before >= extras_due) {
+                read_extra_keyboards(&cached_extras);
+                note_slow("extra keyboard slots", now_us() - extras_before);
+                if (cached_extras.nkeys > 0 || cached_extras.mods != 0)
+                    extras_active_until = extras_before + kActiveExtraUs;
+                extras_due = extras_before < extras_active_until ? 0 : extras_before + kIdleExtraPollUs;
+            }
+            const OrbisKeyboardData extras = cached_extras;
             uint64_t newest = 0;
             for (int32_t r = 0; r < records; ++r) {
                 uint64_t stamp;
@@ -926,6 +939,8 @@ extern "C" void orbis_input_stop(void) {
     last_read_tick = 0;
     last_keyboard_stamp = 0;
     memset(&last_slot0, 0, sizeof(last_slot0));
+    memset(&cached_extras, 0, sizeof(cached_extras));
+    extras_due = extras_active_until = 0;
     reset_queue_locked();
     pthread_cond_broadcast(&changed);
     lifecycle_busy = false;

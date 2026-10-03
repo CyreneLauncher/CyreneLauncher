@@ -20,6 +20,8 @@ typedef struct RunnerConfig {
     char libraries[RUNNER_PATH_CAPACITY];
     int debug;
     int display;
+    /* Keyboard/mouse diagnostics on UART, separate from debug: off unless asked for. */
+    int input_diagnostics;
 } RunnerConfig;
 int runner_config_load(const char *path, RunnerConfig *config, char *error, size_t error_size);
 int runner_option_reserved(const char *option);

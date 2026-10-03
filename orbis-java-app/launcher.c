@@ -1486,7 +1486,7 @@ int main(int argc, char **argv) {
     runner_debug("RETURN register screen input success");
 #endif
 
-    if (runner_config.debug) orbis_input_set_diagnostics(1);
+    if (runner_config.input_diagnostics) orbis_input_set_diagnostics(1);
     if (runner_display_gpu() && orbis_gpu_input_bridge_register(env) < 0) {
         check_exception(env);
         startup_error("gpu input JNI bridge registration failed");
