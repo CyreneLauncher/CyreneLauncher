@@ -389,9 +389,9 @@ def prepare(version: str, output: Path, cache: Path, username: str, *,
         # Sodium on Fancy exhausted a 512 MiB graphics arena ("out of device VA"); the console reports
         # 4.6 GiB of direct memory, so a 1 GiB heap and a 1 GiB arena leave headroom.
         # Orbis rejects IPv6 multicast options (LAN discovery: "Protocol not available"); IPv4-only sockets.
-        # About 700 MiB stays live in a Sodium world, so a 1 GiB heap ran back-to-back collections and
-        # multi-second full GCs. The Orbis JVM is built with the Serial collector only (no G1/Parallel).
-        jvm_options = ['-Xms1024m', '-Xmx1536m', '-Dorbis.graphics.arenaMib=1024', '-Djava.awt.headless=true',
+        # The Orbis JVM is built with the Serial collector only (no G1/Parallel). A 1.5 GiB heap left too
+        # little direct memory for thread stacks once the VM saw all six cores.
+        jvm_options = ['-Xms512m', '-Xmx1024m', '-Dorbis.graphics.arenaMib=1024', '-Djava.awt.headless=true',
                        '-Djava.net.preferIPv4Stack=true']
         if fabric:
             jvm_options.extend(FABRIC_JVM_OPTIONS)
