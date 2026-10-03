@@ -392,6 +392,8 @@ final class OrbisGLFW {
         title = windowTitle == null ? "" : windowTitle.toString();
         cursorX = framebufferWidth / 2.0;
         cursorY = framebufferHeight / 2.0;
+        announcedWidth = width;
+        announcedHeight = height;
         return handle;
     }
 
@@ -499,6 +501,25 @@ final class OrbisGLFW {
             return;
         }
         fullscreen = monitor != NULL;
+        // The application now believes the window is width x height; the scanout stays fixed.
+        announcedWidth = width;
+        announcedHeight = height;
+    }
+
+    /** The size the application last asked for; reconciled with the scanout on the next poll. */
+    private static int announcedWidth, announcedHeight;
+
+    /**
+     * The scanout is fixed, so a requested size never takes effect. A window manager that forces
+     * a size reports it through the size callbacks; do the same, so applications that track their
+     * own window size (Minecraft scales cursor positions by it) see the real one.
+     */
+    private static void reconcileSize() {
+        if (window == NULL || (announcedWidth == framebufferWidth && announcedHeight == framebufferHeight)) return;
+        announcedWidth = framebufferWidth;
+        announcedHeight = framebufferHeight;
+        if (windowSizeCallback != null) windowSizeCallback.invoke(window, framebufferWidth, framebufferHeight);
+        if (framebufferSizeCallback != null) framebufferSizeCallback.invoke(window, framebufferWidth, framebufferHeight);
     }
 
     static int glfwGetWindowAttrib(long handle, int attrib) {
@@ -898,6 +919,7 @@ final class OrbisGLFW {
 
     /** Reads available input; with wait, blocks up to waitNanos for the first event. */
     private static void drain(long waitNanos, boolean wait) {
+        if (!dispatching) reconcileSize();
         if (dispatching || window == NULL || !inputAvailable) {
             if (wait && waitNanos > 0 && waitNanos != Long.MAX_VALUE) sleep(waitNanos);
             return;

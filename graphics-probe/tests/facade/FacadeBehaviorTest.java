@@ -78,6 +78,23 @@ public final class FacadeBehaviorTest {
         GLFWVidMode mode = glfwGetVideoMode(monitor);
         check(mode.width() == 1920 && mode.height() == 1080 && mode.refreshRate() == 60, "video mode follows scanout");
         check(glfwGetVideoModes(monitor).remaining() == 1, "one video mode");
+
+        // Minecraft asked for 854x480 and scales cursor positions by the size it believes; the
+        // fixed scanout must be reported through the size callbacks on the next poll.
+        int[] reported = new int[4];
+        glfwSetWindowSizeCallback(window, (win, width, height) -> { reported[0] = width; reported[1] = height; });
+        glfwSetFramebufferSizeCallback(window, (win, width, height) -> { reported[2] = width; reported[3] = height; });
+        glfwPollEvents();
+        check(reported[0] == 1920 && reported[1] == 1080 && reported[2] == 1920 && reported[3] == 1080,
+                "requested size reconciled with the scanout through size callbacks");
+        reported[0] = 0;
+        glfwPollEvents();
+        check(reported[0] == 0, "size reported once");
+        glfwSetWindowMonitor(window, 0, 0, 0, 854, 480, GLFW_DONT_CARE);
+        glfwPollEvents();
+        check(reported[0] == 1920 && reported[1] == 1080, "windowed request reconciled again");
+        glfwSetWindowSizeCallback(window, null);
+        glfwSetFramebufferSizeCallback(window, null);
         check(glfwGetWindowMonitor(window) == 0, "windowed until set");
         glfwSetWindowMonitor(window, monitor, 0, 0, 1920, 1080, 60);
         check(glfwGetWindowMonitor(window) == monitor, "full-screen flag");

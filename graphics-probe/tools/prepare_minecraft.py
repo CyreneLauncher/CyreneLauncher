@@ -238,7 +238,7 @@ def _publish(stage: Path, output: Path, backup: Path) -> None:
 
 def prepare(version: str, output: Path, cache: Path, username: str, *,
             boot_jdk: Path = Path('/usr/lib/jvm/java-17-openjdk-amd64'),
-            java_home: str = DEVICE + '/jdk/release', manifest_url: str = MANIFEST_URL,
+            java_home: str = DEVICE + '/jdk/release-desktop', manifest_url: str = MANIFEST_URL,
             metadata_sha1: str = METADATA_SHA1, metadata_size: int = METADATA_SIZE,
             client_sha1: str = CLIENT_SHA1,
             asset_index_sha1: str = ASSET_INDEX_SHA1,
@@ -310,7 +310,10 @@ def prepare(version: str, output: Path, cache: Path, username: str, *,
                               {'is_demo_user': False, 'has_custom_resolution': False})
         runner = stage / 'runner'
         (runner / 'app-args.txt').write_text(argument_lines(args), encoding='utf-8')
-        (runner / 'jvm-options.txt').write_text('-Xms512m\n-Xmx1024m\n-Dorbis.graphics.arenaMib=512\n')
+        # Saved worlds load their icon through ImageIO, which needs java.desktop's
+        # native AWT libraries (release-desktop) in headless mode.
+        (runner / 'jvm-options.txt').write_text('-Xms512m\n-Xmx1024m\n-Dorbis.graphics.arenaMib=512\n'
+                                                '-Djava.awt.headless=true\n')
         (runner / 'runner.conf').write_text(f'''java_home={java_home}
 jar={DEVICE}/runner/target.jar
 working_directory={DEVICE}/minecraft
@@ -361,7 +364,7 @@ def main():
     parser.add_argument('--cache', type=Path, default=ROOT / 'build/downloads/minecraft')
     parser.add_argument('--username', required=True)
     parser.add_argument('--boot-jdk', type=Path, default=Path('/usr/lib/jvm/java-17-openjdk-amd64'))
-    parser.add_argument('--java-home', default=DEVICE + '/jdk/release')
+    parser.add_argument('--java-home', default=DEVICE + '/jdk/release-desktop')
     options = parser.parse_args()
     manifest = prepare(options.version, options.output, options.cache, options.username,
                        boot_jdk=options.boot_jdk, java_home=options.java_home)
