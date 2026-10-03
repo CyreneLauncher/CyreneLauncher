@@ -79,10 +79,20 @@ static void probe_heap_mapping_sizes(void) {
     errno = saved_errno;
 }
 
-// Give each OpenOrbis libc heap growth its own mapping, with a 1-MiB minimum.
-// If anonymous mmap cannot supply that growth, retry it with Orbis direct
-// memory. The fallback is per growth so it does not reserve a large virtual
-// range ahead of HotSpot's own heap and CodeCache reservations.
+// Every anonymous mapping is charged to the process's flexible-memory budget (~448 MiB, the
+// maximum a base-PS4 title may declare), reservations included. Once it is spent, no anonymous
+// mapping of 1 MiB or more can be made - so no new thread stack - while gigabytes of direct
+// memory are unused. Heap growth and large blocks therefore come from direct memory first,
+// zeroed because musl assumes fresh mappings are, and fall back to anonymous memory.
+static void *map_direct_zeroed(size_t size, off_t *direct_offset_out) {
+    void *mapping = map_direct_heap(size, direct_offset_out);
+    if (mapping != MAP_FAILED)
+        memset(mapping, 0, size);
+    return mapping;
+}
+
+// Give each OpenOrbis libc heap growth its own mapping, with a 1-MiB minimum,
+// from direct memory first (see above); heap growth is never returned.
 void *__expand_heap(size_t *size) {
     if (size == NULL || *size > SIZE_MAX - (ORBIS_HEAP_PAGE_SIZE - 1)) {
         errno = ENOMEM;
@@ -92,6 +102,13 @@ void *__expand_heap(size_t *size) {
             & ~(size_t)(ORBIS_HEAP_PAGE_SIZE - 1);
     if (mapping_size < ORBIS_HEAP_ARENA_SIZE)
         mapping_size = ORBIS_HEAP_ARENA_SIZE;
+
+    off_t growth_offset = 0;
+    void *direct_growth = map_direct_zeroed(mapping_size, &growth_offset);
+    if (direct_growth != MAP_FAILED) {
+        *size = mapping_size;
+        return direct_growth;
+    }
 
     void *mapping = mmap(NULL, mapping_size, PROT_READ | PROT_WRITE,
                          MAP_PRIVATE | MAP_ANON, -1, 0);
@@ -132,7 +149,7 @@ void *__expand_heap(size_t *size) {
 // Route that path like __expand_heap: whole 16-KiB Orbis pages, and Orbis
 // direct memory when anonymous mmap cannot supply them. Direct mappings are
 // recorded so __munmap can release their direct memory.
-#define ORBIS_DIRECT_MAPPINGS 1024
+#define ORBIS_DIRECT_MAPPINGS 8192
 static struct { void *address; size_t size; off_t offset; } direct_mappings[ORBIS_DIRECT_MAPPINGS];
 static volatile int direct_mappings_lock;
 static int direct_fallback_reported;
@@ -158,7 +175,28 @@ void *__mmap(void *address, size_t size, int prot, int flags, int fd, off_t offs
         return MAP_FAILED;
     }
     size_t mapping_size = round_heap_pages(size);
-    void *mapping = mmap(NULL, mapping_size, prot, flags, -1, 0);
+    void *mapping = MAP_FAILED;
+    if (prot == (PROT_READ | PROT_WRITE)) {
+        // Direct memory first (see map_direct_zeroed); the table lets __munmap return it.
+        lock_direct_mappings();
+        int slot = -1;
+        for (int i = 0; i < ORBIS_DIRECT_MAPPINGS && slot < 0; ++i)
+            if (direct_mappings[i].address == NULL)
+                slot = i;
+        if (slot >= 0) {
+            off_t direct_offset = 0;
+            mapping = map_direct_zeroed(mapping_size, &direct_offset);
+            if (mapping != MAP_FAILED) {
+                direct_mappings[slot].address = mapping;
+                direct_mappings[slot].size = mapping_size;
+                direct_mappings[slot].offset = direct_offset;
+            }
+        }
+        unlock_direct_mappings();
+        if (mapping != MAP_FAILED)
+            return mapping;
+    }
+    mapping = mmap(NULL, mapping_size, prot, flags, -1, 0);
     if (mapping != MAP_FAILED)
         return mapping;
 
