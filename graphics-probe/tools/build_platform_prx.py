@@ -60,7 +60,8 @@ orbis_prx.link(tools, script, runtime, elf,
                [bridge, '--start-group', egl, gallium, '--whole-archive', radv, '--no-whole-archive', zlib,
                 '--end-group', '--whole-archive', compat_archive, '--no-whole-archive', *libc16],
                system_libraries=('SceGnmDriver', 'SceVideoOut'),
-               extra=('--allow-multiple-definition',), why_extract=why)
+               # Mesa's thread creation passes through the bridge's diagnostic wrapper.
+               extra=('--allow-multiple-definition', '--wrap=pthread_create'), why_extract=why)
 wchar = orbis_prx.run('sh', kit / 'scripts/ps4/check-wchar-link.sh', why, stdout=subprocess.PIPE).stdout
 (out / 'wchar-audit.log').write_text(wchar)
 

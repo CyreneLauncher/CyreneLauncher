@@ -16,6 +16,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 /* libSceGnmDriver: the system will not suspend a process that submitted GPU work until it calls this. */
 int32_t sceGnmSubmitDone(void);
@@ -83,6 +84,56 @@ static void install_compat_logger(const char *mesa_log_file) {
             compat_log = fopen(path, "w");
     }
     orbis_set_log(compat_logger);
+}
+
+/* Diagnostics at Mesa's thread creation: linked with --wrap=pthread_create, so every thread
+ * Mesa starts passes through here before orbis-compat's interposer. A failure is logged with
+ * what the process looked like at that moment, then retried (and a successful retry used). */
+int __real_pthread_create(pthread_t *thread, const pthread_attr_t *attr,
+                          void *(*start)(void *), void *arg);
+int32_t sceKernelAvailableFlexibleMemorySize(size_t *size) __asm__("sceKernelAvailableFlexibleMemorySize");
+int sceKernelUsleep(unsigned int microseconds);
+
+static void diag(const char *fmt, ...) {
+    va_list ap;
+    va_start(ap, fmt);
+    compat_logger(fmt, ap);
+    va_end(ap);
+}
+
+static int pool_headroom(void) {
+    enum { CAP = 4096 };
+    static pthread_mutex_t probe[CAP];
+    int n = 0;
+    while (n < CAP && pthread_mutex_init(&probe[n], NULL) == 0) n++;
+    for (int i = 0; i < n; i++) pthread_mutex_destroy(&probe[i]);
+    return n;
+}
+
+int __wrap_pthread_create(pthread_t *thread, const pthread_attr_t *attr,
+                          void *(*start)(void *), void *arg) {
+    int rc = __real_pthread_create(thread, attr, start, arg);
+    if (rc == 0) return 0;
+    struct timespec now;
+    clock_gettime(CLOCK_MONOTONIC, &now);
+    size_t stack = 0;
+    if (attr) pthread_attr_getstacksize(attr, &stack);
+    size_t flexible = 0;
+    sceKernelAvailableFlexibleMemorySize(&flexible);
+    diag("thread diag: pthread_create failed rc=%d at %ld.%03ld s (monotonic), caller %p, attr %s stack %zu KiB, "
+         "pool headroom %d mutexes (cap 4096), flexible %zu MiB",
+         rc, (long)now.tv_sec, now.tv_nsec / 1000000, (void *)pthread_self(), attr ? "set" : "NULL",
+         stack / 1024, pool_headroom(), flexible >> 20);
+    static const unsigned delays[] = {0, 1000, 10000, 100000, 500000};
+    for (unsigned i = 0; i < sizeof(delays) / sizeof(delays[0]); i++) {
+        if (delays[i]) sceKernelUsleep(delays[i]);
+        rc = __real_pthread_create(thread, attr, start, arg);
+        diag("thread diag: retry after %u us: rc=%d", delays[i], rc);
+        if (rc == 0) return 0;
+    }
+    rc = __real_pthread_create(thread, NULL, start, arg);
+    diag("thread diag: retry with default attributes: rc=%d", rc);
+    return rc;
 }
 
 JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *vm, void *reserved) {
