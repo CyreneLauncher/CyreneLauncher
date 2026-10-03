@@ -832,17 +832,28 @@ void *collect(void *) {
     return nullptr;
 }
 
+/* Start failures are once per run and otherwise invisible ("input service unavailable"). */
+void report_start_failure(const char *stage, int32_t code) {
+    char line[128];
+    snprintf(line, sizeof(line), "orbis-java-input: start failed at %s: 0x%08x\n", stage,
+             static_cast<unsigned int>(code));
+    sceKernelDebugOutText(0, line);
+}
+
 int32_t initialize_devices() {
     int32_t result = 0;
     if (!user_service_initialized) {
         OrbisUserServiceInitializeParams params{};
         params.priority = ORBIS_KERNEL_PRIO_FIFO_LOWEST;
         result = sceUserServiceInitialize(&params);
-        if (result < 0) return result;
+        if (result < 0) { report_start_failure("sceUserServiceInitialize", result); return result; }
         user_service_initialized = true;
     }
     result = sceUserServiceGetInitialUser(&user_id);
-    if (result < 0 || user_id < 0) return result < 0 ? result : user_id;
+    if (result < 0 || user_id < 0) {
+        report_start_failure("sceUserServiceGetInitialUser", result < 0 ? result : user_id);
+        return result < 0 ? result : user_id;
+    }
     int32_t keyboard_result = open_keyboard();
     open_extra_keyboards();
     if (keyboard_result < 0) {
@@ -891,7 +902,9 @@ extern "C" int32_t orbis_input_start(void) {
     state.reset_generation = generation;
     started = true;
     pthread_mutex_unlock(&lock);
-    if (pthread_create(&collector, nullptr, collect, nullptr) != 0) {
+    int create_result = pthread_create(&collector, nullptr, collect, nullptr);
+    if (create_result != 0) {
+        report_start_failure("pthread_create (collector)", create_result);
         pthread_mutex_lock(&lock); started = false; pthread_mutex_unlock(&lock);
         if (keyboard_handle >= 0) sceKeyboardClose(keyboard_handle);
         keyboard_handle = -1;
