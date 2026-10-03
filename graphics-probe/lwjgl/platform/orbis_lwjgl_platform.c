@@ -17,6 +17,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <sys/mman.h>
+#include <errno.h>
 
 /* libSceGnmDriver: the system will not suspend a process that submitted GPU work until it calls this. */
 int32_t sceGnmSubmitDone(void);
@@ -143,6 +145,24 @@ static int create_variant(int sony, int explicit_sched, pthread_t *thread,
     return rc;
 }
 
+/* Whether a fresh anonymous mapping of `size` can be made right now; 0 or errno. */
+static int try_anon(size_t size) {
+    void *p = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON, -1, 0);
+    if (p == MAP_FAILED) return errno;
+    munmap(p, size);
+    return 0;
+}
+
+/* The largest anonymous mapping that succeeds, by halving from 512 MiB, in MiB. */
+static size_t largest_anon_mib(void) {
+    size_t lo = 0, hi = 512;
+    while (lo < hi) {
+        size_t mid = (lo + hi + 1) / 2;
+        if (try_anon(mid << 20) == 0) lo = mid; else hi = mid - 1;
+    }
+    return lo;
+}
+
 static int pool_headroom(void) {
     enum { CAP = 4096 };
     static pthread_mutex_t probe[CAP];
@@ -224,6 +244,9 @@ int __wrap_pthread_create(pthread_t *thread, const pthread_attr_t *attr,
          "pool headroom %d mutexes (cap 4096), flexible %zu MiB",
          rc, (long)now.tv_sec, now.tv_nsec / 1000000, (void *)pthread_self(), attr ? "set" : "NULL",
          stack / 1024, pool_headroom(), flexible >> 20);
+    diag("thread diag: fresh anonymous mmap: 64 KiB %d, 2 MiB %d, 16 MiB %d (0 = ok, else errno); "
+         "largest that succeeds %zu MiB",
+         try_anon(64 << 10), try_anon(2u << 20), try_anon(16u << 20), largest_anon_mib());
     int policy = -1;
     struct sched_param param;
     memset(&param, 0, sizeof(param));
