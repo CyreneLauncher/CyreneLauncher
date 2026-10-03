@@ -1898,6 +1898,16 @@
     },
     {
       "classification": "compile-verified",
+      "evidence": "os_orbis.cpp reports the largest free direct-memory block in the -Xlog:os memory report; bound by symbol because the SDK prototype declares the outputs by value. libkernel import; console result pending.",
+      "route": "direct",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp"
+      ],
+      "subsystem": "memory-diagnostics",
+      "symbol": "sceKernelAvailableDirectMemorySize"
+    },
+    {
+      "classification": "compile-verified",
       "evidence": "Exported by the Orbis SDK libkernel; called through the verified u64 pointer-output ABI because the SDK header prototype is incorrect",
       "route": "direct",
       "source_globs": [
