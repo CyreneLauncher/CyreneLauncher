@@ -20,10 +20,10 @@
 #include <vector>
 
 #include <orbis/AudioOut.h>
+#include <orbis/libkernel.h>
 
 #include "almalloc.h"
 #include "core/device.h"
-#include "core/helpers.h"
 #include "core/logging.h"
 #include "threads.h"
 
@@ -36,6 +36,10 @@ constexpr uint32_t kPeriodFrames = 256;
 constexpr int32_t kSystemUser = 0xFF;
 /* sceAudioOutInit reports this when the service is already initialised in the process. */
 constexpr int32_t kAlreadyInitialised = static_cast<int32_t>(0x8026000E);
+/* Well above the game's default 700: the mixer must hand AudioOut each 5.3 ms period on time
+ * while the render and loader threads are busy, or the output underruns and crackles. It
+ * spends most of each period blocked in sceAudioOutOutput, so it cannot hog a core. */
+constexpr int kMixerPriority = 0x120;
 
 struct OrbisBackend final : public BackendBase {
     OrbisBackend(DeviceBase *device) noexcept : BackendBase{device} { }
@@ -65,7 +69,9 @@ OrbisBackend::~OrbisBackend()
 
 int OrbisBackend::mixerProc()
 {
-    SetRTPriority();
+    const int32_t prio{scePthreadSetprio(scePthreadSelf(), kMixerPriority)};
+    if(prio < 0)
+        WARN("scePthreadSetprio(%d) failed: 0x%08x\n", kMixerPriority, static_cast<uint32_t>(prio));
     althrd_setname(MIXER_THREAD_NAME);
 
     while(!mKillNow.load(std::memory_order_acquire)
@@ -138,7 +144,14 @@ void OrbisBackend::stop()
 {
     if(mKillNow.exchange(true, std::memory_order_acq_rel) || !mThread.joinable())
         return;
-    mThread.join();
+    try {
+        mThread.join();
+    }
+    catch(std::exception& e) {
+        /* Leaving it joinable would std::terminate when the backend is destroyed. */
+        ERR("Failed to join mixing thread: %s\n", e.what());
+        mThread.detach();
+    }
 }
 
 } // namespace

@@ -61,6 +61,33 @@ def main():
           '    { "null", NullBackendFactory::getFactory },\n')
     patch(source / 'CMakeLists.txt', '    alc/backends/null.cpp\n',
           '    alc/backends/null.cpp\n    alc/backends/orbis_audioout.cpp\n')
+    # al::semaphore over libkernel's pthread mutex/condvar: the SDK libc's sem_* are FreeBSD
+    # ksem syscalls, and a failing sem_wait would spin the event thread while a failing
+    # sem_post throws out of context teardown.
+    patch(source / 'common/threads.h', '#else\n    using native_type = sem_t;\n#endif\n',
+          '#elif defined(HAVE_ORBIS)\n    struct native_type { pthread_mutex_t lock; pthread_cond_t cond; unsigned int count; };\n'
+          '#else\n    using native_type = sem_t;\n#endif\n')
+    patch(source / 'common/threads.h', '#elif !defined(_WIN32)\n#include <semaphore.h>\n#endif\n',
+          '#elif defined(HAVE_ORBIS)\n#include <pthread.h>\n#elif !defined(_WIN32)\n#include <semaphore.h>\n#endif\n')
+    patch(source / 'common/threads.cpp', '#else /* !__APPLE__ */\n',
+          '#elif defined(HAVE_ORBIS)\n\n' + (ROOT / 'lwjgl/openal/orbis_semaphore.inc').read_text()
+          + '\n#else /* !__APPLE__ */\n')
+    # Context teardown must not leave the event thread joinable: an exception out of the
+    # wake-up or join would unwind into ~ContextBase and std::terminate the process.
+    patch(source / 'al/event.cpp', '''    ctx->mEventSem.post();
+    if(ctx->mEventThread.joinable())
+        ctx->mEventThread.join();
+''', '''    try {
+        ctx->mEventSem.post();
+        if(ctx->mEventThread.joinable())
+            ctx->mEventThread.join();
+    }
+    catch(std::exception& e) {
+        ERR("Failed to stop event thread: %s\\n", e.what());
+        if(ctx->mEventThread.joinable())
+            ctx->mEventThread.detach();
+    }
+''')
 
     toolchain = Path(arguments.toolchain)
     #: OpenAL Soft's thread_locals are constant-initialised, so the

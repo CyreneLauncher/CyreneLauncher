@@ -54,6 +54,9 @@ uint64_t repeat_due[256];
 /* Repeat diagnostics: the device's own timestamp at press, and whether the hold repeated. */
 uint32_t down_stamp[256];
 bool repeated[256];
+/* The longest gap between keyboard reads while each key was held. */
+uint64_t longest_gap[256];
+uint64_t last_read_tick;
 uint32_t hold_reports;
 int32_t user_id = ORBIS_USER_SERVICE_USER_ID_INVALID;
 int32_t mouse_x;
@@ -279,16 +282,17 @@ void close_extra_keyboards() {
 /* With diagnostics, compares how long the keyboard says a key was held with how long this
  * service believed it was: a stale "still down" state shows as a long service hold over a
  * short device hold. Reported when the hold repeated or the two disagree by >150 ms. */
-void report_hold(uint16_t key, uint32_t release_stamp) {
+void report_hold(uint16_t key, uint32_t release_stamp, uint64_t read_tick) {
     if (!diagnostics_enabled || hold_reports >= 64 || held_since[key] == 0) return;
-    uint64_t service_ms = (now_us() - held_since[key]) / 1000;
+    uint64_t service_ms = (read_tick - held_since[key]) / 1000;
     uint64_t device_ms = (uint32_t)(release_stamp - down_stamp[key]) / 1000;
     uint64_t gap = service_ms > device_ms ? service_ms - device_ms : device_ms - service_ms;
     if (!repeated[key] && gap <= 150) return;
     ++hold_reports;
-    char line[128];
-    snprintf(line, sizeof(line), "orbis-java-input: kbd hold key=%u device=%llu ms service=%llu ms repeated=%d\n",
-             key, (unsigned long long)device_ms, (unsigned long long)service_ms, repeated[key] ? 1 : 0);
+    char line[160];
+    snprintf(line, sizeof(line), "orbis-java-input: kbd hold key=%u device=%llu ms service=%llu ms repeated=%d longest read gap=%llu ms\n",
+             key, (unsigned long long)device_ms, (unsigned long long)service_ms, repeated[key] ? 1 : 0,
+             (unsigned long long)(longest_gap[key] / 1000));
     sceKernelDebugOutText(0, line);
 }
 
@@ -430,7 +434,20 @@ void merge_extra_keyboards(OrbisKeyboardData *sample) {
     sample->nkeys = count;
 }
 
+/* Above the game's default 700 so a busy render or loader thread cannot hold the collector
+ * between a read and its repeat decisions; it sleeps 8 ms per pass, so it never hogs a core. */
+constexpr int kCollectorPriority = 0x180;
+
+constexpr uint64_t kRepeatFreshUs = 20000;
+
 void *collect(void *) {
+    int32_t prio = scePthreadSetprio(scePthreadSelf(), kCollectorPriority);
+    if (diagnostics_enabled) {
+        char line[96];
+        snprintf(line, sizeof(line), "orbis-java-input: collector priority %d: 0x%08x\n",
+                 kCollectorPriority, static_cast<unsigned>(prio));
+        sceKernelDebugOutText(0, line);
+    }
     while (true) {
         pthread_mutex_lock(&lock);
         bool quit = stopping;
@@ -470,9 +487,13 @@ void *collect(void *) {
         OrbisKeyboardData sample{};
         alignas(16) uint8_t raw_sample[kKeyboardReadBytes];
         int32_t result = 0;
+        /* Press, hold and repeat decisions are timed by when the state was read, not when they
+         * are made: a pass that stalls after its read must not repeat a key from a stale sample. */
+        uint64_t read_tick = 0;
         if (handle >= 0) {
             memset(raw_sample, kKeyboardCanary, sizeof(raw_sample));
             result = sceKeyboardReadState(handle, reinterpret_cast<OrbisKeyboardData *>(raw_sample));
+            read_tick = now_us();
             memcpy(&sample, raw_sample, sizeof(sample));
             log_keyboard_read(0, raw_sample, result);
         }
@@ -507,6 +528,10 @@ void *collect(void *) {
             for (int32_t i = 0; i < sample.nkeys; ++i) keys[i] = sample.keycodes[i];
             pthread_mutex_lock(&lock);
             uint32_t count = static_cast<uint32_t>(sample.nkeys);
+            uint64_t gap = last_read_tick != 0 ? read_tick - last_read_tick : 0;
+            last_read_tick = read_tick;
+            for (uint32_t i = 0; i < prior_count; ++i)
+                if (prior_keys[i] < 256 && gap > longest_gap[prior_keys[i]]) longest_gap[prior_keys[i]] = gap;
             if (state.modifiers != sample.mods) {
                 state.modifiers = sample.mods;
                 transition_locked(ORBIS_INPUT_EVENT_MODIFIERS, 0, 0);
@@ -516,11 +541,12 @@ void *collect(void *) {
                 if (key >= 256) continue;
                 if (swallowed_keys[key]) continue;
                 if (!key_down(key, prior_keys, prior_count)) {
-                    uint64_t tick = now_us();
+                    uint64_t tick = read_tick;
                     held_since[key] = tick;
                     repeat_due[key] = tick + 500000;
                     down_stamp[key] = sample.timestamp;
                     repeated[key] = false;
+                    longest_gap[key] = 0;
                     if (key == ORBIS_KEYBOARD_KEY_F12 && desktop_enabled && focus_toggle_enabled) {
                         orbis_input_focus next = focus == ORBIS_INPUT_FOCUS_CONSOLE
                                 ? ORBIS_INPUT_FOCUS_DESKTOP : ORBIS_INPUT_FOCUS_CONSOLE;
@@ -555,7 +581,7 @@ void *collect(void *) {
                     continue;
                 }
                 if (!key_down(key, keys, count)) {
-                    report_hold(key, sample.timestamp);
+                    report_hold(key, sample.timestamp, read_tick);
                     held_since[key] = repeat_due[key] = 0;
                     state.pressed_keys[key >> 3] &= static_cast<uint8_t>(~(1u << (key & 7)));
                     transition_locked(ORBIS_INPUT_EVENT_KEY_UP, key, 0);
@@ -565,8 +591,10 @@ void *collect(void *) {
             for (uint32_t key = 0; key < 256; ++key)
                 if (swallowed_keys[key] && !key_down(static_cast<uint16_t>(key), keys, count))
                     swallowed_keys[key] = false;
-            uint64_t tick = now_us();
-            for (uint32_t i = 0; i < count; ++i) {
+            uint64_t tick = read_tick;
+            /* A sample older than a couple of passes cannot vouch that a key is still held. */
+            bool fresh = now_us() - read_tick <= kRepeatFreshUs;
+            for (uint32_t i = 0; i < count && fresh; ++i) {
                 uint16_t key = keys[i];
                 if (key >= 256 || held_since[key] == 0 || tick < repeat_due[key]) continue;
                 if (key == ORBIS_KEYBOARD_KEY_RETURN) continue;
@@ -758,6 +786,7 @@ extern "C" void orbis_input_stop(void) {
     memset(held_since, 0, sizeof(held_since));
     memset(repeat_due, 0, sizeof(repeat_due));
     memset(swallowed_keys, 0, sizeof(swallowed_keys));
+    last_read_tick = 0;
     reset_queue_locked();
     pthread_cond_broadcast(&changed);
     lifecycle_busy = false;
