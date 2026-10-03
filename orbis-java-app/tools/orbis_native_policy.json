@@ -2402,6 +2402,46 @@
     },
     {
       "classification": "compile-verified",
+      "evidence": "os_orbis.cpp probes Sony thread creation (as orbis-compat creates Mesa's threads) in the -Xlog:os report; libkernel import; console result pending.",
+      "route": "direct",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp"
+      ],
+      "subsystem": "threads",
+      "symbol": "scePthreadAttrDestroy"
+    },
+    {
+      "classification": "compile-verified",
+      "evidence": "os_orbis.cpp probes Sony thread creation (as orbis-compat creates Mesa's threads) in the -Xlog:os report; libkernel import; console result pending.",
+      "route": "direct",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp"
+      ],
+      "subsystem": "threads",
+      "symbol": "scePthreadAttrInit"
+    },
+    {
+      "classification": "compile-verified",
+      "evidence": "os_orbis.cpp probes Sony thread creation (as orbis-compat creates Mesa's threads) in the -Xlog:os report; libkernel import; console result pending.",
+      "route": "direct",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp"
+      ],
+      "subsystem": "threads",
+      "symbol": "scePthreadAttrSetstacksize"
+    },
+    {
+      "classification": "compile-verified",
+      "evidence": "os_orbis.cpp probes Sony thread creation (as orbis-compat creates Mesa's threads) in the -Xlog:os report; libkernel import; console result pending.",
+      "route": "direct",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp"
+      ],
+      "subsystem": "threads",
+      "symbol": "scePthreadCreate"
+    },
+    {
+      "classification": "compile-verified",
       "evidence": "os::Bsd::initialize_system_info counts the main thread's affinity mask as the processor count, because sysconf(_SC_NPROCESSORS_ONLN) reports 1 on Orbis. libkernel import; console result pending (logged by os::init_2 under -Xlog:os).",
       "route": "direct",
       "source_globs": [
@@ -2419,6 +2459,16 @@
       ],
       "subsystem": "threads",
       "symbol": "scePthreadGetprio"
+    },
+    {
+      "classification": "compile-verified",
+      "evidence": "os_orbis.cpp probes Sony thread creation (as orbis-compat creates Mesa's threads) in the -Xlog:os report; libkernel import; console result pending.",
+      "route": "direct",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp"
+      ],
+      "subsystem": "threads",
+      "symbol": "scePthreadJoin"
     },
     {
       "classification": "compile-verified",
