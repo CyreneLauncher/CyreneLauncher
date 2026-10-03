@@ -2106,6 +2106,16 @@
       "symbol": "sceKernelMapDirectMemory"
     },
     {
+      "classification": "compile-verified",
+      "evidence": "os_orbis.cpp tries a 2 MiB flexible mapping when large anonymous mappings fail (-Xlog:os diagnostics); libkernel import; console result pending.",
+      "route": "direct",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp"
+      ],
+      "subsystem": "memory-diagnostics",
+      "symbol": "sceKernelMapFlexibleMemory"
+    },
+    {
       "classification": "adapter-verified",
       "evidence": "Current Orbis adapter; hardware startup path reached",
       "route": "adapter",
@@ -2142,6 +2152,16 @@
       ],
       "subsystem": "graphics",
       "symbol": "sceKernelReleaseDirectMemory"
+    },
+    {
+      "classification": "compile-verified",
+      "evidence": "os_orbis.cpp tries a 2 MiB flexible mapping when large anonymous mappings fail (-Xlog:os diagnostics); libkernel import; console result pending.",
+      "route": "direct",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp"
+      ],
+      "subsystem": "memory-diagnostics",
+      "symbol": "sceKernelReleaseFlexibleMemory"
     },
     {
       "classification": "adapter-verified",
