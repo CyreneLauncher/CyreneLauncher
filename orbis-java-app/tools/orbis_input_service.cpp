@@ -51,6 +51,10 @@ uint32_t prior_count;
 uint32_t prior_buttons;
 uint64_t held_since[256];
 uint64_t repeat_due[256];
+/* Repeat diagnostics: the device's own timestamp at press, and whether the hold repeated. */
+uint32_t down_stamp[256];
+bool repeated[256];
+uint32_t hold_reports;
 int32_t user_id = ORBIS_USER_SERVICE_USER_ID_INVALID;
 int32_t mouse_x;
 int32_t mouse_y;
@@ -272,6 +276,22 @@ void close_extra_keyboards() {
     }
 }
 
+/* With diagnostics, compares how long the keyboard says a key was held with how long this
+ * service believed it was: a stale "still down" state shows as a long service hold over a
+ * short device hold. Reported when the hold repeated or the two disagree by >150 ms. */
+void report_hold(uint16_t key, uint32_t release_stamp) {
+    if (!diagnostics_enabled || hold_reports >= 64 || held_since[key] == 0) return;
+    uint64_t service_ms = (now_us() - held_since[key]) / 1000;
+    uint64_t device_ms = (uint32_t)(release_stamp - down_stamp[key]) / 1000;
+    uint64_t gap = service_ms > device_ms ? service_ms - device_ms : device_ms - service_ms;
+    if (!repeated[key] && gap <= 150) return;
+    ++hold_reports;
+    char line[128];
+    snprintf(line, sizeof(line), "orbis-java-input: kbd hold key=%u device=%llu ms service=%llu ms repeated=%d\n",
+             key, (unsigned long long)device_ms, (unsigned long long)service_ms, repeated[key] ? 1 : 0);
+    sceKernelDebugOutText(0, line);
+}
+
 /* Opens mouse indexes 1-3 best effort; index 0 keeps the existing retry path. */
 void open_extra_mice() {
     for (int i = 0; i < kExtraMouseSlots; ++i) {
@@ -396,6 +416,8 @@ void merge_extra_keyboards(OrbisKeyboardData *sample) {
         OrbisKeyboardData extra{};
         memcpy(&extra, raw, sizeof(extra));
         if (extra.nkeys < 0 || extra.nkeys > 32) continue;
+        /* Newest device change across slots (a dead slot reports 0), for hold diagnostics. */
+        if (extra.timestamp > sample->timestamp) sample->timestamp = extra.timestamp;
         sample->mods |= extra.mods;
         sample->locks |= extra.locks;
         for (int32_t i = 0; i < extra.nkeys; ++i) {
@@ -497,6 +519,8 @@ void *collect(void *) {
                     uint64_t tick = now_us();
                     held_since[key] = tick;
                     repeat_due[key] = tick + 500000;
+                    down_stamp[key] = sample.timestamp;
+                    repeated[key] = false;
                     if (key == ORBIS_KEYBOARD_KEY_F12 && desktop_enabled && focus_toggle_enabled) {
                         orbis_input_focus next = focus == ORBIS_INPUT_FOCUS_CONSOLE
                                 ? ORBIS_INPUT_FOCUS_DESKTOP : ORBIS_INPUT_FOCUS_CONSOLE;
@@ -531,6 +555,7 @@ void *collect(void *) {
                     continue;
                 }
                 if (!key_down(key, keys, count)) {
+                    report_hold(key, sample.timestamp);
                     held_since[key] = repeat_due[key] = 0;
                     state.pressed_keys[key >> 3] &= static_cast<uint8_t>(~(1u << (key & 7)));
                     transition_locked(ORBIS_INPUT_EVENT_KEY_UP, key, 0);
@@ -549,6 +574,7 @@ void *collect(void *) {
                 if (key == ORBIS_KEYBOARD_KEY_BACKSPACE) {
                     transition_locked(ORBIS_INPUT_EVENT_TEXT, key, '\b');
                     repeat_due[key] = tick + 33000;
+                    repeated[key] = true;
                     break;
                 }
                 OrbisKeyboardKey2Char translated{};
@@ -558,6 +584,7 @@ void *collect(void *) {
                     transition_locked(ORBIS_INPUT_EVENT_TEXT, key,
                                       static_cast<uint32_t>(translated.keycode));
                     repeat_due[key] = tick + 33000;
+                    repeated[key] = true;
                     break;
                 }
             }
