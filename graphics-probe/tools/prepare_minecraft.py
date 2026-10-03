@@ -390,9 +390,8 @@ def prepare(version: str, output: Path, cache: Path, username: str, *,
         # 4.6 GiB of direct memory, so a 1 GiB heap and a 1 GiB arena leave headroom.
         # Orbis rejects IPv6 multicast options (LAN discovery: "Protocol not available"); IPv4-only sockets.
         # About 700 MiB stays live in a Sodium world, so a 1 GiB heap ran back-to-back collections and
-        # multi-second full GCs; G1 keeps pauses short now that the VM sees the console's cores.
-        jvm_options = ['-Xms1024m', '-Xmx1536m', '-XX:+UseG1GC', '-XX:MaxGCPauseMillis=50',
-                       '-Dorbis.graphics.arenaMib=1024', '-Djava.awt.headless=true',
+        # multi-second full GCs. The Orbis JVM is built with the Serial collector only (no G1/Parallel).
+        jvm_options = ['-Xms1024m', '-Xmx1536m', '-Dorbis.graphics.arenaMib=1024', '-Djava.awt.headless=true',
                        '-Djava.net.preferIPv4Stack=true']
         if fabric:
             jvm_options.extend(FABRIC_JVM_OPTIONS)
