@@ -294,6 +294,30 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *vm, void *reserved) {
     return JNI_VERSION_1_8;
 }
 
+/* -Dorbis.graphics.glthread=true|false sets Mesa's mesa_glthread (read at context creation);
+ * unset leaves Mesa's own choice. Read here so the Java signature stays unchanged. */
+static int seed_glthread_option(JNIEnv *env) {
+    jclass system = (*env)->FindClass(env, "java/lang/System");
+    if (!system) { (*env)->ExceptionClear(env); return 0; }
+    jmethodID get = (*env)->GetStaticMethodID(env, system, "getProperty", "(Ljava/lang/String;)Ljava/lang/String;");
+    jstring key = get ? (*env)->NewStringUTF(env, "orbis.graphics.glthread") : NULL;
+    jstring value = key ? (jstring)(*env)->CallStaticObjectMethod(env, system, get, key) : NULL;
+    if ((*env)->ExceptionCheck(env)) { (*env)->ExceptionClear(env); value = NULL; }
+    int failed = 0;
+    if (value) {
+        const char *chars = (*env)->GetStringUTFChars(env, value, NULL);
+        if (chars) {
+            failed = setenv("mesa_glthread", chars, 1) != 0;
+            diag("mesa_glthread=%s (from orbis.graphics.glthread)", chars);
+            (*env)->ReleaseStringUTFChars(env, value, chars);
+        }
+    }
+    if (key) (*env)->DeleteLocalRef(env, key);
+    if (value) (*env)->DeleteLocalRef(env, value);
+    (*env)->DeleteLocalRef(env, system);
+    return failed;
+}
+
 /* Returns 0, or -1 with nLastError(). Idempotent while initialised. */
 JNIEXPORT jint JNICALL Java_orbis_graphics_NativePlatform_nInitialize(
         JNIEnv *env, jclass klass, jstring process_name, jint arena_mib, jstring mesa_log_file) {
@@ -318,6 +342,7 @@ JNIEXPORT jint JNICALL Java_orbis_graphics_NativePlatform_nInitialize(
     if (!env_failed && log_file && *log_file)
         env_failed = setenv("MESA_LOG_FILE", log_file, 0) != 0;
     install_compat_logger(log_file);
+    if (!env_failed) env_failed = seed_glthread_option(env);
     start_creator();
     if (log_file) (*env)->ReleaseStringUTFChars(env, mesa_log_file, log_file);
     if (env_failed) { record("cannot seed Mesa environment"); goto done; }
