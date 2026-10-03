@@ -101,6 +101,48 @@ static void diag(const char *fmt, ...) {
     va_end(ap);
 }
 
+/* libkernel's Sony thread API, declared here with the real signatures (the SDK header's are
+ * placeholders). Attr and thread handles are pointers. */
+int sce_attr_init(void *attr) __asm__("scePthreadAttrInit");
+int sce_attr_destroy(void *attr) __asm__("scePthreadAttrDestroy");
+int sce_attr_setstacksize(void *attr, size_t size) __asm__("scePthreadAttrSetstacksize");
+int sce_attr_setinheritsched(void *attr, int inherit) __asm__("scePthreadAttrSetinheritsched");
+int sce_create(void *thread, const void *attr, void *(*start)(void *), void *arg, const char *name)
+    __asm__("scePthreadCreate");
+
+static void *variant_probe_entry(void *unused) { (void)unused; return NULL; }
+
+/* One creation variant: Sony or POSIX attrs, inherited or explicit scheduling, 2 MiB stack,
+ * through scePthreadCreate as orbis-compat does. Runs start(arg), or a probe that is joined. */
+static int create_variant(int sony, int explicit_sched, pthread_t *thread,
+                          void *(*start)(void *), void *arg) {
+    pthread_attr_t posix;
+    void *sce = NULL;
+    void *attr;
+    int rc;
+    if (sony) {
+        rc = sce_attr_init(&sce);
+        if (rc) return rc;
+        sce_attr_setstacksize(&sce, 2u << 20);
+        if (explicit_sched) sce_attr_setinheritsched(&sce, PTHREAD_EXPLICIT_SCHED);
+        attr = &sce;
+    } else {
+        rc = pthread_attr_init(&posix);
+        if (rc) return rc;
+        pthread_attr_setstacksize(&posix, 2u << 20);
+        if (explicit_sched) pthread_attr_setinheritsched(&posix, PTHREAD_EXPLICIT_SCHED);
+        attr = &posix;
+    }
+    pthread_t created;
+    rc = sce_create(&created, attr, start ? start : variant_probe_entry, start ? arg : NULL, "orbis-diag");
+    if (rc == 0) {
+        if (start) *thread = created;
+        else pthread_join(created, NULL);
+    }
+    if (sony) sce_attr_destroy(&sce); else pthread_attr_destroy(&posix);
+    return rc;
+}
+
 static int pool_headroom(void) {
     enum { CAP = 4096 };
     static pthread_mutex_t probe[CAP];
@@ -182,6 +224,31 @@ int __wrap_pthread_create(pthread_t *thread, const pthread_attr_t *attr,
          "pool headroom %d mutexes (cap 4096), flexible %zu MiB",
          rc, (long)now.tv_sec, now.tv_nsec / 1000000, (void *)pthread_self(), attr ? "set" : "NULL",
          stack / 1024, pool_headroom(), flexible >> 20);
+    int policy = -1;
+    struct sched_param param;
+    memset(&param, 0, sizeof(param));
+    pthread_getschedparam(pthread_self(), &policy, &param);
+    pthread_attr_t fresh;
+    int fresh_inherit = -1;
+    if (pthread_attr_init(&fresh) == 0) {
+        pthread_attr_getinheritsched(&fresh, &fresh_inherit);
+        pthread_attr_destroy(&fresh);
+    }
+    int variants[4];
+    variants[0] = create_variant(1, 0, NULL, NULL, NULL);
+    variants[1] = create_variant(1, 1, NULL, NULL, NULL);
+    variants[2] = create_variant(0, 0, NULL, NULL, NULL);
+    variants[3] = create_variant(0, 1, NULL, NULL, NULL);
+    diag("thread diag: creator policy %d priority %d; fresh POSIX attr inheritsched %d (4=inherit, 0=explicit); "
+         "variants: sony/default %d, sony/explicit %d, posix/default %d, posix/explicit %d",
+         policy, param.sched_priority, fresh_inherit, variants[0], variants[1], variants[2], variants[3]);
+    for (int v = 0; v < 4; v++) {
+        if (variants[v] == 0) {
+            rc = create_variant(v < 2, v & 1, thread, start, arg);
+            diag("thread diag: real thread through variant %d: rc=%d", v, rc);
+            if (rc == 0) return 0;
+        }
+    }
     rc = create_via_creator(thread, attr, start, arg);
     diag("thread diag: same request through the creator thread: rc=%d", rc);
     if (rc == 0) return 0;
