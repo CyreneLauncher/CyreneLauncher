@@ -97,13 +97,18 @@ void OrbisBackend::open(const char *name)
         throw al::backend_exception{al::backend_error::NoDevice, "Device name \"%s\" not found",
             name};
 
+    /* OpenAL Soft reports a failed open only at warning level; these always reach the log. */
     const int32_t init{sceAudioOutInit()};
+    if(init < 0 && init != kAlreadyInitialised)
+        ERR("sceAudioOutInit failed: 0x%08x\n", static_cast<uint32_t>(init));
     if(init < 0 && init != kAlreadyInitialised)
         throw al::backend_exception{al::backend_error::DeviceError,
             "sceAudioOutInit failed: 0x%08x", static_cast<uint32_t>(init)};
 
     const int32_t port{sceAudioOutOpen(kSystemUser, ORBIS_AUDIO_OUT_PORT_TYPE_MAIN, 0,
         kPeriodFrames, kFrequency, ORBIS_AUDIO_OUT_PARAM_FORMAT_FLOAT_STEREO)};
+    if(port < 0)
+        ERR("sceAudioOutOpen failed: 0x%08x\n", static_cast<uint32_t>(port));
     if(port < 0)
         throw al::backend_exception{al::backend_error::DeviceError,
             "sceAudioOutOpen failed: 0x%08x", static_cast<uint32_t>(port)};
