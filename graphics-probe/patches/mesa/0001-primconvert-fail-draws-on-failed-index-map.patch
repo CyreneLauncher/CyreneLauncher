@@ -1,0 +1,40 @@
+diff --git a/src/gallium/auxiliary/indices/u_primconvert.c b/src/gallium/auxiliary/indices/u_primconvert.c
+index 3e6afc9..b9b49b8 100644
+--- a/src/gallium/auxiliary/indices/u_primconvert.c
++++ b/src/gallium/auxiliary/indices/u_primconvert.c
+@@ -158,6 +158,10 @@ primconvert_init_draw(struct primconvert_context *pc,
+                                      offset,
+                                      draw.count * info->index_size,
+                                      PIPE_MAP_READ, &src_transfer);
++         /* A failed map (e.g. the device address space is exhausted) drops the draw
++          * rather than translating indices from NULL. */
++         if (!src)
++            return false;
+          offset = 0;
+          draw.start = 0;
+       }
+@@ -223,12 +227,22 @@ primconvert_init_draw(struct primconvert_context *pc,
+ 
+    /* (step 5: allocate gpu memory sized for the FINAL index count) */
+    uint64_t new_size = (uint64_t)new_info->index_size * new_draw->count;
+-   if (new_size > UINT_MAX)
++   if (new_size > UINT_MAX) {
++      if (src_transfer)
++         pipe_buffer_unmap(pc->pipe, src_transfer);
++      free(direct_draws);
++      free(rewrite_buffer);
+       return false;
++   }
+    u_upload_alloc(pc->pipe->stream_uploader, 0, new_size, 4,
+                   &ib_offset, &new_info->index.resource, releasebuf, &dst);
+-   if (!dst)
++   if (!dst) {
++      if (src_transfer)
++         pipe_buffer_unmap(pc->pipe, src_transfer);
++      free(direct_draws);
++      free(rewrite_buffer);
+       return false;
++   }
+    new_draw->start = ib_offset / new_info->index_size;
+    new_draw->index_bias = info->index_size ? draw.index_bias : 0;
+ 

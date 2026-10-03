@@ -35,6 +35,15 @@ def sha256(path):
     return digest.hexdigest()
 
 
+# Port fixes on top of the pinned Mesa revision. The checkout stays at the pin and clean; the patches are
+# applied for the build only and reverted afterwards, and their hashes go into the build manifest.
+MESA_PATCHES = Path(__file__).resolve().parents[1] / "patches/mesa"
+
+
+def mesa_patches():
+    return sorted(MESA_PATCHES.glob("*.patch"))
+
+
 def checked_source(path, revision, name=None):
     if not path.is_dir():
         raise ValueError("missing source: " + str(path))
@@ -281,7 +290,13 @@ def build(sources, sdk, output):
                                      text=True).stdout.splitlines()
             manifest["tools"][name] = {"path": executable,
                                        "version": version[0] if version else "unknown"}
+    applied = []
     try:
+        for patch in mesa_patches():
+            subprocess.run(["git", "-C", str(mesa), "apply", "--check", str(patch)], check=True)
+            subprocess.run(["git", "-C", str(mesa), "apply", str(patch)], check=True)
+            applied.append(patch)
+            manifest.setdefault("mesa_patches", {})[patch.name] = sha256(patch)
         if not (mesa / "subprojects/zlib-1.3.1").is_dir():
             run([venv / "meson", "subprojects", "download", "zlib"],
                 output / "zlib-download.log", cwd=mesa, env=env)
@@ -356,6 +371,8 @@ def build(sources, sdk, output):
         manifest["error"] = str(error)
         raise
     finally:
+        for patch in reversed(applied):
+            subprocess.run(["git", "-C", str(mesa), "apply", "-R", str(patch)], check=True)
         (output / "build-manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
 
 

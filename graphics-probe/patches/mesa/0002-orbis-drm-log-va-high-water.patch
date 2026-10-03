@@ -1,0 +1,24 @@
+diff --git a/src/amd/common/ac_orbis_drm.c b/src/amd/common/ac_orbis_drm.c
+index e4055c6..acf09ae 100644
+--- a/src/amd/common/ac_orbis_drm.c
++++ b/src/amd/common/ac_orbis_drm.c
+@@ -8454,6 +8454,19 @@ ac_drm_va_range_alloc(ac_drm_device *dev, enum amdgpu_gpu_va_range va_range_type
+    va->base = candidate;
+    va->next = *link;
+    *link = va;
++
++   /* The highest address ever in use, logged at each new 64 MiB step: with first-fit this is the window's real
++    * footprint including fragmentation, i.e. how close a run came to "out of device VA". */
++   {
++      static uint64_t va_peak_steps;
++      const uint64_t used = candidate + va->size - orbis_va_base;
++      const uint64_t steps = used >> 26;
++      if (steps > va_peak_steps) {
++         va_peak_steps = steps;
++         mesa_logi("orbis-drm: VA high-water %" PRIu64 " MiB of %" PRIu64 " MiB", used >> 20,
++                   (orbis_va_end - orbis_va_base) >> 20);
++      }
++   }
+    simple_mtx_unlock(&orbis_va_lock);
+ 
+    *va_base_allocated = va->base;
