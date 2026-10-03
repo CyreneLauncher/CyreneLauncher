@@ -67,7 +67,7 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *vm, void *reserved) {
 
 /* Returns 0, or -1 with nLastError(). Idempotent while initialised. */
 JNIEXPORT jint JNICALL Java_orbis_graphics_NativePlatform_nInitialize(
-        JNIEnv *env, jclass klass, jstring process_name, jint arena_mib) {
+        JNIEnv *env, jclass klass, jstring process_name, jint arena_mib, jstring mesa_log_file) {
     (void)klass;
     jint result = -1;
     pthread_mutex_lock(&platform_lock);
@@ -83,6 +83,12 @@ JNIEXPORT jint JNICALL Java_orbis_graphics_NativePlatform_nInitialize(
         snprintf(arena, sizeof(arena), "%d", (int)arena_mib);
         env_failed = setenv("ORBIS_ARENA_MIB", arena, 1) != 0;
     }
+    /* Mesa reads MESA_LOG_FILE once, on its first log line, so it must be set before EGL starts.
+     * A value already in the environment wins. */
+    const char *log_file = mesa_log_file ? (*env)->GetStringUTFChars(env, mesa_log_file, NULL) : NULL;
+    if (!env_failed && log_file && *log_file)
+        env_failed = setenv("MESA_LOG_FILE", log_file, 0) != 0;
+    if (log_file) (*env)->ReleaseStringUTFChars(env, mesa_log_file, log_file);
     if (env_failed) { record("cannot seed Mesa environment"); goto done; }
     EGLDisplay candidate = eglGetDisplay(EGL_DEFAULT_DISPLAY);
     if (candidate == EGL_NO_DISPLAY) { record_egl("eglGetDisplay"); goto done; }

@@ -28,6 +28,8 @@ public final class FacadeBehaviorTest {
         check(previous == null, "no previous error callback");
 
         check(glfwInit(), "glfwInit");
+        check(NativePlatform.mesaLogFile != null && NativePlatform.mesaLogFile.endsWith("/mesa.log")
+                && NativePlatform.mesaLogFile.startsWith("/"), "Mesa log defaults to an absolute mesa.log");
         check(!NativeInput.started, "input waits for the window (VideoOut before keyboard)");
         check(GL.getFunctionProvider() != null, "GL function provider installed without loading libGL");
         check(GL.getFunctionProvider().getFunctionAddress("glClear") == 0x1000 + 7, "GL lookup goes through EGL");

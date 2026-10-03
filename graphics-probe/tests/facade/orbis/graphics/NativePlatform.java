@@ -13,7 +13,10 @@ public final class NativePlatform {
 
     private NativePlatform() {}
 
-    public static int nInitialize(String processName, int arenaMib) { initializeCalls++; return 0; }
+    public static String mesaLogFile;
+    public static int nInitialize(String processName, int arenaMib, String mesaLogFile) {
+        initializeCalls++; NativePlatform.mesaLogFile = mesaLogFile; return 0;
+    }
 
     public static long nCreateWindow(int glMajor, int glMinor, boolean coreProfile,
             boolean forwardCompatible, int depthBits, int stencilBits) {

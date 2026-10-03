@@ -13,8 +13,9 @@ public final class NativePlatform {
 
     private NativePlatform() {}
 
-    /** Seeds Mesa's environment and initialises EGL; arenaMib 0 keeps Mesa's ladder. */
-    public static native int nInitialize(String processName, int arenaMib);
+    /** Seeds Mesa's environment and initialises EGL; arenaMib 0 keeps Mesa's ladder; an empty
+     *  mesaLogFile leaves Mesa logging to stderr. */
+    public static native int nInitialize(String processName, int arenaMib, String mesaLogFile);
 
     public static native long nCreateWindow(int glMajor, int glMinor, boolean coreProfile,
             boolean forwardCompatible, int depthBits, int stencilBits);

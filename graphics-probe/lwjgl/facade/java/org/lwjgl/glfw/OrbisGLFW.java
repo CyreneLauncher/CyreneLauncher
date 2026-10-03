@@ -147,13 +147,23 @@ final class OrbisGLFW {
 
     // ---------------------------------------------------------------- lifecycle
 
+    /** Mesa's log destination: a file in the working directory unless orbis.graphics.mesaLog says
+     *  otherwise ("stderr" keeps Mesa's default, which on the console is the UART). A busy title
+     *  can log thousands of lines a minute and stall the system when they all go to the UART. */
+    private static String mesaLogFile() {
+        String configured = System.getProperty("orbis.graphics.mesaLog");
+        if ("stderr".equals(configured)) return "";
+        if (configured != null && !configured.isEmpty()) return configured;
+        return java.nio.file.Path.of(System.getProperty("user.dir", "."), "mesa.log").toAbsolutePath().toString();
+    }
+
     static boolean glfwInit() {
         if (initialized) return true;
         int status;
         try {
             // NativePlatform loads liborbis_lwjgl_platform when first used.
             status = NativePlatform.nInitialize(System.getProperty("orbis.graphics.processName", "orbis-lwjgl"),
-                    Integer.getInteger("orbis.graphics.arenaMib", 0));
+                    Integer.getInteger("orbis.graphics.arenaMib", 0), mesaLogFile());
         } catch (LinkageError failure) {
             error(GLFW_PLATFORM_ERROR, "Orbis graphics platform library unavailable: " + failure);
             return false;
