@@ -384,7 +384,9 @@ def prepare(version: str, output: Path, cache: Path, username: str, *,
         # native AWT libraries (release-desktop) in headless mode.
         # Sodium on Fancy exhausted a 512 MiB graphics arena ("out of device VA"); the console reports
         # 4.6 GiB of direct memory, so a 1 GiB heap and a 1 GiB arena leave headroom.
-        jvm_options = ['-Xms512m', '-Xmx1024m', '-Dorbis.graphics.arenaMib=1024', '-Djava.awt.headless=true']
+        # Orbis rejects IPv6 multicast options (LAN discovery: "Protocol not available"); IPv4-only sockets.
+        jvm_options = ['-Xms512m', '-Xmx1024m', '-Dorbis.graphics.arenaMib=1024', '-Djava.awt.headless=true',
+                       '-Djava.net.preferIPv4Stack=true']
         if fabric:
             jvm_options.extend(FABRIC_JVM_OPTIONS)
         (runner / 'jvm-options.txt').write_text(''.join(o + '\n' for o in jvm_options))
