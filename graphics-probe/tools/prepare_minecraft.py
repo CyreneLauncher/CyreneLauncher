@@ -382,7 +382,9 @@ def prepare(version: str, output: Path, cache: Path, username: str, *,
         (runner / 'app-args.txt').write_text(argument_lines(args), encoding='utf-8')
         # Saved worlds load their icon through ImageIO, which needs java.desktop's
         # native AWT libraries (release-desktop) in headless mode.
-        jvm_options = ['-Xms512m', '-Xmx1024m', '-Dorbis.graphics.arenaMib=512', '-Djava.awt.headless=true']
+        # Sodium on Fancy exhausted a 512 MiB graphics arena ("out of device VA"); the console reports
+        # 4.6 GiB of direct memory, so a 1 GiB heap and a 1 GiB arena leave headroom.
+        jvm_options = ['-Xms512m', '-Xmx1024m', '-Dorbis.graphics.arenaMib=1024', '-Djava.awt.headless=true']
         if fabric:
             jvm_options.extend(FABRIC_JVM_OPTIONS)
         (runner / 'jvm-options.txt').write_text(''.join(o + '\n' for o in jvm_options))
@@ -405,7 +407,7 @@ version.json mainClass ({plan['main_class']}). Keep runner PKG OJDK00003,
 the JDK and graphics bundle independently installed. Test Base Mode first.
 Retest graphics smoke close/relaunch and PS-menu closure before this client.
 Collect runner-output.log, runner-debug.log, logs/orbis-runner.log and UART.
-The initial heap/arena budget is 512 MiB / 1024 MiB / 512 MiB; record memory
+The initial heap/arena budget is 512 MiB / 1024 MiB / 1024 MiB; record memory
 evidence and repeat normal close and three relaunches. No automatic device step.
 ''')
         files = {p.relative_to(stage).as_posix(): {'size': p.stat().st_size, 'sha256': _sha256(p),
