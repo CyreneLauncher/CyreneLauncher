@@ -2175,6 +2175,16 @@
     },
     {
       "classification": "compile-verified",
+      "evidence": "os_orbis.cpp counts the process's mappings (find-next walk) for the -Xlog:os memory report; libkernel import; console result pending.",
+      "route": "direct",
+      "source_globs": [
+        "src/hotspot/os/orbis/**/*.cpp"
+      ],
+      "subsystem": "memory-diagnostics",
+      "symbol": "sceKernelVirtualQuery"
+    },
+    {
+      "classification": "compile-verified",
       "evidence": "Imported by the optional runner keyboard console; compile audit only, Orbis hardware behavior not yet verified",
       "route": "direct",
       "source_globs": [
