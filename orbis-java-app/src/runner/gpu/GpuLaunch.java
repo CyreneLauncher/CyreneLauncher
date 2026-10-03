@@ -53,6 +53,12 @@ public final class GpuLaunch {
                 throw new IllegalStateException("class path entry " + entry, failure);
             }
         }
+        // Launchers that scan the class path (Fabric's Knot locates the game JAR this way) read
+        // java.class.path; publish what the system loader actually searches, in its order.
+        List<String> classPath = new ArrayList<>();
+        classPath.add(Path.of(System.getProperty("runner.jar")).toString());
+        for (Path entry : entries) classPath.add(entry.toString());
+        System.setProperty("java.class.path", String.join(java.io.File.pathSeparator, classPath));
         Path nativeDirectory = bundle.nativeLibraries().get(0).getParent();
         // LWJGL loads liblwjgl*.so from here; GL uses the EGL provider, never libGL; no jemalloc native.
         System.setProperty("org.lwjgl.librarypath", nativeDirectory.toString());

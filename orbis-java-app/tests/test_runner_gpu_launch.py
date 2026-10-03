@@ -42,7 +42,8 @@ public final class Main {
         System.out.println("GPU_APP platform=" + platform + " version=" + version + " glfw=" + glfwVisible
                 + " librarypath=" + System.getProperty("org.lwjgl.librarypath")
                 + " explicit=" + System.getProperty("org.lwjgl.opengl.explicitInit")
-                + " allocator=" + System.getProperty("org.lwjgl.system.allocator"));
+                + " allocator=" + System.getProperty("org.lwjgl.system.allocator")
+                + " classpath=" + System.getProperty("java.class.path"));
     }
 }
 '''
@@ -107,6 +108,11 @@ with tempfile.TemporaryDirectory() as directory:
     assert ' glfw=false ' in line, 'lwjgl-glfw-3.2.2.jar must be replaced: ' + line
     assert f'librarypath={bundle.resolve()}/lib explicit=true allocator=system' in line, line
     assert 'runner: gpu profile=minecraft-1.18.2-lwjgl-3.2.2-orbis-v1' in output, output
+    classpath = line.split(' classpath=', 1)[1].split(':')
+    assert classpath[0] == str(app_root / 'target.jar'), classpath
+    assert classpath[1] == str(bundle.resolve() / 'lib/adapter.jar'), classpath
+    assert str(libraries.resolve() / 'org/lwjgl/lwjgl/3.2.2/lwjgl-3.2.2.jar') in classpath, classpath
+    assert not any('lwjgl-glfw' in entry for entry in classpath), classpath
 
     # Failures stop before the application with their category.
     tampered = libraries / 'org/lwjgl/lwjgl-stb/3.2.2/lwjgl-stb-3.2.2.jar'

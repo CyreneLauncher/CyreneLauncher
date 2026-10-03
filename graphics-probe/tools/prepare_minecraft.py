@@ -31,6 +31,52 @@ REQUIRED = {'runner/target.jar', 'runner/version.json', 'runner/runner.conf',
             'runner/app-args.txt', 'runner/jvm-options.txt',
             'assets/indexes/1.18.json'}
 PLAIN_PATH = re.compile(r'[A-Za-z0-9._+\-/]+\Z')
+
+# Fabric Loader for 1.18.2, pinned instead of read from meta.fabricmc.net at preparation time.
+# Libraries in profile order; SHA-1/size from the profile or the Maven .sha1, cross-checked.
+FABRIC_LOADER = '0.19.5'
+FABRIC_MAVEN = 'https://maven.fabricmc.net/'
+FABRIC_MAIN = 'net.fabricmc.loader.impl.launch.knot.KnotClient'
+FABRIC_JVM_OPTIONS = ('-DFabricMcEmu=net.minecraft.client.main.Main',)
+FABRIC_LIBRARIES = (
+    ('org.ow2.asm:asm:9.10.1', 'ada2141c0cc52ee8f5c48cd5fa4ce0e794f22236', 126151),
+    ('org.ow2.asm:asm-analysis:9.10.1', '8d49f14d51f632cb1d87c88d1ceaf50db0d8af1b', 35140),
+    ('org.ow2.asm:asm-commons:9.10.1', '4229e4c55fd8e01c23f9fe9884075cc628aacc50', 74840),
+    ('org.ow2.asm:asm-tree:9.10.1', 'e244332a17564c1d1572449399a842de35881be2', 51958),
+    ('org.ow2.asm:asm-util:9.10.1', '7bb9d450e8d4cbf9f9e04096c44bbfe7fba80b15', 95628),
+    ('net.fabricmc:sponge-mixin:0.17.4+mixin.0.8.7', '5f66cc9f59b8efaa942155a3d5a30599bf6640dd', 1539080),
+    ('net.fabricmc:intermediary:1.18.2', '6daf54be0e2212e0ac34568d225efeda726d297f', 481558),
+    ('net.fabricmc:fabric-loader:' + FABRIC_LOADER, 'ff9e65cffca4a67f31523e1807fe0855940fcbfa', 1984980),
+)
+# Mods installed into <game>/mods; each pinned to its Modrinth file hash.
+MODS = {
+    'sodium': ('https://cdn.modrinth.com/data/AANobbMI/versions/mc1.18.2-0.4.1/'
+               'sodium-fabric-mc1.18.2-0.4.1%2Bbuild.15.jar',
+               'sodium-fabric-mc1.18.2-0.4.1+build.15.jar',
+               'f839863a6be7014b8d80058ea1f361521148d049', 1318645),
+}
+
+
+def maven_path(name: str) -> str:
+    group, artifact, version = name.split(':')
+    return _safe_relative(f"{group.replace('.', '/')}/{artifact}/{version}/{artifact}-{version}.jar")
+
+
+def fabric_metadata(base: dict) -> dict:
+    """Flattens the Fabric Loader profile onto the vanilla metadata, as a launcher resolving
+    inheritsFrom would: Fabric's libraries first, then vanilla's; Knot as the main class."""
+    merged = json.loads(json.dumps(base))
+    merged['id'] = f"fabric-loader-{FABRIC_LOADER}-{base['id']}"
+    merged['mainClass'] = FABRIC_MAIN
+    fabric = [{'name': name, 'downloads': {'artifact': {
+                  'path': maven_path(name), 'sha1': sha1, 'size': size,
+                  'url': FABRIC_MAVEN + maven_path(name)}}}
+              for name, sha1, size in FABRIC_LIBRARIES]
+    taken = {library['name'].rsplit(':', 1)[0] for library in fabric}
+    vanilla = [library for library in base['libraries']
+               if ':'.join(library['name'].split(':')[:2]) not in taken]
+    merged['libraries'] = fabric + vanilla
+    return merged
 SHA1 = re.compile(r'[0-9a-f]{40}\Z')
 
 
@@ -152,6 +198,12 @@ def verify_upload_tree(root: Path, *, boot_jdk: Path = Path('/usr/lib/jvm/java-1
     if metadata.get('id') != manifest.get('version') or not verify_file(
             metadata_path, manifest['version_metadata_sha1'], metadata_path.stat().st_size):
         raise ValueError('version metadata mismatch')
+    if manifest.get('fabric_loader') is not None and (
+            metadata.get('mainClass') != FABRIC_MAIN or manifest['fabric_loader'] != FABRIC_LOADER):
+        raise ValueError('Fabric metadata mismatch')
+    for mod, info in (manifest.get('mods') or {}).items():
+        if mod not in MODS or not verify_file(root / info['file'], MODS[mod][2], MODS[mod][3]):
+            raise ValueError(f'mod mismatch: {mod}')
     client = metadata['downloads']['client']
     if client['sha1'] != manifest['client_sha1'] or not verify_file(
             root / 'runner/target.jar', client['sha1'], client['size']):
@@ -242,9 +294,15 @@ def prepare(version: str, output: Path, cache: Path, username: str, *,
             metadata_sha1: str = METADATA_SHA1, metadata_size: int = METADATA_SIZE,
             client_sha1: str = CLIENT_SHA1,
             asset_index_sha1: str = ASSET_INDEX_SHA1,
-            asset_base_url: str = 'https://resources.download.minecraft.net') -> dict:
+            asset_base_url: str = 'https://resources.download.minecraft.net',
+            fabric: bool = False, mods: tuple = ()) -> dict:
     if version != '1.18.2':
         raise ValueError('only Minecraft 1.18.2 is supported')
+    if mods and not fabric:
+        raise ValueError('mods require --fabric')
+    unknown = set(mods) - set(MODS)
+    if unknown:
+        raise ValueError(f'unknown mods: {sorted(unknown)}')
     identity = offline_uuid(username)
     if not java_home.startswith('/') or any(c in java_home for c in '\r\n\x00'):
         raise ValueError('java home must be an absolute device path')
@@ -267,6 +325,11 @@ def prepare(version: str, output: Path, cache: Path, username: str, *,
         metadata = _json(metadata_file)
         if metadata['id'] != version:
             raise ValueError('version metadata ID mismatch')
+        base_metadata = metadata
+        if fabric:
+            # The runner rejects inheritsFrom; it receives the flattened, fully pinned metadata.
+            metadata = fabric_metadata(metadata)
+            metadata_file.write_text(json.dumps(metadata, indent=2) + '\n', encoding='utf-8')
         client = metadata['downloads']['client']
         if client['sha1'] != client_sha1:
             raise ValueError('client SHA-1 mismatch')
@@ -288,6 +351,9 @@ def prepare(version: str, output: Path, cache: Path, username: str, *,
             if sha1 in unique_assets and unique_assets[sha1] != size:
                 raise ValueError('conflicting asset object size')
             unique_assets[sha1] = size
+        for mod in mods:
+            url, filename, sha1, size = MODS[mod]
+            jobs.append((url, stage / 'minecraft/mods' / filename, sha1, size))
         jobs.extend((f'{asset_base_url}/{sha1[:2]}/{sha1}',
                      stage / 'assets/objects' / sha1[:2] / sha1, sha1, size)
                     for sha1, size in unique_assets.items())
@@ -300,8 +366,8 @@ def prepare(version: str, output: Path, cache: Path, username: str, *,
         planned = set(plan['classpath'])
         if planned != set(selected) or len(planned) != len(plan['classpath']):
             raise ValueError('host/device selected library inventory differs')
-        (stage / 'minecraft').mkdir()
-        values = {'auth_player_name': username, 'version_name': version,
+        (stage / 'minecraft').mkdir(exist_ok=True)
+        values = {'auth_player_name': username, 'version_name': metadata['id'],
                   'game_directory': DEVICE + '/minecraft', 'assets_root': DEVICE + '/assets',
                   'assets_index_name': '1.18', 'auth_uuid': identity.replace('-', ''),
                   'auth_access_token': '0', 'clientid': '', 'auth_xuid': '',
@@ -312,8 +378,10 @@ def prepare(version: str, output: Path, cache: Path, username: str, *,
         (runner / 'app-args.txt').write_text(argument_lines(args), encoding='utf-8')
         # Saved worlds load their icon through ImageIO, which needs java.desktop's
         # native AWT libraries (release-desktop) in headless mode.
-        (runner / 'jvm-options.txt').write_text('-Xms512m\n-Xmx1024m\n-Dorbis.graphics.arenaMib=512\n'
-                                                '-Djava.awt.headless=true\n')
+        jvm_options = ['-Xms512m', '-Xmx1024m', '-Dorbis.graphics.arenaMib=512', '-Djava.awt.headless=true']
+        if fabric:
+            jvm_options.extend(FABRIC_JVM_OPTIONS)
+        (runner / 'jvm-options.txt').write_text(''.join(o + '\n' for o in jvm_options))
         (runner / 'runner.conf').write_text(f'''java_home={java_home}
 jar={DEVICE}/runner/target.jar
 working_directory={DEVICE}/minecraft
@@ -341,7 +409,12 @@ evidence and repeat normal close and three relaunches. No automatic device step.
                  for p in sorted(stage.rglob('*')) if p.is_file() and p.name != 'UPLOAD.txt'}
         host_files = {'UPLOAD.txt': {'size': (stage / 'UPLOAD.txt').stat().st_size,
                       'sha256': _sha256(stage / 'UPLOAD.txt')}}
-        manifest = {'version': version, 'version_metadata_sha1': metadata_sha1,
+        merged_sha1 = hashlib.sha1((runner / 'version.json').read_bytes()).hexdigest()
+        manifest = {'version': metadata['id'], 'base_version': version,
+                    'base_metadata_sha1': metadata_sha1, 'version_metadata_sha1': merged_sha1,
+                    'fabric_loader': FABRIC_LOADER if fabric else None,
+                    'mods': {m: {'file': 'minecraft/mods/' + MODS[m][1], 'sha1': MODS[m][2],
+                                 'size': MODS[m][3]} for m in mods},
                     'client_sha1': client_sha1, 'asset_index_sha1': asset_index_sha1,
                     'main_class': plan['main_class'], 'profile': plan['profile'],
                     'classpath': plan['classpath'], 'skipped_native_classifiers': plan['skipped_natives'],
@@ -365,9 +438,13 @@ def main():
     parser.add_argument('--username', required=True)
     parser.add_argument('--boot-jdk', type=Path, default=Path('/usr/lib/jvm/java-17-openjdk-amd64'))
     parser.add_argument('--java-home', default=DEVICE + '/jdk/release-desktop')
+    parser.add_argument('--fabric', action='store_true', help=f'add Fabric Loader {FABRIC_LOADER}')
+    parser.add_argument('--mod', action='append', default=[], choices=sorted(MODS),
+                        help='install a pinned mod into the game directory (needs --fabric)')
     options = parser.parse_args()
     manifest = prepare(options.version, options.output, options.cache, options.username,
-                       boot_jdk=options.boot_jdk, java_home=options.java_home)
+                       boot_jdk=options.boot_jdk, java_home=options.java_home,
+                       fabric=options.fabric, mods=tuple(options.mod))
     print(f"Prepared {options.output}: {len(manifest['files'])} verified files, "
           f"{sum(item['size'] for item in manifest['files'].values())} bytes")
 

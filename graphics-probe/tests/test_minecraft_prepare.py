@@ -154,6 +154,38 @@ class PrepareTests(unittest.TestCase):
             manifest_path.write_text(json.dumps(first))
             second = prepare('1.18.2', out, root / 'cache', 'Steve', **kwargs)
             self.assertEqual(first, second)
+
+            # Fabric layer: pinned libraries flattened ahead of vanilla, Knot main, mods verified.
+            fabric_libraries = []
+            for name in ('org.ow2.asm:asm:9.0', 'net.fabricmc:intermediary:1.18.2',
+                         'net.fabricmc:fabric-loader:0.0.1'):
+                group, artifact, version = name.split(':')
+                path = f"{group.replace('.', '/')}/{artifact}/{version}/{artifact}-{version}.jar"
+                published = publish('maven/' + path, miniature_jar(name))
+                fabric_libraries.append((name, published['sha1'], published['size']))
+            mod = publish('mods/sodium.jar', miniature_jar('sodium'))
+            with mock.patch.object(prepare_minecraft, 'FABRIC_LIBRARIES', tuple(fabric_libraries)), \
+                    mock.patch.object(prepare_minecraft, 'FABRIC_LOADER', '0.0.1'), \
+                    mock.patch.object(prepare_minecraft, 'FABRIC_MAVEN', base + '/maven/'), \
+                    mock.patch.object(prepare_minecraft, 'MODS', {'sodium': (
+                        mod['url'], 'sodium-test.jar', mod['sha1'], mod['size'])}):
+                with self.assertRaises(ValueError):
+                    prepare('1.18.2', root / 'no-fabric', root / 'cache', 'Steve', mods=('sodium',), **kwargs)
+                modded_out = root / 'fabric-output'
+                modded = prepare('1.18.2', modded_out, root / 'cache', 'Steve',
+                                 fabric=True, mods=('sodium',), **kwargs)
+                self.assertEqual('fabric-loader-0.0.1-1.18.2', modded['version'])
+                self.assertEqual(prepare_minecraft.FABRIC_MAIN, modded['main_class'])
+                self.assertEqual(11, len(modded['classpath']))
+                self.assertTrue(modded['classpath'][0].startswith('org/ow2/asm/asm/9.0/'))
+                self.assertTrue(modded['classpath'][2].startswith('net/fabricmc/fabric-loader/'))
+                self.assertIn('minecraft/mods/sodium-test.jar', modded['files'])
+                self.assertIn('-DFabricMcEmu=net.minecraft.client.main.Main',
+                              (modded_out / 'runner/jvm-options.txt').read_text().splitlines())
+                self.assertEqual(modded, verify_upload_tree(modded_out))
+                (modded_out / 'minecraft/mods/sodium-test.jar').write_bytes(b'tampered')
+                with self.assertRaises(ValueError):
+                    verify_upload_tree(modded_out)
             backup = out.parent / ('.' + out.name + '-previous')
             out.rename(backup)
             stale_backup_classes = backup.parent / (backup.name + '-host-classes')
