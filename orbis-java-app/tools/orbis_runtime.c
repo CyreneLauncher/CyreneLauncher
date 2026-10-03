@@ -127,6 +127,100 @@ void *__expand_heap(size_t *size) {
     return mapping;
 }
 
+// musl's malloc maps every allocation above its MMAP_THRESHOLD (~224 KiB)
+// through __mmap/__munmap and grows those with __mremap, rounding to 4 KiB.
+// Route that path like __expand_heap: whole 16-KiB Orbis pages, and Orbis
+// direct memory when anonymous mmap cannot supply them. Direct mappings are
+// recorded so __munmap can release their direct memory.
+#define ORBIS_DIRECT_MAPPINGS 1024
+static struct { void *address; size_t size; off_t offset; } direct_mappings[ORBIS_DIRECT_MAPPINGS];
+static volatile int direct_mappings_lock;
+static int direct_fallback_reported;
+
+static void lock_direct_mappings(void) {
+    while (__atomic_exchange_n(&direct_mappings_lock, 1, __ATOMIC_ACQUIRE))
+        sceKernelUsleep(0);
+}
+
+static void unlock_direct_mappings(void) {
+    __atomic_store_n(&direct_mappings_lock, 0, __ATOMIC_RELEASE);
+}
+
+static size_t round_heap_pages(size_t size) {
+    return (size + ORBIS_HEAP_PAGE_SIZE - 1) & ~(size_t)(ORBIS_HEAP_PAGE_SIZE - 1);
+}
+
+void *__mmap(void *address, size_t size, int prot, int flags, int fd, off_t offset) {
+    if (address != NULL || fd != -1 || !(flags & MAP_ANON))
+        return mmap(address, size, prot, flags, fd, offset);
+    if (size == 0 || size > SIZE_MAX - (ORBIS_HEAP_PAGE_SIZE - 1)) {
+        errno = ENOMEM;
+        return MAP_FAILED;
+    }
+    size_t mapping_size = round_heap_pages(size);
+    void *mapping = mmap(NULL, mapping_size, prot, flags, -1, 0);
+    if (mapping != MAP_FAILED)
+        return mapping;
+
+    const int map_errno = errno;
+    lock_direct_mappings();
+    int slot = -1;
+    for (int i = 0; i < ORBIS_DIRECT_MAPPINGS && slot < 0; ++i)
+        if (direct_mappings[i].address == NULL)
+            slot = i;
+    off_t direct_offset = 0;
+    if (slot >= 0)
+        mapping = map_direct_heap(mapping_size, &direct_offset);
+    if (mapping != MAP_FAILED) {
+        direct_mappings[slot].address = mapping;
+        direct_mappings[slot].size = mapping_size;
+        direct_mappings[slot].offset = direct_offset;
+    }
+    const int report = !direct_fallback_reported;
+    direct_fallback_reported = 1;
+    unlock_direct_mappings();
+    if (report) {
+        char diagnostic[192];
+        int length = snprintf(diagnostic, sizeof(diagnostic),
+                              "orbis-runtime: large allocation mapping failed size=%zu errno=%d; "
+                              "direct memory fallback %s\n", mapping_size, map_errno,
+                              mapping != MAP_FAILED ? "ok" : slot < 0 ? "table full" : "failed");
+        if (length > 0)
+            sceKernelDebugOutText(0, diagnostic);
+    }
+    if (mapping == MAP_FAILED)
+        errno = ENOMEM;
+    return mapping;
+}
+
+int __munmap(void *address, size_t size) {
+    size_t mapping_size = round_heap_pages(size);
+    off_t direct_offset = 0;
+    int direct = 0;
+    lock_direct_mappings();
+    for (int i = 0; i < ORBIS_DIRECT_MAPPINGS; ++i) {
+        if (direct_mappings[i].address == address) {
+            mapping_size = direct_mappings[i].size;
+            direct_offset = direct_mappings[i].offset;
+            direct_mappings[i].address = NULL;
+            direct = 1;
+            break;
+        }
+    }
+    unlock_direct_mappings();
+    int result = munmap(address, mapping_size);
+    if (direct && result == 0)
+        sceKernelReleaseDirectMemory(direct_offset, mapping_size);
+    return result;
+}
+
+// No mremap on Orbis; musl's realloc then allocates, copies and frees.
+void *__mremap(void *old_address, size_t old_size, size_t new_size, int flags, ...) {
+    (void)old_address; (void)old_size; (void)new_size; (void)flags;
+    errno = ENOMEM;
+    return MAP_FAILED;
+}
+
 int orbis_runtime_allocator_probe(size_t block_size, size_t limit,
                                   struct orbis_alloc_result *result) {
     if (result == NULL || block_size == 0 || limit < block_size)
