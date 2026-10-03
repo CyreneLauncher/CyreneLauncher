@@ -87,7 +87,6 @@ class CompatibilityContract(unittest.TestCase):
                                         ('lwjgl', 'lwjgl-opengl', 'lwjgl-stb', 'lwjgl-openal', 'lwjgl-tinyfd'))])
         for stage in ('native-load', 'stb-callback', 'alc-no-device', 'tinyfd-cancel', 'glfw-init', 'glfw-window', 'glfw-policy'):
             result = subprocess.run([str(JAVA / 'java'), '-Dorg.lwjgl.system.allocator=system',
-                                     '-Dorg.lwjgl.openal.explicitInit=true',
                                      '-Dorg.lwjgl.librarypath=' + str(native),
                                      '-Dorg.lwjgl.opengl.libname=/nonexistent/libGL.so',
                                      '-Dorbis.compat.fail=' + stage, '-cp', cp, MAIN,
@@ -130,7 +129,6 @@ class CompatibilityContract(unittest.TestCase):
         failed_fakes = self.work / 'failed-input-classes'
         subprocess.run([str(JAVA / 'javac'), '--release', '17', '-d', str(failed_fakes), str(source)], check=True)
         run = subprocess.run([str(JAVA / 'java'), '-Dorg.lwjgl.system.allocator=system',
-                              '-Dorg.lwjgl.openal.explicitInit=true',
                               '-Dorg.lwjgl.librarypath=' + str(native),
                               '-Dorg.lwjgl.opengl.libname=/nonexistent/libGL.so',
                               '-Dorbis.compat.fail=glfw-window', '-cp', str(failed_fakes) + ':' + cp,

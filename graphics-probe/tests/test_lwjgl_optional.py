@@ -78,7 +78,7 @@ class OptionalContract(unittest.TestCase):
             subprocess.run([str(java / 'javac'), '-cp', cp, '-d', str(classes),
                             str(ROOT / 'lwjgl-compat/src/orbis/compat/OptionalChecks.java'),
                             str(work / 'Main.java')], check=True)
-            result = subprocess.run([str(java / 'java'), '-Dorg.lwjgl.openal.explicitInit=true',
+            result = subprocess.run([str(java / 'java'),
                                      '-Dorg.lwjgl.librarypath=' + str(native), '-cp', str(classes) + ':' + cp,
                                      'Main'], capture_output=True, text=True)
             self.assertEqual(0, result.returncode, result.stdout + result.stderr)
