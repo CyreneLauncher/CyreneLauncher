@@ -32,6 +32,13 @@ int keyboard_handle = -1;
 constexpr int kExtraKeyboardSlots = 3;
 int extra_keyboard_handles[kExtraKeyboardSlots] = {-1, -1, -1};
 int mouse_handle = -1;
+/* Mouse indexes 1-3, for the same reason as the keyboard slots: a receiver may report there. */
+constexpr int kExtraMouseSlots = 3;
+int extra_mouse_handles[kExtraMouseSlots] = {-1, -1, -1};
+/* Latest buttons per slot (0 = mouse_handle); events follow their union, so a dead slot that
+ * keeps reporting "no buttons" cannot release a button held on another slot. */
+uint32_t slot_buttons[1 + kExtraMouseSlots];
+bool slot_motion_logged[1 + kExtraMouseSlots];
 bool keyboard_initialized;
 bool mouse_initialized;
 orbis_input_focus focus = ORBIS_INPUT_FOCUS_CONSOLE;
@@ -265,6 +272,110 @@ void close_extra_keyboards() {
     }
 }
 
+/* Opens mouse indexes 1-3 best effort; index 0 keeps the existing retry path. */
+void open_extra_mice() {
+    for (int i = 0; i < kExtraMouseSlots; ++i) {
+        if (extra_mouse_handles[i] >= 0) continue;
+        int32_t handle = sceMouseOpen(user_id, 0, i + 1, nullptr);
+        if (diagnostics_enabled) {
+            char line[96];
+            snprintf(line, sizeof(line), "orbis-java-input: mouse slot %d open 0x%08x\n", i + 1,
+                     static_cast<unsigned>(handle));
+            sceKernelDebugOutText(0, line);
+        }
+        if (handle >= 0) extra_mouse_handles[i] = handle;
+    }
+}
+
+void close_extra_mice() {
+    for (int i = 0; i < kExtraMouseSlots; ++i) {
+        if (extra_mouse_handles[i] >= 0) sceMouseClose(extra_mouse_handles[i]);
+        extra_mouse_handles[i] = -1;
+        slot_buttons[i + 1] = 0;
+    }
+}
+
+/* Applies one slot's samples: motion and wheel accumulate, buttons follow the union of slots.
+ * Called with the lock held; returns whether the cursor moved. */
+bool apply_mouse_samples_locked(int slot, const orbis_mouse_data_abi *samples, int32_t count) {
+    bool cursor_changed = false;
+    for (int32_t i = 0; i < count; ++i) {
+        const orbis_mouse_data_abi &sample = samples[i];
+        slot_buttons[slot] = sample.connected ? sample.buttons : 0;
+        if (sample.connected) {
+            int64_t nx = static_cast<int64_t>(mouse_x) + sample.x_axis;
+            int64_t ny = static_cast<int64_t>(mouse_y) + sample.y_axis;
+            if (nx < 0) nx = 0; if (nx > 1279) nx = 1279;
+            if (ny < 0) ny = 0; if (ny > 719) ny = 719;
+            mouse_x = static_cast<int32_t>(nx);
+            mouse_y = static_cast<int32_t>(ny);
+            state.x = mouse_x;
+            state.y = mouse_y;
+            if ((sample.x_axis != 0 || sample.y_axis != 0) && diagnostics_enabled &&
+                !slot_motion_logged[slot]) {
+                slot_motion_logged[slot] = true;
+                char line[96];
+                snprintf(line, sizeof(line), "orbis-java-input: mouse slot %d first motion %d,%d\n",
+                         slot, sample.x_axis, sample.y_axis);
+                sceKernelDebugOutText(0, line);
+            }
+        }
+        uint32_t buttons = 0;
+        for (int j = 0; j <= kExtraMouseSlots; ++j) buttons |= slot_buttons[j];
+        uint32_t changed = prior_buttons ^ buttons;
+        for (uint32_t bit = 0; bit < 32; ++bit) {
+            uint32_t mask = UINT32_C(1) << bit;
+            if ((changed & mask) == 0) continue;
+            if (buttons & mask) state.pressed_buttons |= mask;
+            else state.pressed_buttons &= ~mask;
+            orbis_input_event event{};
+            snapshot_event(&event, (buttons & mask)
+                ? ORBIS_INPUT_EVENT_BUTTON_DOWN : ORBIS_INPUT_EVENT_BUTTON_UP);
+            event.button = bit;
+            enqueue_locked(event);
+        }
+        prior_buttons = buttons;
+        if (!sample.connected) continue;
+        if (sample.x_axis != 0 || sample.y_axis != 0) {
+            cursor_changed = true;
+            orbis_input_event event{};
+            snapshot_event(&event, ORBIS_INPUT_EVENT_MOTION);
+            enqueue_locked(event);
+        }
+        if (sample.wheel != 0) {
+            orbis_input_event event{};
+            snapshot_event(&event, ORBIS_INPUT_EVENT_WHEEL);
+            event.wheel_delta = sample.wheel;
+            enqueue_locked(event);
+        }
+    }
+    return cursor_changed;
+}
+
+/* Reads mouse indexes 1-3; a failing index is closed and reopened with the next start. */
+bool read_extra_mice() {
+    bool cursor_changed = false;
+    for (int i = 0; i < kExtraMouseSlots; ++i) {
+        int32_t handle = extra_mouse_handles[i];
+        if (handle < 0) continue;
+        orbis_mouse_data_abi samples[32]{};
+        int32_t count = sceMouseRead(handle, samples, 32);
+        if (count < 0 || count > 32) {
+            sceMouseClose(handle);
+            extra_mouse_handles[i] = -1;
+            pthread_mutex_lock(&lock);
+            slot_buttons[i + 1] = 0;
+            pthread_mutex_unlock(&lock);
+            continue;
+        }
+        if (count == 0) continue;
+        pthread_mutex_lock(&lock);
+        cursor_changed |= apply_mouse_samples_locked(i + 1, samples, count);
+        pthread_mutex_unlock(&lock);
+    }
+    return cursor_changed;
+}
+
 /* Unions every slot's keys and modifiers into sample; key code 0 means "no key" and is dropped. */
 void merge_extra_keyboards(OrbisKeyboardData *sample) {
     int32_t count = 0;
@@ -477,6 +588,7 @@ void *collect(void *) {
                 pthread_mutex_lock(&lock);
                 prior_buttons = 0;
                 state.pressed_buttons = 0;
+                memset(slot_buttons, 0, sizeof(slot_buttons));
                 reset_overflow_locked();
                 pthread_mutex_unlock(&lock);
                 if (sample_count != last_mouse_error && mouse_error_diagnostics < 8) {
@@ -492,50 +604,7 @@ void *collect(void *) {
             bool cursor_changed = false;
             if (sample_count > 0) {
                 pthread_mutex_lock(&lock);
-                for (int32_t i = 0; i < sample_count; ++i) {
-                    const orbis_mouse_data_abi &sample = samples[i];
-                    if (!sample.connected) {
-                        if (prior_buttons != 0) {
-                            prior_buttons = 0;
-                            state.pressed_buttons = 0;
-                            reset_overflow_locked();
-                        }
-                        continue;
-                    }
-                    int64_t nx = static_cast<int64_t>(mouse_x) + sample.x_axis;
-                    int64_t ny = static_cast<int64_t>(mouse_y) + sample.y_axis;
-                    if (nx < 0) nx = 0; if (nx > 1279) nx = 1279;
-                    if (ny < 0) ny = 0; if (ny > 719) ny = 719;
-                    mouse_x = static_cast<int32_t>(nx);
-                    mouse_y = static_cast<int32_t>(ny);
-                    state.x = mouse_x;
-                    state.y = mouse_y;
-                    cursor_changed |= sample.x_axis != 0 || sample.y_axis != 0;
-                    uint32_t changed = prior_buttons ^ sample.buttons;
-                    for (uint32_t bit = 0; bit < 32; ++bit) {
-                        uint32_t mask = UINT32_C(1) << bit;
-                        if ((changed & mask) == 0) continue;
-                        if (sample.buttons & mask) state.pressed_buttons |= mask;
-                        else state.pressed_buttons &= ~mask;
-                        orbis_input_event event{};
-                        snapshot_event(&event, (sample.buttons & mask)
-                            ? ORBIS_INPUT_EVENT_BUTTON_DOWN : ORBIS_INPUT_EVENT_BUTTON_UP);
-                        event.button = bit;
-                        enqueue_locked(event);
-                    }
-                    prior_buttons = sample.buttons;
-                    if (sample.x_axis != 0 || sample.y_axis != 0) {
-                        orbis_input_event event{};
-                        snapshot_event(&event, ORBIS_INPUT_EVENT_MOTION);
-                        enqueue_locked(event);
-                    }
-                    if (sample.wheel != 0) {
-                        orbis_input_event event{};
-                        snapshot_event(&event, ORBIS_INPUT_EVENT_WHEEL);
-                        event.wheel_delta = sample.wheel;
-                        enqueue_locked(event);
-                    }
-                }
+                cursor_changed = apply_mouse_samples_locked(0, samples, sample_count);
                 pthread_mutex_unlock(&lock);
             }
             if (cursor_changed) {
@@ -545,6 +614,13 @@ void *collect(void *) {
                 pthread_mutex_unlock(&lock);
                 orbis_display_set_cursor(cx, cy, visible);
             }
+        }
+        if (read_extra_mice()) {
+            pthread_mutex_lock(&lock);
+            int32_t cx = mouse_x, cy = mouse_y;
+            bool visible = desktop_enabled && focus == ORBIS_INPUT_FOCUS_DESKTOP;
+            pthread_mutex_unlock(&lock);
+            orbis_display_set_cursor(cx, cy, visible);
         }
         sceKernelUsleep(8000);
     }
@@ -572,6 +648,7 @@ int32_t initialize_devices() {
         sceKernelDebugOutText(0, message);
     }
     int32_t mouse_result = open_mouse();
+    if (mouse_initialized) open_extra_mice();
     if (mouse_result < 0) {
         char message[128];
         snprintf(message, sizeof(message),
@@ -614,6 +691,7 @@ extern "C" int32_t orbis_input_start(void) {
         if (keyboard_handle >= 0) sceKeyboardClose(keyboard_handle);
         keyboard_handle = -1;
         close_extra_keyboards();
+        close_extra_mice();
         if (mouse_handle >= 0) sceMouseClose(mouse_handle);
         mouse_handle = -1;
         pthread_mutex_lock(&lock);
@@ -641,6 +719,7 @@ extern "C" void orbis_input_stop(void) {
     if (keyboard_handle >= 0) sceKeyboardClose(keyboard_handle);
     keyboard_handle = -1;
     close_extra_keyboards();
+    close_extra_mice();
     if (mouse_handle >= 0) sceMouseClose(mouse_handle);
     mouse_handle = -1;
     pthread_mutex_lock(&lock);

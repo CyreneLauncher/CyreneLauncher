@@ -535,8 +535,67 @@ final class OrbisGLFW {
     }
 
     static void glfwSwapBuffers(long handle) {
-        if (requireWindow(handle) && !NativePlatform.nSwapBuffers(handle))
+        if (!requireWindow(handle)) return;
+        drawPointer();
+        if (!NativePlatform.nSwapBuffers(handle))
             error(GLFW_PLATFORM_ERROR, "eglSwapBuffers failed: " + NativePlatform.nLastError());
+    }
+
+    /** Set once a mouse has moved; until then there is no pointer to draw. */
+    private static boolean pointerSeen;
+    /** -Dorbis.glfw.pointer=false turns the drawn pointer off. */
+    private static final boolean DRAW_POINTER = !"false".equals(System.getProperty("orbis.glfw.pointer"));
+
+    /**
+     * A desktop compositor draws the GLFW_CURSOR_NORMAL pointer; the console's scanout has none,
+     * so draw a small arrow into the default framebuffer just before the swap. Scissored clears
+     * touch no shader, texture or buffer state, and every piece of state used is restored.
+     */
+    private static void drawPointer() {
+        if (!DRAW_POINTER || !pointerSeen || cursorMode != GLFW_CURSOR_NORMAL) return;
+        try {
+            if (GL.getCapabilities() == null) return;
+        } catch (IllegalStateException noCapabilities) {
+            return;
+        }
+        int[] framebuffer = new int[1], box = new int[4];
+        float[] clear = new float[4];
+        byte[] mask = new byte[4];
+        org.lwjgl.opengl.GL11C.glGetIntegerv(org.lwjgl.opengl.GL30C.GL_DRAW_FRAMEBUFFER_BINDING, framebuffer);
+        org.lwjgl.opengl.GL11C.glGetIntegerv(org.lwjgl.opengl.GL11C.GL_SCISSOR_BOX, box);
+        org.lwjgl.opengl.GL11C.glGetFloatv(org.lwjgl.opengl.GL11C.GL_COLOR_CLEAR_VALUE, clear);
+        try (org.lwjgl.system.MemoryStack stack = org.lwjgl.system.MemoryStack.stackPush()) {
+            ByteBuffer m = stack.malloc(4);
+            org.lwjgl.opengl.GL11C.glGetBooleanv(org.lwjgl.opengl.GL11C.GL_COLOR_WRITEMASK, m);
+            m.get(mask);
+        }
+        boolean scissor = org.lwjgl.opengl.GL11C.glIsEnabled(org.lwjgl.opengl.GL11C.GL_SCISSOR_TEST);
+
+        org.lwjgl.opengl.GL30C.glBindFramebuffer(org.lwjgl.opengl.GL30C.GL_DRAW_FRAMEBUFFER, 0);
+        org.lwjgl.opengl.GL11C.glEnable(org.lwjgl.opengl.GL11C.GL_SCISSOR_TEST);
+        org.lwjgl.opengl.GL11C.glColorMask(true, true, true, true);
+        int scale = Math.max(1, framebufferHeight / 540);
+        int x = (int) cursorX, top = framebufferHeight - (int) cursorY;
+        // An outlined arrow: a black triangle with a white one inside, built from rows.
+        for (int pass = 0; pass < 2; pass++) {
+            if (pass == 0) org.lwjgl.opengl.GL11C.glClearColor(0f, 0f, 0f, 1f);
+            else org.lwjgl.opengl.GL11C.glClearColor(1f, 1f, 1f, 1f);
+            for (int row = 0; row < 12; row++) {
+                int width = pass == 0 ? row + 2 : row;
+                int left = pass == 0 ? 0 : 1;
+                if (pass == 1 && (row == 0 || row == 11)) continue;
+                int y = top - (row + 1) * scale;
+                if (width <= 0) continue;
+                org.lwjgl.opengl.GL11C.glScissor(x + left * scale, y, width * scale, scale);
+                org.lwjgl.opengl.GL11C.glClear(org.lwjgl.opengl.GL11C.GL_COLOR_BUFFER_BIT);
+            }
+        }
+
+        org.lwjgl.opengl.GL11C.glClearColor(clear[0], clear[1], clear[2], clear[3]);
+        org.lwjgl.opengl.GL11C.glColorMask(mask[0] != 0, mask[1] != 0, mask[2] != 0, mask[3] != 0);
+        org.lwjgl.opengl.GL11C.glScissor(box[0], box[1], box[2], box[3]);
+        if (!scissor) org.lwjgl.opengl.GL11C.glDisable(org.lwjgl.opengl.GL11C.GL_SCISSOR_TEST);
+        org.lwjgl.opengl.GL30C.glBindFramebuffer(org.lwjgl.opengl.GL30C.GL_DRAW_FRAMEBUFFER, framebuffer[0]);
     }
 
     static void glfwSwapInterval(int interval) {
@@ -941,6 +1000,7 @@ final class OrbisGLFW {
                 }
                 break;
             case NativeInput.EVENT_MOTION:
+                pointerSeen = true;
                 motion(event[NativeInput.X], event[NativeInput.Y]);
                 break;
             case NativeInput.EVENT_BUTTON_DOWN:
