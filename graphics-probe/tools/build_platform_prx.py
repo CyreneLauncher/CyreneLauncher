@@ -59,15 +59,15 @@ why = out / 'why-extract.txt'
 orbis_prx.link(tools, script, runtime, elf,
                [bridge, '--start-group', egl, gallium, '--whole-archive', radv, '--no-whole-archive', zlib,
                 '--end-group', '--whole-archive', compat_archive, '--no-whole-archive', *libc16],
-               system_libraries=('SceGnmDriver', 'SceVideoOut', 'ScePad', 'SceUserService'),
+               system_libraries=('SceGnmDriver', 'SceVideoOut', 'ScePad', 'SceUserService', 'SceSystemService'),
                # Mesa's thread creation passes through the bridge's diagnostic wrapper.
                extra=('--allow-multiple-definition', '--wrap=pthread_create'), why_extract=why)
 wchar = orbis_prx.run('sh', kit / 'scripts/ps4/check-wchar-link.sh', why, stdout=subprocess.PIPE).stdout
 (out / 'wchar-audit.log').write_text(wchar)
 
 audit, natives = orbis_prx.audit(elf, allowed_needed=('libkernel.so', 'libSceGnmDriver.so', 'libSceVideoOut.so', 'libScePad.so',
-                                                 'libSceUserService.so'),
-                                 jni_prefix='Java_orbis_graphics_NativePlatform_', jni_count=13)
+                                                 'libSceUserService.so', 'libSceSystemService.so'),
+                                 jni_prefix='Java_orbis_graphics_NativePlatform_', jni_count=14)
 if audit['tls'] is None:
     raise SystemExit('platform PRX has no TLS image; Mesa TLS was expected')
 audit['jni_natives'] = natives

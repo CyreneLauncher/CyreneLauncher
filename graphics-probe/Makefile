@@ -21,6 +21,7 @@ graphics-bundle:
 	$(PYTHON) $(PROJECT_DIR)/tools/build_openal.py --sdk $(ORBIS_SDK) --toolchain $(SDK) $(FETCH)
 	$(PYTHON) $(PROJECT_DIR)/tools/build_lwjgl_optional.py --sdk $(ORBIS_SDK) --toolchain $(SDK) --jars $(LWJGL_JARS)
 	$(PYTHON) $(PROJECT_DIR)/tools/build_lwjgl_facade.py --jars $(LWJGL_JARS) $(FETCH)
+	$(PYTHON) $(PROJECT_DIR)/tools/build_launcher.py --jars $(LWJGL_JARS)
 	$(PYTHON) $(PROJECT_DIR)/tools/package_graphics_bundle.py
 
 # Runner-launched LWJGL smoke test files (build/lwjgl-smoke/; manual steps in the generated instructions).

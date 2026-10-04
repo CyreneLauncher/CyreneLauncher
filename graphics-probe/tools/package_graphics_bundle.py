@@ -24,6 +24,7 @@ PROFILE_ID = 'minecraft-1.18.2-lwjgl-3.2.2-orbis-v1'
 MODULES = {f'org.lwjgl:{m}': '3.2.2' for m in
            ('lwjgl', 'lwjgl-glfw', 'lwjgl-jemalloc', 'lwjgl-openal', 'lwjgl-opengl', 'lwjgl-stb', 'lwjgl-tinyfd')}
 ADAPTER = 'orbis-lwjgl-3.2.2-adapter.jar'
+LAUNCHER = 'orbis-launcher.jar'
 NATIVES = ('liborbis_lwjgl_platform.so', 'liblwjgl.so', 'liblwjgl_opengl.so',
            'liblwjgl_stb.so', 'liblwjgl_tinyfd.so', 'libopenal.so')
 
@@ -34,6 +35,7 @@ parser.add_argument('--lwjgl', default=str(ROOT / 'build/lwjgl'))
 parser.add_argument('--facade', default=str(ROOT / 'build/lwjgl-facade'))
 parser.add_argument('--optional', default=str(ROOT / 'build/lwjgl-optional'))
 parser.add_argument('--openal', default=str(ROOT / 'build/openal'))
+parser.add_argument('--launcher', default=str(ROOT / 'build/launcher'))
 parser.add_argument('--output', default=str(ROOT / 'build/graphics-bundle'))
 arguments = parser.parse_args()
 platform, lwjgl, facade, optional = (Path(p).resolve() for p in
@@ -67,6 +69,7 @@ shutil.copyfile(lwjgl / 'liblwjgl_stb.prx', out / 'lib/liblwjgl_stb.so')
 shutil.copyfile(optional / 'liblwjgl_tinyfd.prx', out / 'lib/liblwjgl_tinyfd.so')
 shutil.copyfile(openal / 'libopenal.prx', out / 'lib/libopenal.so')
 shutil.copyfile(facade / ADAPTER, out / 'lib' / ADAPTER)
+shutil.copyfile(Path(arguments.launcher).resolve() / LAUNCHER, out / 'lib' / LAUNCHER)
 for name in NATIVES:
     if (out / 'lib' / name).read_bytes()[:4] != b'O\x15=\x1d':
         raise SystemExit(f'{name} is not a SELF module')
@@ -143,7 +146,7 @@ manifest = {
     'profiles': [{
         'id': PROFILE_ID,
         'modules': MODULES,
-        'java_adapter_paths': [f'lib/{ADAPTER}'],
+        'java_adapter_paths': [f'lib/{ADAPTER}', f'lib/{LAUNCHER}'],
         'native_library_paths': [f'lib/{name}' for name in NATIVES],
         'glfw_operations': operations,
         'gl_features': ['egl-desktop-opengl', 'single-fullscreen-window', 'eglGetProcAddress'],

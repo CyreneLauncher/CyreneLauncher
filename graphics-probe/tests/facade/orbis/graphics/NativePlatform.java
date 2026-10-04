@@ -47,4 +47,7 @@ public final class NativePlatform {
 
     public static int[] padState = new int[8];
     public static int nPadRead(int[] out) { System.arraycopy(padState, 0, out, 0, 8); return 0; }
+
+    public static int relaunches;
+    public static int nRelaunch() { relaunches++; return -1; }
 }

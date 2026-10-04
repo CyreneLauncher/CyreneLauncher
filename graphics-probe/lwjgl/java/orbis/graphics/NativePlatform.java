@@ -48,4 +48,8 @@ public final class NativePlatform {
     /** DualShock 4 state into out[0..7]: connected, button bits (libScePad), left x, left y, right x,
      *  right y, L2, R2 (raw 0-255). Returns 0, or libScePad's error while the pad cannot be opened. */
     public static native int nPadRead(int[] out);
+
+    /** Restarts the application in a fresh process (LoadExec of /app0/eboot.bin). Returns only on
+     *  failure, with libSceSystemService's error. */
+    public static native int nRelaunch();
 }

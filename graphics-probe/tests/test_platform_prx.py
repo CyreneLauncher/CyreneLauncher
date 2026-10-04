@@ -52,7 +52,8 @@ with tempfile.TemporaryDirectory() as directory:
                     '--toolchain', str(toolchain), '--jni-headers', str(boot_jdk / 'include'),
                     '--output', str(output)], check=True)
     audit = json.loads((output / 'platform-audit.json').read_text())
-    assert audit['needed'] == ['libSceGnmDriver.so', 'libScePad.so', 'libSceUserService.so', 'libSceVideoOut.so', 'libkernel.so'], audit['needed']
+    assert audit['needed'] == ['libSceGnmDriver.so', 'libScePad.so', 'libSceSystemService.so', 'libSceUserService.so', 'libSceVideoOut.so',
+                               'libkernel.so'], audit['needed']
     assert len(audit['jni_natives']) == len(declared), audit['jni_natives']
     assert audit['tls']['align'] <= 64 and audit['tls']['size'] > 0, audit['tls']
     print('platform PRX build and audit passed')
