@@ -83,6 +83,10 @@ MODS = {
                               'enhancedblockentities-0.7.1+1.18.2.jar', 'e09988fed9394ec5858b81400ba96d2b8b8cab1a', 481307),
     'exordium': ('https://cdn.modrinth.com/data/DynYZEae/versions/jWOt1f90/exordium-fabric-1.0.1-mc1.18.2.jar',
                  'exordium-fabric-1.0.1-mc1.18.2.jar', '5f1e8064d303eef366f7e2fc8599cdf2a6254843', 132957),
+    # Shaders: Iris runs on Zink here; with MakeUp - Ultra Fast (not pinned here: a shader pack, placed in
+    # shaderpacks/ and selected in config/iris.properties) a world holds 35-45 fps at 1080p.
+    'iris': ('https://cdn.modrinth.com/data/YL57xq9U/versions/ogIRhnAJ/iris-mc1.18.2-1.6.11.jar',
+             'iris-mc1.18.2-1.6.11.jar', '974ebb9ca30bf433d3533d385c461839e8adfbf2', 2846872),
     'lithium': ('https://cdn.modrinth.com/data/gvQqBUqZ/versions/ALnv7Npy/lithium-fabric-mc1.18.2-0.10.3.jar',
                 'lithium-fabric-mc1.18.2-0.10.3.jar', 'd47d223403bbc4d14748141cdddc4beeb451fe4e', 555165),
     'starlight': ('https://cdn.modrinth.com/data/H8CaAYZC/versions/1.0.2%2B1.18.2/starlight-1.0.2%2Bfabric.89b8d9f.jar',
