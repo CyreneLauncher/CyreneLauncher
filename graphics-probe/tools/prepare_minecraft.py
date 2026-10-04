@@ -67,15 +67,19 @@ MODS = {
     # More Culling's dependency. Left out: Krypton (native compression libraries), MemoryLeakFix (its
     # Biome mixin fails against this set), C2ME (its growing and shrinking worker pools exhaust
     # libkernel's pthread_setspecific pool - technote 235 - and a new Java thread then crashes), FastLoad (its per-version nested modules fail to resolve on
-    # 1.18.2), and, until they are vetted again, the mods that require Fabric API (Entity Culling,
-    # Enhanced Block Entities, Exordium, Smooth Boot). Fabric API itself is back: its ~45 nested jars
-    # exhausted the console's ~266 per-process descriptors until the JDK began releasing idle ones.
+    # 1.18.2), and, until they are vetted again, Exordium and Smooth Boot. Fabric API is back, with
+    # Entity Culling and Enhanced Block Entities: its ~45 nested jars exhausted the console's ~266
+    # per-process descriptors until the JDK began releasing idle ones.
     # Dependencies were checked against each fabric.mod.json, nested jars included, not Modrinth's
     # metadata, which omits some.
     'immediatelyfast': ('https://cdn.modrinth.com/data/5ZwdcRci/versions/D73h6MNI/ImmediatelyFast-1.1.12%2B1.18.2.jar',
                         'ImmediatelyFast-1.1.12+1.18.2.jar', 'e0209c4fad9fd7fa167cd36166795c57a82ed981', 180953),
+    'entityculling': ('https://cdn.modrinth.com/data/NNAgCjsB/versions/d3CbGntl/entityculling-fabric-1.6.1-mc1.18.2.jar',
+                      'entityculling-fabric-1.6.1-mc1.18.2.jar', 'b0822232e9d7bdd5d084ebcf40e8ce9b37a96734', 57098),
     'moreculling': ('https://cdn.modrinth.com/data/51shyZVL/versions/v0.8.2-1.18/moreculling-1.18.2-0.8.2.jar',
                     'moreculling-1.18.2-0.8.2.jar', 'dea034de00f8faefe9a57b74e733f1210c99e333', 1141482),
+    'enhancedblockentities': ('https://cdn.modrinth.com/data/OVuFYfre/versions/0.7.1%2B1.18.2/enhancedblockentities-0.7.1%2B1.18.2.jar',
+                              'enhancedblockentities-0.7.1+1.18.2.jar', 'e09988fed9394ec5858b81400ba96d2b8b8cab1a', 481307),
     'lithium': ('https://cdn.modrinth.com/data/gvQqBUqZ/versions/ALnv7Npy/lithium-fabric-mc1.18.2-0.10.3.jar',
                 'lithium-fabric-mc1.18.2-0.10.3.jar', 'd47d223403bbc4d14748141cdddc4beeb451fe4e', 555165),
     'starlight': ('https://cdn.modrinth.com/data/H8CaAYZC/versions/1.0.2%2B1.18.2/starlight-1.0.2%2Bfabric.89b8d9f.jar',
