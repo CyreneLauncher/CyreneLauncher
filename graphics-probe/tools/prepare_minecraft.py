@@ -64,9 +64,9 @@ MODS = {
                 'lazydfu-0.1.2.jar', '2efec5781f1271bdcdae462eee402ccb97bff6fe', 15517),
     # Performance set (2026-10-04, Modrinth, pinned by SHA-1). Rendering: fewer and batched draws;
     # logic/world generation: Lithium, Starlight; memory: FerriteCore, ModernFix; Cloth Config is
-    # More Culling's dependency. Left out: Krypton (native compression libraries), MemoryLeakFix (its
-    # Biome mixin fails against this set), C2ME (its growing and shrinking worker pools exhaust
-    # libkernel's pthread_setspecific pool - technote 235 - and a new Java thread then crashes), FastLoad (its per-version nested modules fail to resolve on
+    # More Culling's dependency. C2ME (alpha: test it on a new world) runs since HotSpot no longer holds
+    # a pthread_setspecific value per Java thread. Left out: Krypton (native compression libraries),
+    # MemoryLeakFix (its Biome mixin fails against this set), FastLoad (its per-version nested modules fail to resolve on
     # 1.18.2), and Smooth Boot (it retunes worker thread priorities, which the console's audio and
     # input threads depend on). Fabric API is back, with Entity Culling, Enhanced Block Entities and
     # Exordium: its ~45 nested jars exhausted the console's ~266 per-process descriptors until the JDK
@@ -85,6 +85,8 @@ MODS = {
                  'exordium-fabric-1.0.1-mc1.18.2.jar', '5f1e8064d303eef366f7e2fc8599cdf2a6254843', 132957),
     # Shaders: Iris runs on Zink here; with MakeUp - Ultra Fast (not pinned here: a shader pack, placed in
     # shaderpacks/ and selected in config/iris.properties) a world holds 35-45 fps at 1080p.
+    'c2me': ('https://cdn.modrinth.com/data/VSNURh3q/versions/uFhRzRj9/c2me-fabric-mc1.18.2-0.2.0%2Balpha.7.40.jar',
+             'c2me-fabric-mc1.18.2-0.2.0+alpha.7.40.jar', 'f3c3598183d1ede703cb009b4853762db750746f', 1134126),
     'iris': ('https://cdn.modrinth.com/data/YL57xq9U/versions/ogIRhnAJ/iris-mc1.18.2-1.6.11.jar',
              'iris-mc1.18.2-1.6.11.jar', '974ebb9ca30bf433d3533d385c461839e8adfbf2', 2846872),
     'lithium': ('https://cdn.modrinth.com/data/gvQqBUqZ/versions/ALnv7Npy/lithium-fabric-mc1.18.2-0.10.3.jar',
