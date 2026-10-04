@@ -859,12 +859,90 @@ final class OrbisGLFW {
         return requireInit() ? OrbisKeys.scancode(key) : -1;
     }
 
+    // ---------------------------------------------------------------- gamepad
+
+    /* The DualShock 4 as GLFW_JOYSTICK_1, read once per event poll (NativePlatform.nPadRead):
+     * connected, button bits, then raw 0-255 sticks and triggers. */
+    private static final int[] pad = new int[8];
+    private static boolean padPolled, padConnected;
+    private static GLFWJoystickCallbackI joystickCallback;
+    private static final String PAD_NAME = "PS4 Controller";
+    // SDL's GUID for a Sony DualShock 4 (v2), so mapping-aware mods recognise it.
+    private static final String PAD_GUID = "030000004c050000cc09000000010000";
+    // GLFW gamepad buttons A, B, X, Y, LB, RB, BACK, START, GUIDE, LTHUMB, RTHUMB, DPAD up/right/down/left.
+    private static final int[] PAD_BUTTONS = {
+        0x4000 /* cross */, 0x2000 /* circle */, 0x8000 /* square */, 0x1000 /* triangle */,
+        0x0400 /* L1 */, 0x0800 /* R1 */, 0x100000 /* touchpad click */, 0x0008 /* options */,
+        0 /* PS button: reserved by the system */, 0x0002 /* L3 */, 0x0004 /* R3 */,
+        0x0010 /* up */, 0x0020 /* right */, 0x0040 /* down */, 0x0080 /* left */};
+
+    private static void pollPad() {
+        NativePlatform.nPadRead(pad);
+        padPolled = true;
+        boolean connected = pad[0] != 0;
+        if (connected != padConnected) {
+            padConnected = connected;
+            if (joystickCallback != null)
+                joystickCallback.invoke(GLFW_JOYSTICK_1, connected ? GLFW_CONNECTED : GLFW_DISCONNECTED);
+        }
+    }
+
+    private static boolean padPresent(int jid) {
+        if (!requireInit()) return false;
+        if (jid < GLFW_JOYSTICK_1 || jid > GLFW_JOYSTICK_LAST) {
+            error(GLFW_INVALID_ENUM, "Invalid joystick ID " + jid);
+            return false;
+        }
+        if (!padPolled && window != NULL) pollPad();
+        return jid == GLFW_JOYSTICK_1 && padConnected;
+    }
+
+    private static float stick(int raw) {
+        return Math.max(-1f, Math.min(1f, (raw - 128) / 127f));
+    }
+
     static boolean glfwJoystickPresent(int jid) {
-        return false;
+        return padPresent(jid);
     }
 
     static boolean glfwJoystickIsGamepad(int jid) {
-        return false;
+        return padPresent(jid);
+    }
+
+    static String glfwGetJoystickName(int jid) {
+        return padPresent(jid) ? PAD_NAME : null;
+    }
+
+    static String glfwGetGamepadName(int jid) {
+        return padPresent(jid) ? PAD_NAME : null;
+    }
+
+    static String glfwGetJoystickGUID(int jid) {
+        return padPresent(jid) ? PAD_GUID : null;
+    }
+
+    /** The built-in mapping is the only one; new mappings are accepted and ignored. */
+    static boolean glfwUpdateGamepadMappings(ByteBuffer string) {
+        return requireInit();
+    }
+
+    static boolean glfwGetGamepadState(int jid, GLFWGamepadState state) {
+        if (!padPresent(jid)) return false;
+        long address = state.address();
+        for (int i = 0; i < PAD_BUTTONS.length; i++)
+            memPutByte(address + GLFWGamepadState.BUTTONS + i,
+                (byte) ((pad[1] & PAD_BUTTONS[i]) != 0 && PAD_BUTTONS[i] != 0 ? GLFW_PRESS : GLFW_RELEASE));
+        float[] axes = {stick(pad[2]), stick(pad[3]), stick(pad[4]), stick(pad[5]),
+            pad[6] / 127.5f - 1f, pad[7] / 127.5f - 1f};
+        for (int i = 0; i < axes.length; i++)
+            memPutFloat(address + GLFWGamepadState.AXES + 4L * i, axes[i]);
+        return true;
+    }
+
+    static GLFWJoystickCallback glfwSetJoystickCallback(GLFWJoystickCallbackI cbfun) {
+        if (!requireInit()) return null;
+        GLFWJoystickCallbackI previous = joystickCallback; joystickCallback = cbfun;
+        return previous instanceof GLFWJoystickCallback ? (GLFWJoystickCallback) previous : null;
     }
 
     // ---------------------------------------------------------------- events
@@ -896,6 +974,7 @@ final class OrbisGLFW {
     /** Reads available input; with wait, blocks up to waitNanos for the first event. */
     private static void drain(long waitNanos, boolean wait) {
         if (!dispatching) reconcileSize();
+        if (!dispatching && window != NULL) pollPad();
         if (dispatching || window == NULL || !inputAvailable) {
             if (wait && waitNanos > 0 && waitNanos != Long.MAX_VALUE) sleep(waitNanos);
             return;

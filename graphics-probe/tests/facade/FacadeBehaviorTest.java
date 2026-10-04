@@ -196,10 +196,10 @@ public final class FacadeBehaviorTest {
         check(glfwGetKey(window, 9999) == GLFW_RELEASE && errors.contains(GLFW_INVALID_ENUM), "invalid key reported");
         check(glfwGetError(null) == GLFW_INVALID_ENUM && glfwGetError(null) == GLFW_NO_ERROR, "glfwGetError resets");
         try {
-            glfwGetGamepadName(0);
+            glfwRequestWindowAttention(window);
             throw new AssertionError("unsupported call returned");
         } catch (UnsupportedOperationException expected) {
-            check(expected.getMessage().contains("glfwGetGamepadName"), "names the unsupported method");
+            check(expected.getMessage().contains("glfwRequestWindowAttention"), "names the unsupported method");
         }
         check("a".equals(glfwGetKeyName(GLFW_KEY_A, 0)) && glfwGetKeyName(GLFW_KEY_ENTER, 0) == null, "key names");
         check(glfwGetKeyScancode(GLFW_KEY_A) == 4, "scancode is the HID usage");
@@ -218,6 +218,30 @@ public final class FacadeBehaviorTest {
         check(!glfwWindowShouldClose(window), "open");
         glfwSetWindowShouldClose(window, true);
         check(glfwWindowShouldClose(window), "close requested");
+        // Gamepad: the DualShock 4 as GLFW_JOYSTICK_1 with the standard mapping.
+        int[] events = new int[2];
+        glfwSetJoystickCallback((jid, event) -> { events[0] = jid; events[1] = event; });
+        NativePlatform.padState = new int[]{1, 0x4000 | 0x0008 | 0x0040, 128, 0, 255, 128, 0, 255};
+        glfwPollEvents();
+        check(events[0] == GLFW_JOYSTICK_1 && events[1] == GLFW_CONNECTED, "pad connect callback");
+        check(glfwJoystickPresent(GLFW_JOYSTICK_1) && glfwJoystickIsGamepad(GLFW_JOYSTICK_1)
+            && !glfwJoystickPresent(GLFW_JOYSTICK_2), "pad present as joystick 1 only");
+        check("PS4 Controller".equals(glfwGetGamepadName(GLFW_JOYSTICK_1)), "pad name");
+        try (org.lwjgl.glfw.GLFWGamepadState state = org.lwjgl.glfw.GLFWGamepadState.calloc()) {
+            check(glfwGetGamepadState(GLFW_JOYSTICK_1, state), "pad state read");
+            check(state.buttons(GLFW_GAMEPAD_BUTTON_A) == GLFW_PRESS && state.buttons(GLFW_GAMEPAD_BUTTON_START) == GLFW_PRESS
+                && state.buttons(GLFW_GAMEPAD_BUTTON_DPAD_DOWN) == GLFW_PRESS && state.buttons(GLFW_GAMEPAD_BUTTON_B) == GLFW_RELEASE,
+                "pad buttons: cross=A, options=START, dpad down");
+            check(Math.abs(state.axes(GLFW_GAMEPAD_AXIS_LEFT_Y) + 1f) < 0.01f && Math.abs(state.axes(GLFW_GAMEPAD_AXIS_RIGHT_X) - 1f) < 0.01f
+                && Math.abs(state.axes(GLFW_GAMEPAD_AXIS_LEFT_X)) < 0.01f, "pad sticks: up is -1, right is +1, centre is 0");
+            check(Math.abs(state.axes(GLFW_GAMEPAD_AXIS_LEFT_TRIGGER) + 1f) < 0.01f
+                && Math.abs(state.axes(GLFW_GAMEPAD_AXIS_RIGHT_TRIGGER) - 1f) < 0.01f, "pad triggers: -1 released, +1 pressed");
+        }
+        NativePlatform.padState = new int[8];
+        glfwPollEvents();
+        check(events[1] == GLFW_DISCONNECTED && !glfwJoystickPresent(GLFW_JOYSTICK_1), "pad disconnect");
+        glfwSetJoystickCallback(null);
+
         glfwDestroyWindow(window);
         check(NativePlatform.destroyed == 1 && glfwGetCurrentContext() == 0, "window destroyed and released");
         glfwTerminate();

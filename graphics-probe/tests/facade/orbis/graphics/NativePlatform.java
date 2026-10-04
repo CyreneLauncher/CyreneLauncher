@@ -44,4 +44,7 @@ public final class NativePlatform {
 
     public static int pointerDraws;
     public static void nDrawPointer(int x, int top, int scale) { pointerDraws++; }
+
+    public static int[] padState = new int[8];
+    public static int nPadRead(int[] out) { System.arraycopy(padState, 0, out, 0, 8); return 0; }
 }

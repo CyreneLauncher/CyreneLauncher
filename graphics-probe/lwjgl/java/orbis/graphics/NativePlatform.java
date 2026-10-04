@@ -44,4 +44,8 @@ public final class NativePlatform {
      *  tall) into the default framebuffer and restores the state it touches from values the
      *  platform records as the application sets them - no GL queries, so no glthread sync. */
     public static native void nDrawPointer(int x, int top, int scale);
+
+    /** DualShock 4 state into out[0..7]: connected, button bits (libScePad), left x, left y, right x,
+     *  right y, L2, R2 (raw 0-255). Returns 0, or libScePad's error while the pad cannot be opened. */
+    public static native int nPadRead(int[] out);
 }

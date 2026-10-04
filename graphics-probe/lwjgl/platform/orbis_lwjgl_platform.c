@@ -681,6 +681,64 @@ JNIEXPORT void JNICALL Java_orbis_graphics_NativePlatform_nTerminate(JNIEnv *env
     pthread_mutex_unlock(&platform_lock);
 }
 
+/* DualShock 4 for the GLFW gamepad API. libScePad is opened here, on first read, for the user the
+ * application started with; nothing else in the process opens it. */
+int32_t scePadInit(void);
+int32_t scePadOpen(int32_t user_id, int32_t type, int32_t index, void *param);
+int32_t scePadClose(int32_t handle);
+int32_t sceUserServiceGetInitialUser(int32_t *user_id);
+
+typedef struct {
+    uint32_t buttons;
+    uint8_t left_x, left_y, right_x, right_y;
+    uint8_t l2, r2;
+    uint16_t padding;
+    float quat[4], vel[3], accel[3];
+    uint8_t touch[24];
+    uint8_t connected;
+    uint64_t timestamp;
+    uint8_t ext[16];
+    uint8_t count;
+    uint8_t unknown[15];
+} OrbisPadState;   /* the SDK's OrbisPadData */
+int32_t scePadReadState(int32_t handle, OrbisPadState *data);
+
+static int32_t pad_handle = -1;
+static int32_t pad_open_error;
+static time_t pad_retry_after;
+
+/* state[0..7] = connected, buttons, left x, left y, right x, right y, L2, R2 (raw 0-255 axes).
+ * Returns 0, or the libScePad error while the pad cannot be opened (retried every 2 s). */
+JNIEXPORT jint JNICALL Java_orbis_graphics_NativePlatform_nPadRead(JNIEnv *env, jclass klass, jintArray out) {
+    (void)klass;
+    jint state[8] = {0};
+    if (pad_handle < 0) {
+        time_t now = time(NULL);
+        if (now >= pad_retry_after) {
+            pad_retry_after = now + 2;
+            int32_t user = -1;
+            int32_t rc = scePadInit();
+            if (rc >= 0) rc = sceUserServiceGetInitialUser(&user);
+            if (rc >= 0) rc = scePadOpen(user, 0, 0, NULL);
+            if (rc >= 0) pad_handle = rc;
+            else pad_open_error = rc;
+        }
+    }
+    if (pad_handle >= 0) {
+        OrbisPadState data;
+        memset(&data, 0, sizeof(data));
+        if (scePadReadState(pad_handle, &data) == 0 && data.connected) {
+            state[0] = 1;
+            state[1] = (jint)data.buttons;
+            state[2] = data.left_x; state[3] = data.left_y;
+            state[4] = data.right_x; state[5] = data.right_y;
+            state[6] = data.l2; state[7] = data.r2;
+        }
+    }
+    (*env)->SetIntArrayRegion(env, out, 0, 8, state);
+    return pad_handle >= 0 ? 0 : pad_open_error;
+}
+
 JNIEXPORT jstring JNICALL Java_orbis_graphics_NativePlatform_nLastError(JNIEnv *env, jclass klass) {
     (void)klass;
     return (*env)->NewStringUTF(env, last_error);
