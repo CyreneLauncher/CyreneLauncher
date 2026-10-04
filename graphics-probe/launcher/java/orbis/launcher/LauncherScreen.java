@@ -30,6 +30,8 @@ final class LauncherScreen {
             TEXT = 0xffe8e8e8, DIM = 0xff9aa0a6, WARN = 0xffe0b050;
 
     private final LauncherConfig config;
+    private final CrashAnalyzer.Report crash;
+    private static final int ERROR = 0xffd9534f;
     private long window;
     private int width, height;
     private int program, vao, vbo, white, font;
@@ -52,6 +54,7 @@ final class LauncherScreen {
 
     LauncherScreen(LauncherConfig config) {
         this.config = config;
+        this.crash = config.lastSession();
     }
 
     void run() throws IOException {
@@ -259,9 +262,58 @@ final class LauncherScreen {
             text(items.get(i), 150 * s, y, 4 * s, on ? 0xff101010 : TEXT);
             y += 70 * s;
         }
+        if (page == Page.HOME && crash != null) drawCrash(s);
         if (!status.isEmpty()) text(status, 120 * s, height - 160 * s, 3 * s, statusColor);
         text("Cross: select   Circle: back   D-pad: move/adjust", 120 * s, height - 90 * s, 2.5f * s, DIM);
         flush();
+    }
+
+    private void drawCrash(float s) {
+        float x = 960 * s, y = 250 * s, w = 840 * s, pad = 30 * s, scale = 2.5f * s;
+        List<String> lines = new ArrayList<>();
+        for (String line : crash.lines()) lines.addAll(wrap(line, w - 2 * pad, scale));
+        if (crash.source() != null) lines.addAll(wrap("Details: " + crash.source(), w - 2 * pad, scale));
+        float h = 110 * s + lines.size() * 30 * s;
+        rect(x, y, w, h, PANEL);
+        rect(x, y, 8 * s, h, ERROR);
+        text("LAST SESSION", x + pad, y + 24 * s, 2.5f * s, DIM);
+        text(crash.title(), x + pad, y + 54 * s, 3 * s, ERROR);
+        float ly = y + 100 * s;
+        for (String line : lines) {
+            text(line, x + pad, ly, scale, line.startsWith("Details: ") ? DIM : TEXT);
+            ly += 30 * s;
+        }
+    }
+
+    private float width(String text, float scale) {
+        float w = 0;
+        for (int i = 0; i < text.length(); i++) w += glyphWidth[text.charAt(i) & 0xff] * scale;
+        return w;
+    }
+
+    /** Word wrap to maxWidth; a word longer than a line (a path, a class name) is cut. */
+    private List<String> wrap(String text, float maxWidth, float scale) {
+        List<String> out = new ArrayList<>();
+        StringBuilder line = new StringBuilder();
+        for (String word : text.split(" ")) {
+            String candidate = line.length() == 0 ? word : line + " " + word;
+            if (width(candidate, scale) <= maxWidth) {
+                line.setLength(0);
+                line.append(candidate);
+                continue;
+            }
+            if (line.length() > 0) out.add(line.toString());
+            line.setLength(0);
+            while (width(word, scale) > maxWidth) {
+                int cut = word.length();
+                while (cut > 1 && width(word.substring(0, cut), scale) > maxWidth) cut--;
+                out.add(word.substring(0, cut));
+                word = word.substring(cut);
+            }
+            line.append(word);
+        }
+        if (line.length() > 0) out.add(line.toString());
+        return out;
     }
 
     // ------------------------------------------------------------------ GL

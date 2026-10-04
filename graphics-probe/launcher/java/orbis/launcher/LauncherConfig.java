@@ -64,6 +64,8 @@ final class LauncherConfig {
     }
 
     Path nextStart() { return home.resolve("next-start"); }
+    Path lastPlay() { return home.resolve("last-play"); }
+    Path jvmErrorDir() { return runnerRoot.resolve("tmp"); }
     Path jvmOptions() { return runnerRoot.resolve("jvm-options.txt"); }
     Path runnerConf() { return runnerRoot.resolve("runner.conf"); }
 
@@ -103,7 +105,19 @@ final class LauncherConfig {
     }
 
     void writeNextStart() throws IOException {
+        replace(lastPlay(), List.of(Long.toString(System.currentTimeMillis())));
         replace(nextStart(), List.of(gameMainClass));
+    }
+
+    /** Why the session started by the last Play ended, if it left a crash behind; else null. */
+    CrashAnalyzer.Report lastSession() {
+        long since;
+        try {
+            since = Long.parseLong(Files.readString(lastPlay(), StandardCharsets.UTF_8).trim());
+        } catch (IOException | NumberFormatException never) {
+            return null;
+        }
+        return CrashAnalyzer.analyze(gameDir, jvmErrorDir(), since);
     }
 
     private static void replace(Path file, List<String> lines) throws IOException {
