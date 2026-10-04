@@ -1,0 +1,20 @@
+diff --git a/src/gallium/auxiliary/util/u_threaded_context.c b/src/gallium/auxiliary/util/u_threaded_context.c
+index c2beee2..05f479e 100644
+--- a/src/gallium/auxiliary/util/u_threaded_context.c
++++ b/src/gallium/auxiliary/util/u_threaded_context.c
+@@ -3201,8 +3201,14 @@ tc_buffer_subdata(struct pipe_context *_pipe,
+ 
+       /* CPU storage is only useful for partial updates. It can add overhead
+        * on glBufferData calls so avoid using it.
++       *
++       * Orbis: except for buffers that may have it. Skipping it here left the storage to be created by the
++       * first read map, which had to copy the buffer back GPU -> CPU, flushing and waiting for the batch.
++       * Zink on GFX7 has no 8-bit indices, so primconvert reads every small 8-bit index buffer Minecraft
++       * uploads - about 200 waits a frame in the creative inventory. Created here, the storage starts
++       * from the uploaded data with nothing to copy back, and those reads never wait.
+        */
+-      if (!tres->cpu_storage && offset == 0 && size == resource->width0)
++      if (!tres->cpu_storage && !tres->allow_cpu_storage && offset == 0 && size == resource->width0)
+          usage |= TC_TRANSFER_MAP_UPLOAD_CPU_STORAGE;
+ 
+       map = tc_buffer_map(_pipe, resource, 0, usage, &box, &transfer);
