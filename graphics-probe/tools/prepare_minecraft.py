@@ -67,10 +67,11 @@ MODS = {
     # More Culling's dependency. Left out: Krypton (native compression libraries), MemoryLeakFix (its
     # Biome mixin fails against this set), C2ME (its growing and shrinking worker pools exhaust
     # libkernel's pthread_setspecific pool - technote 235 - and a new Java thread then crashes), FastLoad (its per-version nested modules fail to resolve on
-    # 1.18.2), and Fabric API with everything that requires it (Entity Culling, Enhanced Block Entities,
-    # Exordium, Smooth Boot) - its ~45 nested jars exhausted the console's per-process file-descriptor
-    # limit ("No file descriptors available"). Dependencies were checked against each fabric.mod.json,
-    # nested jars included, not Modrinth's metadata, which omits some.
+    # 1.18.2), and, until they are vetted again, the mods that require Fabric API (Entity Culling,
+    # Enhanced Block Entities, Exordium, Smooth Boot). Fabric API itself is back: its ~45 nested jars
+    # exhausted the console's ~266 per-process descriptors until the JDK began releasing idle ones.
+    # Dependencies were checked against each fabric.mod.json, nested jars included, not Modrinth's
+    # metadata, which omits some.
     'immediatelyfast': ('https://cdn.modrinth.com/data/5ZwdcRci/versions/D73h6MNI/ImmediatelyFast-1.1.12%2B1.18.2.jar',
                         'ImmediatelyFast-1.1.12+1.18.2.jar', 'e0209c4fad9fd7fa167cd36166795c57a82ed981', 180953),
     'moreculling': ('https://cdn.modrinth.com/data/51shyZVL/versions/v0.8.2-1.18/moreculling-1.18.2-0.8.2.jar',
@@ -85,6 +86,8 @@ MODS = {
                   'modernfix-fabric-5.18.0+mc1.18.2.jar', '3a97f3dc533c93158dff93694be069977829f934', 698498),
     'clumps': ('https://cdn.modrinth.com/data/Wnxd13zP/versions/hwWceR4m/Clumps-fabric-1.18.2-8.0.0%2B17.jar',
                'Clumps-fabric-1.18.2-8.0.0+17.jar', 'ea1367e0c8db3a5d12a0d1a731a9a98b62999490', 20369),
+    'fabric-api': ('https://cdn.modrinth.com/data/P7dR8mSH/versions/qk28POfr/fabric-api-0.77.0%2B1.18.2.jar',
+                   'fabric-api-0.77.0+1.18.2.jar', 'd312b2846af795ee5a99b1ec290f0e023fa48338', 1472259),
     'cloth-config': ('https://cdn.modrinth.com/data/9s6osm5g/versions/BLMp2TRt/cloth-config-6.5.102-fabric.jar',
                      'cloth-config-6.5.102-fabric.jar', 'd8996df838204ebe2aa7314b0a95914d326b37e0', 1150058),
 }
