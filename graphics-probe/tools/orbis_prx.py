@@ -35,6 +35,17 @@ class Toolchain:
         return output
 
 
+def stamp_recipe(stamp, tools):
+    """Adds what every module built with this recipe reads to a build_stamp.Stamp."""
+    return (stamp.files(Path(__file__), RUNNER / 'tools/prepare_jvm_link.py',
+                        *[RUNNER / f'tools/{name}.c' for name in
+                          ('native_dlfcn', 'orbis_prx_tls', 'orbis_initializers', 'orbis_runtime')],
+                        *sorted((RUNNER / 'tools').glob('*.h')))
+            .stats(tools.sdk / 'bin', tools.root / 'include', tools.root / 'lib', tools.root / 'link.x',
+                   tools.root / 'bin/linux/create-fself')
+            .value('recipe', [str(tools.sdk), str(tools.root), WRAPPED, ENVIRONMENT_MEMBERS]))
+
+
 def runtime_objects(tools, out):
     """Link script plus the objects every JVM-loadable module carries."""
     out.mkdir(parents=True, exist_ok=True)

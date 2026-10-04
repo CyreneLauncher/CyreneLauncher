@@ -11,6 +11,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import build_stamp  # noqa: E402
 import lwjgl_sources  # noqa: E402
 import orbis_prx  # noqa: E402
 
@@ -36,6 +37,19 @@ parser.add_argument('--output', default=str(ROOT / 'build/lwjgl'))
 arguments = parser.parse_args()
 tools = orbis_prx.Toolchain(arguments.sdk, arguments.toolchain)
 downloads, out = Path(arguments.downloads).resolve(), Path(arguments.output).resolve()
+MODULES = ('liblwjgl', 'liblwjgl_opengl', 'liblwjgl_stb')
+
+# The archives are pinned by the lock file, so the stamp covers them through it.
+stamp = (orbis_prx.stamp_recipe(build_stamp.Stamp(out, 'lwjgl-natives'), tools)
+         .files(Path(__file__), Path(lwjgl_sources.__file__), ROOT / 'lwjgl/lwjgl-sources.lock.json',
+                ROOT / 'lwjgl/dyncall')
+         .stats(Path(arguments.jni_headers))
+         .value('arguments', {k: v for k, v in vars(arguments).items() if k not in ('fetch', 'downloads')}))
+if stamp.current(out / 'lwjgl-audit.json', *[out / f'{name}{suffix}' for name in MODULES for suffix in ('.so', '.prx')]):
+    for name, audit in json.loads((out / 'lwjgl-audit.json').read_text())['modules'].items():
+        print(f"{name}: unchanged inputs, reusing the last build ({audit['jni_natives']} JNI natives)")
+    sys.exit(0)
+stamp.invalidate()
 
 
 sources = out / 'sources'
@@ -87,3 +101,4 @@ for name, objects, prefix, onload in (
     summary['modules'][name] = audit
     print(f"{name}: {audit['jni_natives']} JNI natives, {audit['imports']} imports, TLS {audit['tls']}")
 (out / 'lwjgl-audit.json').write_text(json.dumps(summary, indent=2) + '\n')
+stamp.record()

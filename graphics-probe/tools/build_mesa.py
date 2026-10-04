@@ -44,6 +44,28 @@ def mesa_patches():
     return sorted(MESA_PATCHES.glob("*.patch"))
 
 
+def keep_unchanged_mtimes(mesa, state_file):
+    """Applying and reverting the patches rewrites every patched file, and ninja would recompile
+    everything depending on them - a fifth of Mesa, since gl_API.xml is among them. A patched file
+    whose content matches the last build gets that build's modification time back, so only real
+    changes rebuild. Only the latest content is remembered: going back to older content keeps the
+    new time and rebuilds."""
+    try:
+        recorded = json.loads(state_file.read_text())
+    except (OSError, ValueError):
+        recorded = {}
+    patched = subprocess.check_output(["git", "-C", str(mesa), "diff", "--name-only"], text=True).split()
+    state = {}
+    for relative in patched:
+        path = mesa / relative
+        digest = sha256(path)
+        previous = recorded.get(relative)
+        if previous and previous["sha256"] == digest:
+            os.utime(path, ns=(path.stat().st_atime_ns, previous["mtime_ns"]))
+        state[relative] = {"sha256": digest, "mtime_ns": path.stat().st_mtime_ns}
+    state_file.write_text(json.dumps(state, indent=2) + "\n")
+
+
 def checked_source(path, revision, name=None):
     if not path.is_dir():
         raise ValueError("missing source: " + str(path))
@@ -264,7 +286,9 @@ def build(sources, sdk, output):
     if re.search(r"@[A-Z_]+@", template):
         raise ValueError("unresolved cross file substitution")
     cross = cross_dir / "orbis.ini"
-    cross.write_text(template)
+    # Rewriting an unchanged cross file would make ninja regenerate the whole build.
+    if not cross.is_file() or cross.read_text() != template:
+        cross.write_text(template)
     env = os.environ.copy()
     env["PATH"] = os.pathsep.join((str(venv), str(hostbin), env.get("PATH", "")))
     env.update({"PKG_CONFIG_PATH": "", "PKG_CONFIG_LIBDIR": str(cross_dir / "lib/pkgconfig"),
@@ -297,6 +321,7 @@ def build(sources, sdk, output):
             subprocess.run(["git", "-C", str(mesa), "apply", str(patch)], check=True)
             applied.append(patch)
             manifest.setdefault("mesa_patches", {})[patch.name] = sha256(patch)
+        keep_unchanged_mtimes(mesa, output / "patched-files.json")
         if not (mesa / "subprojects/zlib-1.3.1").is_dir():
             run([venv / "meson", "subprojects", "download", "zlib"],
                 output / "zlib-download.log", cwd=mesa, env=env)
@@ -312,16 +337,26 @@ def build(sources, sdk, output):
                    "-Dzlib=enabled", "-Dshader-cache=enabled", "-Dforce_fallback_for=zlib",
                    "-Dradv-build-id=" + build_id]
         setup = [venv / "meson", "setup", build_dir, mesa]
-        if (build_dir / "meson-info/meson-info.json").is_file():
+        configured = (build_dir / "meson-info/meson-info.json").is_file()
+        if configured:
             setup.append("--reconfigure")
-        run([*setup, "--cross-file", cross, *options],
-            output / "meson-setup.log", env=env)
+        # ninja reruns Meson by itself when a meson.build file changes; an explicit reconfigure is only
+        # needed when the options, cross file or Meson change, and costs a minute every build otherwise.
+        configuration = hashlib.sha256(json.dumps(
+            [[str(x) for x in setup[:2]], options, template, manifest["tools"].get("meson")]).encode()).hexdigest()
+        configuration_stamp = output / "meson-configuration.sha256"
+        if not (configured and (build_dir / "build.ninja").is_file() and configuration_stamp.is_file()
+                and configuration_stamp.read_text().strip() == configuration):
+            configuration_stamp.unlink(missing_ok=True)
+            run([*setup, "--cross-file", cross, *options],
+                output / "meson-setup.log", env=env)
+            configuration_stamp.write_text(configuration + "\n")
         meson_log = (build_dir / "meson-logs/meson-log.txt").read_text()
         if 'Checking for function "sysconf" : YES' not in meson_log:
             raise RuntimeError("sysconf configure probe failed; see meson-setup.log")
         if re.search(r"(?:libdrm|libelf|libstdc\+\+) found: YES", meson_log, re.I):
             raise RuntimeError("host dependency found in Meson configuration")
-        run(["ninja", "-C", build_dir, "-j", "2"], output / "ninja-build.log", env=env)
+        run(["ninja", "-C", build_dir, "-j", str(os.cpu_count() or 2)], output / "ninja-build.log", env=env)
         probe = output / "gllinkprobe.elf"
         initial_probe = output / "gllinkprobe-before-libc16.elf"
         env["ORBIS_COMPAT_DIR"] = str(compat)

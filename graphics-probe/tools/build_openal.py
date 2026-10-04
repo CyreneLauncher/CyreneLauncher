@@ -15,6 +15,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import build_stamp  # noqa: E402
 import lwjgl_sources  # noqa: E402
 import orbis_prx  # noqa: E402
 
@@ -48,6 +49,20 @@ def main():
     out = Path(arguments.output).resolve()
     out.mkdir(parents=True, exist_ok=True)
     tools = orbis_prx.Toolchain(arguments.sdk, arguments.toolchain)
+
+    # The archive is pinned by the lock file, so the stamp covers it through it.
+    compat = ROOT / 'build/sources/orbis-compat'
+    cmake_version = subprocess.run(['cmake', '--version'], capture_output=True, text=True, check=True).stdout
+    stamp = (orbis_prx.stamp_recipe(build_stamp.Stamp(out, 'openal'), tools)
+             .files(Path(__file__), Path(lwjgl_sources.__file__), ROOT / 'lwjgl/lwjgl-sources.lock.json',
+                    ROOT / 'lwjgl/openal', compat / 'src/orbis_thread_atexit.c', compat / 'src/orbis_cxa_guard.c',
+                    compat / 'include')
+             .value('cmake', cmake_version)
+             .value('arguments', {k: v for k, v in vars(arguments).items() if k not in ('fetch', 'downloads')}))
+    if stamp.current(out / 'openal-audit.json', out / 'libopenal.so', out / 'libopenal.prx'):
+        print('libopenal: unchanged inputs, reusing the last build')
+        return
+    stamp.invalidate()
 
     archive = lwjgl_sources.archive('openal-soft', Path(arguments.downloads), arguments.fetch)
     source = lwjgl_sources.extract(archive, out / 'sources')
@@ -152,6 +167,7 @@ set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)
                'backend': 'orbis (AudioOut main port, 48 kHz float stereo, 256-frame periods), then null',
                'module': audit}
     (out / 'openal-audit.json').write_text(json.dumps(summary, indent=2) + '\n')
+    stamp.record()
     print(f"libopenal: OpenAL Soft {summary['openal_soft']}, {len(audit['c_exports'])} AL/ALC exports, "
           f"{audit['imports']} imports from {audit['needed']}, TLS {audit['tls']}")
 
