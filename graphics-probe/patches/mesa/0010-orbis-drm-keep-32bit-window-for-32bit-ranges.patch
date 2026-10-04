@@ -1,0 +1,35 @@
+diff --git a/src/amd/common/ac_orbis_drm.c b/src/amd/common/ac_orbis_drm.c
+index e4055c6..d9c5577 100644
+--- a/src/amd/common/ac_orbis_drm.c
++++ b/src/amd/common/ac_orbis_drm.c
+@@ -8356,8 +8356,16 @@ ac_drm_va_range_alloc(ac_drm_device *dev, enum amdgpu_gpu_va_range va_range_type
+                    "out on a long run, which is the cost of the answer rather than a fault.");
+    }
+ 
++   /* ⚠ ORDINARY RANGES START ABOVE THE 32-BIT WINDOW when the arena straddles it. First fit from the arena's
++    * base let buffers and images fill the ~290 MiB that can serve RADEON_FLAG_32BIT, and then every
++    * descriptor buffer failed ("out of 32-bit VA") with most of the arena free - Zink sleeping, flushing
++    * and retrying 8 to 15 times a frame. They fall back into the window only when the rest is full. */
++   uint64_t search_base = (!(flags & AMDGPU_VA_RANGE_32_BIT) && !va_base_required &&
++                                 hi_window_end > orbis_va_base && hi_window_end < orbis_va_end)
++                                   ? hi_window_end : orbis_va_base;
++search_again:;
+    struct amdgpu_va **link = &orbis_va_list;
+-   uint64_t candidate = orbis_align_up(MAX2(va_base_required, orbis_va_base), align);
++   uint64_t candidate = orbis_align_up(MAX2(va_base_required, search_base), align);
+ 
+    /* The high-water mark never applies to a replay address, which must be satisfied exactly or refused. */
+    if (no_reuse && !va_base_required)
+@@ -8393,6 +8401,12 @@ ac_drm_va_range_alloc(ac_drm_device *dev, enum amdgpu_gpu_va_range va_range_type
+       link = &(*link)->next;
+    }
+ 
++   if (candidate + size > limit && search_base != orbis_va_base) {
++      /* Nothing above the window: search from the arena's base. */
++      search_base = orbis_va_base;
++      goto search_again;
++   }
++
+    if (candidate + size > limit) {
+       simple_mtx_unlock(&orbis_va_lock);
+       free(va);
