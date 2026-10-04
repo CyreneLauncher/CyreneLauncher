@@ -63,9 +63,10 @@ MODS = {
     'lazydfu': ('https://cdn.modrinth.com/data/hvFnDODi/versions/0.1.2/lazydfu-0.1.2.jar',
                 'lazydfu-0.1.2.jar', '2efec5781f1271bdcdae462eee402ccb97bff6fe', 15517),
     # Performance set (2026-10-04, Modrinth, pinned by SHA-1). Rendering: fewer and batched draws;
-    # logic/world generation: Lithium, Starlight, C2ME; memory: FerriteCore, ModernFix; Cloth Config is
+    # logic/world generation: Lithium, Starlight; memory: FerriteCore, ModernFix; Cloth Config is
     # More Culling's dependency. Left out: Krypton (native compression libraries), MemoryLeakFix (its
-    # Biome mixin fails against this set), FastLoad (its per-version nested modules fail to resolve on
+    # Biome mixin fails against this set), C2ME (its growing and shrinking worker pools exhaust
+    # libkernel's pthread_setspecific pool - technote 235 - and a new Java thread then crashes), FastLoad (its per-version nested modules fail to resolve on
     # 1.18.2), and Fabric API with everything that requires it (Entity Culling, Enhanced Block Entities,
     # Exordium, Smooth Boot) - its ~45 nested jars exhausted the console's per-process file-descriptor
     # limit ("No file descriptors available"). Dependencies were checked against each fabric.mod.json,
@@ -78,8 +79,6 @@ MODS = {
                 'lithium-fabric-mc1.18.2-0.10.3.jar', 'd47d223403bbc4d14748141cdddc4beeb451fe4e', 555165),
     'starlight': ('https://cdn.modrinth.com/data/H8CaAYZC/versions/1.0.2%2B1.18.2/starlight-1.0.2%2Bfabric.89b8d9f.jar',
                   'starlight-1.0.2+fabric.89b8d9f.jar', 'a436b72ee514bd2b59900159bcc4d461f96ef340', 127318),
-    'c2me': ('https://cdn.modrinth.com/data/VSNURh3q/versions/uFhRzRj9/c2me-fabric-mc1.18.2-0.2.0%2Balpha.7.40.jar',
-             'c2me-fabric-mc1.18.2-0.2.0+alpha.7.40.jar', 'f3c3598183d1ede703cb009b4853762db750746f', 1134126),
     'ferritecore': ('https://cdn.modrinth.com/data/uXXizFIs/versions/4.2.1/ferritecore-4.2.1-fabric.jar',
                     'ferritecore-4.2.1-fabric.jar', 'd5d047374981d614c2a53422be751dc1491f9cd0', 119110),
     'modernfix': ('https://cdn.modrinth.com/data/nmDcB62a/versions/LJ5N4YSl/modernfix-fabric-5.18.0%2Bmc1.18.2.jar',
