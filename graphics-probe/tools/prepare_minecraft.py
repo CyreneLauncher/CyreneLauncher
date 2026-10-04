@@ -64,8 +64,8 @@ MODS = {
                 'lazydfu-0.1.2.jar', '2efec5781f1271bdcdae462eee402ccb97bff6fe', 15517),
     # Performance set (2026-10-04, Modrinth, pinned by SHA-1). Rendering: fewer and batched draws;
     # logic/world generation: Lithium, Starlight, C2ME; memory and boot: FerriteCore, ModernFix,
-    # MemoryLeakFix, Smooth Boot, FastLoad. Fabric API and Cloth Config are their dependencies.
-    # Krypton is left out: it loads native compression libraries the console cannot load.
+    # Smooth Boot, FastLoad. Fabric API and Cloth Config are their dependencies. Krypton is left out
+    # (native compression libraries); MemoryLeakFix is left out (its Biome mixin fails against this set).
     'immediatelyfast': ('https://cdn.modrinth.com/data/5ZwdcRci/versions/D73h6MNI/ImmediatelyFast-1.1.12%2B1.18.2.jar',
                         'ImmediatelyFast-1.1.12+1.18.2.jar', 'e0209c4fad9fd7fa167cd36166795c57a82ed981', 180953),
     'entityculling': ('https://cdn.modrinth.com/data/NNAgCjsB/versions/d3CbGntl/entityculling-fabric-1.6.1-mc1.18.2.jar',
@@ -86,8 +86,6 @@ MODS = {
                     'ferritecore-4.2.1-fabric.jar', 'd5d047374981d614c2a53422be751dc1491f9cd0', 119110),
     'modernfix': ('https://cdn.modrinth.com/data/nmDcB62a/versions/LJ5N4YSl/modernfix-fabric-5.18.0%2Bmc1.18.2.jar',
                   'modernfix-fabric-5.18.0+mc1.18.2.jar', '3a97f3dc533c93158dff93694be069977829f934', 698498),
-    'memoryleakfix': ('https://cdn.modrinth.com/data/NRjRiSSD/versions/5xvCCRjJ/memoryleakfix-fabric-1.17%2B-1.1.5.jar',
-                      'memoryleakfix-fabric-1.17+-1.1.5.jar', '784bbbe9c64ac9d3d4ad19786c02291e607fcf4e', 49334),
     'smoothboot': ('https://cdn.modrinth.com/data/FWumhS4T/versions/iy4eaYy2/smoothboot-fabric-1.18.2-1.7.0.jar',
                    'smoothboot-fabric-1.18.2-1.7.0.jar', 'ef6c6d8838c529b4b072c446c050a03cdc43903b', 88736),
     'fastload': ('https://cdn.modrinth.com/data/kCpssoSb/versions/ys9T20o4/Fastload%2B1.18.2-1.20-3.4.0.jar',
