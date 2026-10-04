@@ -39,4 +39,9 @@ public final class NativePlatform {
     public static native void nTerminate();
 
     public static native String nLastError();
+
+    /** Draws the pointer arrow (top-left at x, top, in GL window coordinates; rows scale pixels
+     *  tall) into the default framebuffer and restores the state it touches from values the
+     *  platform records as the application sets them - no GL queries, so no glthread sync. */
+    public static native void nDrawPointer(int x, int top, int scale);
 }

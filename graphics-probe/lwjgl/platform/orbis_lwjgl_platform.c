@@ -96,8 +96,6 @@ int __real_pthread_create(pthread_t *thread, const pthread_attr_t *attr,
 int32_t sceKernelAvailableFlexibleMemorySize(size_t *size) __asm__("sceKernelAvailableFlexibleMemorySize");
 int sceKernelUsleep(unsigned int microseconds);
 
-static void report_get_profile(void);
-
 static void diag(const char *fmt, ...) {
     va_list ap;
     va_start(ap, fmt);
@@ -447,7 +445,6 @@ JNIEXPORT jboolean JNICALL Java_orbis_graphics_NativePlatform_nSwapBuffers(
     EGLSurface current_surface = surface;
     pthread_mutex_unlock(&platform_lock);
     if (!valid) return JNI_FALSE;
-    report_get_profile();
     if (!eglSwapBuffers(current_display, current_surface)) {
         record_egl("eglSwapBuffers");
         return JNI_FALSE;
@@ -466,41 +463,6 @@ JNIEXPORT jboolean JNICALL Java_orbis_graphics_NativePlatform_nSwapInterval(
     if (current_display == EGL_NO_DISPLAY) { record("platform is not initialised"); return JNI_FALSE; }
     if (!eglSwapInterval(current_display, interval)) { record_egl("eglSwapInterval"); return JNI_FALSE; }
     return JNI_TRUE;
-}
-
-/* glGetIntegerv profile: under glthread most queries synchronise with the worker thread, so
- * which ones Minecraft repeats per frame matters. Counted per pname, reported at swaps. */
-typedef void (*get_integerv_fn)(unsigned int pname, int *data);
-static get_integerv_fn real_get_integerv;
-#define GET_PROFILE_SLOTS 64
-static unsigned int get_profile_pname[GET_PROFILE_SLOTS];
-static unsigned long get_profile_count[GET_PROFILE_SLOTS];
-static unsigned long get_profile_frames;
-static int get_profile_reports;
-
-static void counted_get_integerv(unsigned int pname, int *data) {
-    for (int i = 0; i < GET_PROFILE_SLOTS; i++) {
-        if (get_profile_count[i] == 0) { get_profile_pname[i] = pname; get_profile_count[i] = 1; break; }
-        if (get_profile_pname[i] == pname) { get_profile_count[i]++; break; }
-    }
-    real_get_integerv(pname, data);
-}
-
-static void report_get_profile(void) {
-    if (!real_get_integerv || get_profile_reports >= 6 || ++get_profile_frames < 600) return;
-    get_profile_reports++;
-    char line[1024];
-    int used = snprintf(line, sizeof(line), "gl profile: glGetIntegerv per frame over %lu frames:",
-                        get_profile_frames);
-    for (int i = 0; i < GET_PROFILE_SLOTS && get_profile_count[i]; i++) {
-        if (get_profile_count[i] * 10 < get_profile_frames) continue;   /* < 0.1 per frame */
-        used += snprintf(line + used, sizeof(line) - used, " 0x%04x=%.1f", get_profile_pname[i],
-                         (double)get_profile_count[i] / get_profile_frames);
-        if (used >= (int)sizeof(line) - 24) break;
-    }
-    diag("%s", line);
-    memset(get_profile_count, 0, sizeof(get_profile_count));
-    get_profile_frames = 0;
 }
 
 /* glGetString is constant for the life of the (single) context, but every call synchronises
@@ -527,6 +489,136 @@ static const unsigned char *cached_get_string(unsigned int name) {
     return value;
 }
 
+/* The facade draws the pointer over each frame and must leave the application's state as it
+ * found it. Querying that state synchronises with Mesa's GL worker - half the render thread
+ * with item glints on screen - so the few values the pointer touches are recorded as the
+ * application sets them, through wrappers handed out by nGetProcAddress. Only the context's
+ * thread calls them. Defaults are GL's initial state. */
+#define GL_SCISSOR_TEST 0x0C11
+#define GL_COLOR_BUFFER_BIT 0x00004000
+#define GL_FRAMEBUFFER 0x8D40
+#define GL_DRAW_FRAMEBUFFER 0x8CA9
+
+typedef void (*enable_fn)(unsigned int cap);
+typedef void (*scissor_fn)(int x, int y, int width, int height);
+typedef void (*clear_color_fn)(float red, float green, float blue, float alpha);
+typedef void (*color_mask_fn)(unsigned char red, unsigned char green, unsigned char blue, unsigned char alpha);
+typedef void (*bind_framebuffer_fn)(unsigned int target, unsigned int framebuffer);
+typedef void (*delete_framebuffers_fn)(int count, const unsigned int *framebuffers);
+typedef void (*clear_fn)(unsigned int mask);
+
+static enable_fn real_enable, real_disable;
+static scissor_fn real_scissor;
+static clear_color_fn real_clear_color;
+static color_mask_fn real_color_mask;
+static bind_framebuffer_fn real_bind_framebuffer;
+static delete_framebuffers_fn real_delete_framebuffers;
+static clear_fn real_clear;
+
+static int shadow_scissor_enabled;
+static int shadow_scissor_set, shadow_scissor[4]; /* unset: the window size, GL's initial box */
+static float shadow_clear_color[4];
+static unsigned char shadow_color_mask[4] = {1, 1, 1, 1};
+static unsigned int shadow_draw_framebuffer;
+
+static void shadow_enable(unsigned int cap) {
+    if (cap == GL_SCISSOR_TEST) shadow_scissor_enabled = 1;
+    real_enable(cap);
+}
+
+static void shadow_disable(unsigned int cap) {
+    if (cap == GL_SCISSOR_TEST) shadow_scissor_enabled = 0;
+    real_disable(cap);
+}
+
+static void shadow_scissor_box(int x, int y, int width, int height) {
+    shadow_scissor[0] = x; shadow_scissor[1] = y; shadow_scissor[2] = width; shadow_scissor[3] = height;
+    shadow_scissor_set = 1;
+    real_scissor(x, y, width, height);
+}
+
+static void shadow_clear_color_value(float red, float green, float blue, float alpha) {
+    shadow_clear_color[0] = red; shadow_clear_color[1] = green;
+    shadow_clear_color[2] = blue; shadow_clear_color[3] = alpha;
+    real_clear_color(red, green, blue, alpha);
+}
+
+static void shadow_color_write_mask(unsigned char red, unsigned char green, unsigned char blue, unsigned char alpha) {
+    shadow_color_mask[0] = red; shadow_color_mask[1] = green;
+    shadow_color_mask[2] = blue; shadow_color_mask[3] = alpha;
+    real_color_mask(red, green, blue, alpha);
+}
+
+static void shadow_bind_framebuffer(unsigned int target, unsigned int framebuffer) {
+    if (target == GL_FRAMEBUFFER || target == GL_DRAW_FRAMEBUFFER) shadow_draw_framebuffer = framebuffer;
+    real_bind_framebuffer(target, framebuffer);
+}
+
+/* Deleting the bound framebuffer reverts the binding to 0. */
+static void shadow_delete_framebuffers(int count, const unsigned int *framebuffers) {
+    for (int i = 0; framebuffers && i < count; i++) {
+        if (framebuffers[i] && framebuffers[i] == shadow_draw_framebuffer) shadow_draw_framebuffer = 0;
+    }
+    real_delete_framebuffers(count, framebuffers);
+}
+
+/* name -> (where the real entry point is kept, the wrapper handed out instead) */
+static const struct {
+    const char *name;
+    void **real;
+    void *wrapper;
+} shadowed[] = {
+    {"glEnable", (void **)&real_enable, (void *)shadow_enable},
+    {"glDisable", (void **)&real_disable, (void *)shadow_disable},
+    {"glScissor", (void **)&real_scissor, (void *)shadow_scissor_box},
+    {"glClearColor", (void **)&real_clear_color, (void *)shadow_clear_color_value},
+    {"glColorMask", (void **)&real_color_mask, (void *)shadow_color_write_mask},
+    {"glBindFramebuffer", (void **)&real_bind_framebuffer, (void *)shadow_bind_framebuffer},
+    {"glDeleteFramebuffers", (void **)&real_delete_framebuffers, (void *)shadow_delete_framebuffers},
+};
+
+/* An outlined arrow, top-left at (x, top) in GL window coordinates: a black triangle with a
+ * white one inside, built from scissored clears of rows scale pixels tall. Restores the
+ * recorded state afterwards. Skipped until the application has looked up every entry point,
+ * since only then is the record complete. */
+JNIEXPORT void JNICALL Java_orbis_graphics_NativePlatform_nDrawPointer(
+        JNIEnv *env, jclass klass, jint x, jint top, jint scale) {
+    (void)env; (void)klass;
+    for (size_t i = 0; i < sizeof(shadowed) / sizeof(shadowed[0]); i++) {
+        if (!*shadowed[i].real) return;
+    }
+    if (!real_clear) real_clear = (clear_fn)(intptr_t)eglGetProcAddress("glClear");
+    if (!real_clear) return;
+
+    real_bind_framebuffer(GL_DRAW_FRAMEBUFFER, 0);
+    real_enable(GL_SCISSOR_TEST);
+    real_color_mask(1, 1, 1, 1);
+    for (int pass = 0; pass < 2; pass++) {
+        if (pass == 0) real_clear_color(0.0f, 0.0f, 0.0f, 1.0f);
+        else real_clear_color(1.0f, 1.0f, 1.0f, 1.0f);
+        for (int row = 0; row < 12; row++) {
+            if (pass == 1 && (row == 0 || row == 11)) continue;
+            int width = pass == 0 ? row + 2 : row;
+            int left = pass == 0 ? 0 : 1;
+            real_scissor(x + left * scale, top - (row + 1) * scale, width * scale, scale);
+            real_clear(GL_COLOR_BUFFER_BIT);
+        }
+    }
+
+    real_clear_color(shadow_clear_color[0], shadow_clear_color[1], shadow_clear_color[2], shadow_clear_color[3]);
+    real_color_mask(shadow_color_mask[0], shadow_color_mask[1], shadow_color_mask[2], shadow_color_mask[3]);
+    if (shadow_scissor_set) {
+        real_scissor(shadow_scissor[0], shadow_scissor[1], shadow_scissor[2], shadow_scissor[3]);
+    } else {
+        pthread_mutex_lock(&platform_lock);
+        EGLint width = surface_width, height = surface_height;
+        pthread_mutex_unlock(&platform_lock);
+        real_scissor(0, 0, width, height);
+    }
+    if (!shadow_scissor_enabled) real_disable(GL_SCISSOR_TEST);
+    real_bind_framebuffer(GL_DRAW_FRAMEBUFFER, shadow_draw_framebuffer);
+}
+
 /* GL entry point for LWJGL's FunctionProvider; 0 when Mesa does not provide it. */
 JNIEXPORT jlong JNICALL Java_orbis_graphics_NativePlatform_nGetProcAddress(
         JNIEnv *env, jclass klass, jstring function) {
@@ -539,9 +631,12 @@ JNIEXPORT jlong JNICALL Java_orbis_graphics_NativePlatform_nGetProcAddress(
         real_get_string = (get_string_fn)(intptr_t)address;
         address = (jlong)(intptr_t)cached_get_string;
     }
-    if (address && strcmp(name, "glGetIntegerv") == 0) {
-        real_get_integerv = (get_integerv_fn)(intptr_t)address;
-        address = (jlong)(intptr_t)counted_get_integerv;
+    for (size_t i = 0; address && i < sizeof(shadowed) / sizeof(shadowed[0]); i++) {
+        if (strcmp(name, shadowed[i].name) == 0) {
+            *shadowed[i].real = (void *)(intptr_t)address;
+            address = (jlong)(intptr_t)shadowed[i].wrapper;
+            break;
+        }
     }
     (*env)->ReleaseStringUTFChars(env, function, name);
     return address;

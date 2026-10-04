@@ -41,4 +41,7 @@ public final class NativePlatform {
     public static void nTerminate() { terminateCalls++; }
 
     public static String nLastError() { return "none"; }
+
+    public static int pointerDraws;
+    public static void nDrawPointer(int x, int top, int scale) { pointerDraws++; }
 }

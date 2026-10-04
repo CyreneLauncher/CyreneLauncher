@@ -66,7 +66,7 @@ wchar = orbis_prx.run('sh', kit / 'scripts/ps4/check-wchar-link.sh', why, stdout
 (out / 'wchar-audit.log').write_text(wchar)
 
 audit, natives = orbis_prx.audit(elf, allowed_needed=('libkernel.so', 'libSceGnmDriver.so', 'libSceVideoOut.so'),
-                                 jni_prefix='Java_orbis_graphics_NativePlatform_', jni_count=11)
+                                 jni_prefix='Java_orbis_graphics_NativePlatform_', jni_count=12)
 if audit['tls'] is None:
     raise SystemExit('platform PRX has no TLS image; Mesa TLS was expected')
 audit['jni_natives'] = natives
