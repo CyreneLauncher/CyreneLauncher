@@ -1,0 +1,117 @@
+diff --git a/src/mesa/glapi/glapi/gen/gl_API.xml b/src/mesa/glapi/glapi/gen/gl_API.xml
+index 07ac970..d9d756b 100644
+--- a/src/mesa/glapi/glapi/gen/gl_API.xml
++++ b/src/mesa/glapi/glapi/gen/gl_API.xml
+@@ -3358,7 +3358,7 @@
+     </function>
+ 
+     <function name="TexSubImage2D" es1="1.0" es2="2.0" no_error="true" exec="dlist"
+-              marshal="async" marshal_sync="!_mesa_glthread_has_unpack_buffer(ctx)">
++              marshal="custom">
+         <param name="target" type="GLenum"/>
+         <param name="level" type="GLint"/>
+         <param name="xoffset" type="GLint"/>
+diff --git a/src/mesa/main/glthread_pixels.c b/src/mesa/main/glthread_pixels.c
+index a3eb956..519f23d 100644
+--- a/src/mesa/main/glthread_pixels.c
++++ b/src/mesa/main/glthread_pixels.c
+@@ -7,6 +7,7 @@
+ #include "main/glthread_marshal.h"
+ #include "dispatch.h"
+ #include "main/image.h"
++#include "main/glformats.h"
+ 
+ #define MAX_BITMAP_BYTE_SIZE     4096
+ #define MAX_DRAWPIX_BYTE_SIZE    4096
+@@ -160,3 +161,91 @@ _mesa_marshal_DrawPixels(GLsizei width, GLsizei height, GLenum format,
+    CALL_DrawPixels(ctx->Dispatch.Current,
+                    (width, height, format, type, pixels));
+ }
++
++/* Orbis (patch 0008): glTexSubImage2D from client memory used to sync with the worker every
++ * time - 300-400 syncs a second from Minecraft's animated sprites. Small images are copied
++ * into the batch instead, honouring the tracked unpack state: the copy starts at the skipped
++ * position and spans the strided rows, and the worker is handed a pointer biased back by the
++ * skip offset, so applying the same unpack state lands on the copy. */
++#define MAX_TEXSUBIMAGE_BYTE_SIZE (64 * 1024)
++
++struct marshal_cmd_TexSubImage2D
++{
++   struct marshal_cmd_base cmd_base;
++   uint16_t num_slots;
++   GLenum16 target;
++   GLenum16 format;
++   GLenum16 type;
++   GLint level;
++   GLint xoffset;
++   GLint yoffset;
++   GLsizei width;
++   GLsizei height;
++   const GLvoid *pixels;
++};
++
++uint32_t
++_mesa_unmarshal_TexSubImage2D(struct gl_context *ctx,
++                              const struct marshal_cmd_TexSubImage2D *restrict cmd)
++{
++   CALL_TexSubImage2D(ctx->Dispatch.Current,
++                      (cmd->target, cmd->level, cmd->xoffset, cmd->yoffset,
++                       cmd->width, cmd->height, cmd->format, cmd->type,
++                       cmd->pixels));
++   return cmd->num_slots;
++}
++
++void GLAPIENTRY
++_mesa_marshal_TexSubImage2D(GLenum target, GLint level, GLint xoffset,
++                            GLint yoffset, GLsizei width, GLsizei height,
++                            GLenum format, GLenum type, const GLvoid *pixels)
++{
++   GET_CURRENT_CONTEXT(ctx);
++   int cmd_size = sizeof(struct marshal_cmd_TexSubImage2D);
++
++   if (!ctx->GLThread.ListMode) {
++      const struct gl_pixelstore_attrib *unpack = &ctx->GLThread.Unpack;
++      bool pbo = _mesa_glthread_has_unpack_buffer(ctx);
++      size_t copy_size = 0, skip = 0;
++
++      if (!pbo && pixels && width > 0 && height > 0 && !unpack->Invert &&
++          !unpack->SwapBytes && !unpack->LsbFirst &&
++          unpack->SkipPixels >= 0 && unpack->SkipRows >= 0 &&
++          format <= 0xffff && type <= 0xffff) {
++         int bpp = _mesa_bytes_per_pixel(format, type);
++         int stride = _mesa_image_row_stride(unpack, width, format, type);
++         if (bpp > 0 && stride > 0) {
++            skip = (size_t)unpack->SkipRows * stride + (size_t)unpack->SkipPixels * bpp;
++            copy_size = (size_t)(height - 1) * stride + (size_t)width * bpp;
++         }
++      }
++
++      if (pbo || (copy_size && copy_size <= MAX_TEXSUBIMAGE_BYTE_SIZE)) {
++         struct marshal_cmd_TexSubImage2D *cmd =
++            _mesa_glthread_allocate_command(ctx, DISPATCH_CMD_TexSubImage2D,
++                                            cmd_size + (pbo ? 0 : copy_size));
++         cmd->num_slots = align(cmd_size + (pbo ? 0 : copy_size), 8) / 8;
++         cmd->target = MIN2(target, 0xffff);
++         cmd->format = MIN2(format, 0xffff);
++         cmd->type = MIN2(type, 0xffff);
++         cmd->level = level;
++         cmd->xoffset = xoffset;
++         cmd->yoffset = yoffset;
++         cmd->width = width;
++         cmd->height = height;
++         if (pbo) {
++            cmd->pixels = pixels;
++         } else {
++            uint8_t *copy = (uint8_t *)(cmd + 1);
++            memcpy(copy, (const uint8_t *)pixels + skip, copy_size);
++            cmd->pixels = copy - skip;
++         }
++         return;
++      }
++   }
++
++   _mesa_glthread_finish_before(ctx, "TexSubImage2D");
++   CALL_TexSubImage2D(ctx->Dispatch.Current,
++                      (target, level, xoffset, yoffset, width, height, format,
++                       type, pixels));
++}

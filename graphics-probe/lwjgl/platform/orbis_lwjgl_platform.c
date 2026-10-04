@@ -503,6 +503,30 @@ static void report_get_profile(void) {
     get_profile_frames = 0;
 }
 
+/* glGetString is constant for the life of the (single) context, but every call synchronises
+ * with Mesa's GL worker - ~70 a second from Minecraft's debug screen. Cached per name. */
+typedef const unsigned char *(*get_string_fn)(unsigned int name);
+static get_string_fn real_get_string;
+static unsigned int cached_string_name[8];
+static const unsigned char *cached_string_value[8];
+
+static const unsigned char *cached_get_string(unsigned int name) {
+    for (int i = 0; i < 8; i++) {
+        if (cached_string_value[i] && cached_string_name[i] == name) return cached_string_value[i];
+    }
+    const unsigned char *value = real_get_string(name);
+    if (value) {
+        for (int i = 0; i < 8; i++) {
+            if (!cached_string_value[i]) {
+                cached_string_name[i] = name;
+                cached_string_value[i] = value;
+                break;
+            }
+        }
+    }
+    return value;
+}
+
 /* GL entry point for LWJGL's FunctionProvider; 0 when Mesa does not provide it. */
 JNIEXPORT jlong JNICALL Java_orbis_graphics_NativePlatform_nGetProcAddress(
         JNIEnv *env, jclass klass, jstring function) {
@@ -511,6 +535,10 @@ JNIEXPORT jlong JNICALL Java_orbis_graphics_NativePlatform_nGetProcAddress(
     const char *name = (*env)->GetStringUTFChars(env, function, NULL);
     if (!name) return 0;
     jlong address = (jlong)(intptr_t)eglGetProcAddress(name);
+    if (address && strcmp(name, "glGetString") == 0) {
+        real_get_string = (get_string_fn)(intptr_t)address;
+        address = (jlong)(intptr_t)cached_get_string;
+    }
     if (address && strcmp(name, "glGetIntegerv") == 0) {
         real_get_integerv = (get_integerv_fn)(intptr_t)address;
         address = (jlong)(intptr_t)counted_get_integerv;
