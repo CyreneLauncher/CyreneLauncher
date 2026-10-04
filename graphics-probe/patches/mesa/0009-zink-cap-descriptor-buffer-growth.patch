@@ -1,0 +1,40 @@
+diff --git a/src/gallium/drivers/zink/zink_descriptors.c b/src/gallium/drivers/zink/zink_descriptors.c
+index 0414ac8..0e6af1f 100644
+--- a/src/gallium/drivers/zink/zink_descriptors.c
++++ b/src/gallium/drivers/zink/zink_descriptors.c
+@@ -1092,6 +1092,8 @@ reinit_db(struct zink_screen *screen, struct zink_batch_state *bs)
+    zink_batch_descriptor_init(screen, bs);
+ }
+ 
++#define ORBIS_ZINK_DB_MAX_BYTES (8u << 20)
++
+ static void
+ enlarge_db(struct zink_context *ctx)
+ {
+@@ -1099,7 +1101,12 @@ enlarge_db(struct zink_context *ctx)
+    struct zink_batch_state *bs = ctx->bs;
+    /* ensure current db surives */
+    zink_batch_reference_resource(ctx, bs->dd.db);
+-   if (bs->dd.db->base.b.width0 >= bs->ctx->dd.db.max_db_size * screen->base_descriptor_size) {
++   /* Orbis: the size never shrinks and every batch state is recreated at it, so unbounded
++    * growth (x4 per fill) ends in an allocation the GPU arena cannot satisfy. At the cap a
++    * full db is replaced by a fresh one of the same size instead. */
++   if (bs->dd.db->base.b.width0 >= bs->ctx->dd.db.max_db_size * screen->base_descriptor_size &&
++       (uint64_t)ctx->dd.db.max_db_size * ctx->dd.db.size_enlarge_scale * screen->base_descriptor_size <=
++       ORBIS_ZINK_DB_MAX_BYTES) {
+       /* rebinding a db mid-batch is extremely costly: if we start with a factor
+       * 16 and then half the factor with each new allocation. It shouldn't need to
+       * do this more than twice. */
+@@ -1660,6 +1667,12 @@ zink_batch_descriptor_init(struct zink_screen *screen, struct zink_batch_state *
+    } else if (zink_descriptor_mode == ZINK_DESCRIPTOR_MODE_DB) {
+       unsigned bind = ZINK_BIND_DESCRIPTOR;
+       struct pipe_resource *pres = pipe_buffer_create(&screen->base, bind, 0, bs->ctx->dd.db.max_db_size * screen->base_descriptor_size);
++      /* Orbis: a NULL db is dereferenced by the next bind; fall back to the starting size. */
++      if (!pres && bs->ctx->dd.db.max_db_size > 250) {
++         mesa_logw("zink: %u-byte descriptor buffer failed; retrying at the starting size",
++                   bs->ctx->dd.db.max_db_size * screen->base_descriptor_size);
++         pres = pipe_buffer_create(&screen->base, bind, 0, 250 * screen->base_descriptor_size);
++      }
+       if (!pres)
+          return false;
+       bs->dd.db = zink_resource(pres);
