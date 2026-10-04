@@ -128,6 +128,10 @@ MODS = {
                          'lambdynamiclights-2.1.0+1.17.jar', '5f1f59c0ff6d54fc7ec1d42eb347a2f6987d234c', 592987),
     'xaeros-minimap': ('https://cdn.modrinth.com/data/1bokaNcj/versions/PthCIgVG/xaerominimap-fabric-1.18.2-26.5.0.jar',
                       'xaerominimap-fabric-1.18.2-26.5.0.jar', 'b6a3f5af8a4a6d73d4454340ec727b8f4b0ea7de', 2203994),
+    # Content stress test (verified on the PS4): Create with its 15 bundled libraries; machines run and
+    # a world holds 60 fps.
+    'create-fabric': ('https://cdn.modrinth.com/data/Xbc0uyRg/versions/L283tIV7/create-fabric-0.5.1-i-build.1629%2Bmc1.18.2.jar',
+                      'create-fabric-0.5.1-i-build.1629+mc1.18.2.jar', 'a1895df3292ef7c232acc1198d78a6663eedcc4f', 19179595),
     'cloth-config': ('https://cdn.modrinth.com/data/9s6osm5g/versions/BLMp2TRt/cloth-config-6.5.102-fabric.jar',
                      'cloth-config-6.5.102-fabric.jar', 'd8996df838204ebe2aa7314b0a95914d326b37e0', 1150058),
 }
