@@ -669,15 +669,15 @@ JNIEXPORT void JNICALL Java_orbis_graphics_NativePlatform_nDestroyWindow(
     pthread_mutex_unlock(&platform_lock);
 }
 
+/* The window and context are released; the display is not terminated. glfwTerminate comes right
+ * before the process exits (or is replaced by LoadExec), which reclaims the GPU and memory, while
+ * eglTerminate's driver teardown never returned after Minecraft's Quit - the app sat on a black screen.
+ * The display stays initialised, so a later nInitialize in this process reuses it. */
 JNIEXPORT void JNICALL Java_orbis_graphics_NativePlatform_nTerminate(JNIEnv *env, jclass klass) {
     (void)env; (void)klass;
     pthread_mutex_lock(&platform_lock);
     release_window_locked();
-    if (display != EGL_NO_DISPLAY) {
-        eglReleaseThread();
-        eglTerminate(display);
-        display = EGL_NO_DISPLAY;
-    }
+    if (display != EGL_NO_DISPLAY) eglReleaseThread();
     pthread_mutex_unlock(&platform_lock);
 }
 
@@ -737,6 +737,16 @@ JNIEXPORT jint JNICALL Java_orbis_graphics_NativePlatform_nPadRead(JNIEnv *env, 
     }
     (*env)->SetIntArrayRegion(env, out, 0, 8, state);
     return pad_handle >= 0 ? 0 : pad_open_error;
+}
+
+/* Replaces this process with a fresh start of the application (libSceSystemService LoadExec). Returns
+ * only on failure, with the error. */
+int32_t sceSystemServiceLoadExec(const char *path, const char *args[]);
+
+JNIEXPORT jint JNICALL Java_orbis_graphics_NativePlatform_nRelaunch(JNIEnv *env, jclass klass) {
+    (void)env; (void)klass;
+    const char *args[] = {NULL};
+    return (jint)sceSystemServiceLoadExec("/app0/eboot.bin", args);
 }
 
 JNIEXPORT jstring JNICALL Java_orbis_graphics_NativePlatform_nLastError(JNIEnv *env, jclass klass) {
