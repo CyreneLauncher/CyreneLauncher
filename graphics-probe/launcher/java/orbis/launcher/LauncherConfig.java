@@ -64,6 +64,13 @@ final class LauncherConfig {
     }
 
     Path nextStart() { return home.resolve("next-start"); }
+    Path modsDir() { return gameDir.resolve("mods"); }
+
+    /** The Minecraft version: the end of a loader profile id such as fabric-loader-0.14.9-1.18.2. */
+    String gameVersion() {
+        Matcher m = Pattern.compile("(\\d+\\.\\d+(?:\\.\\d+)?)$").matcher(versionId);
+        return m.find() ? m.group(1) : versionId;
+    }
     Path lastPlay() { return home.resolve("last-play"); }
     Path jvmErrorDir() { return runnerRoot.resolve("tmp"); }
     Path jvmOptions() { return runnerRoot.resolve("jvm-options.txt"); }

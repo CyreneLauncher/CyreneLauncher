@@ -21,6 +21,8 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--boot-jdk', default='/usr/lib/jvm/java-17-openjdk-amd64')
 parser.add_argument('--jars', default='/tmp/lwjgl-audit', help='official LWJGL 3.2.2 Java JARs')
 parser.add_argument('--output', default=str(ROOT / 'build/launcher'))
+# Gson ships with Minecraft (one of its libraries), so it is on the class path at run time.
+parser.add_argument('--gson', default=str(ROOT / 'build/minecraft-1.18.2/libraries/com/google/code/gson/gson/2.8.9/gson-2.8.9.jar'))
 arguments = parser.parse_args()
 out = Path(arguments.output).resolve()
 classes = out / 'classes'
@@ -30,7 +32,7 @@ if classes.exists():
 classes.mkdir(parents=True)
 
 classpath = ':'.join(str(lwjgl_sources.java_artifact(arguments.jars, name)) for name in
-                     ('lwjgl-3.2.2.jar', 'lwjgl-opengl-3.2.2.jar', 'lwjgl-glfw-3.2.2.jar'))
+                     ('lwjgl-3.2.2.jar', 'lwjgl-opengl-3.2.2.jar', 'lwjgl-glfw-3.2.2.jar')) + ':' + arguments.gson
 own = sorted(SOURCES.rglob('*.java'))
 subprocess.run([str(Path(arguments.boot_jdk) / 'bin/javac'), '--release', '17', '-encoding', 'UTF-8',
                 '-Xlint:all', '-Werror', '-cp', classpath, '-sourcepath', str(ROOT / 'lwjgl/java'),
