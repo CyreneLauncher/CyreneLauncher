@@ -132,6 +132,10 @@ MODS = {
     # a world holds 60 fps.
     'create-fabric': ('https://cdn.modrinth.com/data/Xbc0uyRg/versions/L283tIV7/create-fabric-0.5.1-i-build.1629%2Bmc1.18.2.jar',
                       'create-fabric-0.5.1-i-build.1629+mc1.18.2.jar', 'a1895df3292ef7c232acc1198d78a6663eedcc4f', 19179595),
+    # Controller: MidnightControls drives the game from the DualShock 4 the GLFW facade exposes as a
+    # standard gamepad (verified on the PS4: movement, combat, inventories, menus, disconnects).
+    'midnightcontrols': ('https://cdn.modrinth.com/data/bXX9h73M/versions/1.5.0%2B1.18/midnightcontrols-1.5.0%2B1.18.jar',
+                         'midnightcontrols-1.5.0+1.18.jar', 'ee6c425b2b9d71cab01db7d9c9fceca6d045c212', 534205),
     'cloth-config': ('https://cdn.modrinth.com/data/9s6osm5g/versions/BLMp2TRt/cloth-config-6.5.102-fabric.jar',
                      'cloth-config-6.5.102-fabric.jar', 'd8996df838204ebe2aa7314b0a95914d326b37e0', 1150058),
 }
