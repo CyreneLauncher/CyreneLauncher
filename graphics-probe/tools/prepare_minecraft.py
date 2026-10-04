@@ -63,17 +63,17 @@ MODS = {
     'lazydfu': ('https://cdn.modrinth.com/data/hvFnDODi/versions/0.1.2/lazydfu-0.1.2.jar',
                 'lazydfu-0.1.2.jar', '2efec5781f1271bdcdae462eee402ccb97bff6fe', 15517),
     # Performance set (2026-10-04, Modrinth, pinned by SHA-1). Rendering: fewer and batched draws;
-    # logic/world generation: Lithium, Starlight, C2ME; memory and boot: FerriteCore, ModernFix,
-    # Smooth Boot, FastLoad; Cloth Config is More Culling's dependency. Left out: Krypton (native
-    # compression libraries), MemoryLeakFix (its Biome mixin fails against this set), and Fabric API
-    # with its dependents Entity Culling and Enhanced Block Entities - its ~45 nested jars exhausted
-    # the console's per-process file-descriptor limit ("No file descriptors available").
+    # logic/world generation: Lithium, Starlight, C2ME; memory: FerriteCore, ModernFix; Cloth Config is
+    # More Culling's dependency. Left out: Krypton (native compression libraries), MemoryLeakFix (its
+    # Biome mixin fails against this set), FastLoad (its per-version nested modules fail to resolve on
+    # 1.18.2), and Fabric API with everything that requires it (Entity Culling, Enhanced Block Entities,
+    # Exordium, Smooth Boot) - its ~45 nested jars exhausted the console's per-process file-descriptor
+    # limit ("No file descriptors available"). Dependencies were checked against each fabric.mod.json,
+    # nested jars included, not Modrinth's metadata, which omits some.
     'immediatelyfast': ('https://cdn.modrinth.com/data/5ZwdcRci/versions/D73h6MNI/ImmediatelyFast-1.1.12%2B1.18.2.jar',
                         'ImmediatelyFast-1.1.12+1.18.2.jar', 'e0209c4fad9fd7fa167cd36166795c57a82ed981', 180953),
     'moreculling': ('https://cdn.modrinth.com/data/51shyZVL/versions/v0.8.2-1.18/moreculling-1.18.2-0.8.2.jar',
                     'moreculling-1.18.2-0.8.2.jar', 'dea034de00f8faefe9a57b74e733f1210c99e333', 1141482),
-    'exordium': ('https://cdn.modrinth.com/data/DynYZEae/versions/jWOt1f90/exordium-fabric-1.0.1-mc1.18.2.jar',
-                 'exordium-fabric-1.0.1-mc1.18.2.jar', '5f1e8064d303eef366f7e2fc8599cdf2a6254843', 132957),
     'lithium': ('https://cdn.modrinth.com/data/gvQqBUqZ/versions/ALnv7Npy/lithium-fabric-mc1.18.2-0.10.3.jar',
                 'lithium-fabric-mc1.18.2-0.10.3.jar', 'd47d223403bbc4d14748141cdddc4beeb451fe4e', 555165),
     'starlight': ('https://cdn.modrinth.com/data/H8CaAYZC/versions/1.0.2%2B1.18.2/starlight-1.0.2%2Bfabric.89b8d9f.jar',
@@ -84,10 +84,6 @@ MODS = {
                     'ferritecore-4.2.1-fabric.jar', 'd5d047374981d614c2a53422be751dc1491f9cd0', 119110),
     'modernfix': ('https://cdn.modrinth.com/data/nmDcB62a/versions/LJ5N4YSl/modernfix-fabric-5.18.0%2Bmc1.18.2.jar',
                   'modernfix-fabric-5.18.0+mc1.18.2.jar', '3a97f3dc533c93158dff93694be069977829f934', 698498),
-    'smoothboot': ('https://cdn.modrinth.com/data/FWumhS4T/versions/iy4eaYy2/smoothboot-fabric-1.18.2-1.7.0.jar',
-                   'smoothboot-fabric-1.18.2-1.7.0.jar', 'ef6c6d8838c529b4b072c446c050a03cdc43903b', 88736),
-    'fastload': ('https://cdn.modrinth.com/data/kCpssoSb/versions/ys9T20o4/Fastload%2B1.18.2-1.20-3.4.0.jar',
-                 'Fastload+1.18.2-1.20-3.4.0.jar', 'b57e4d594031638b0dc076a3b6e501f417700577', 567412),
     'clumps': ('https://cdn.modrinth.com/data/Wnxd13zP/versions/hwWceR4m/Clumps-fabric-1.18.2-8.0.0%2B17.jar',
                'Clumps-fabric-1.18.2-8.0.0+17.jar', 'ea1367e0c8db3a5d12a0d1a731a9a98b62999490', 20369),
     'cloth-config': ('https://cdn.modrinth.com/data/9s6osm5g/versions/BLMp2TRt/cloth-config-6.5.102-fabric.jar',
