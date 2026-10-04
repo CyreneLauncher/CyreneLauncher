@@ -117,6 +117,17 @@ MODS = {
             'Jade-1.18.2-fabric-5.100.0.jar', '9f05dff14d41319000da7bcd53721d980a68d896', 455742),
     'fabric-language-kotlin': ('https://cdn.modrinth.com/data/Ha28R6CL/versions/eRRZzGMc/fabric-language-kotlin-1.14.1%2Bkotlin.2.4.20.jar',
                               'fabric-language-kotlin-1.14.1+kotlin.2.4.20.jar', '62ae40a31b689b52fde399f2143d547a631e942c', 8142858),
+    # Rendering batch (verified on the PS4): Indium with Continuity (connected textures),
+    # LambDynamicLights (60 fps holding a torch in the dark) and Xaero's Minimap (needed the JDK's
+    # fstat identity fallback: its startup backup walks a tree with FOLLOW_LINKS).
+    'indium': ('https://cdn.modrinth.com/data/Orvt0mRa/versions/1.0.7%2Bmc1.18.2/indium-1.0.7%2Bmc1.18.2.jar',
+              'indium-1.0.7+mc1.18.2.jar', '5f5e0910181572f844171ed4f2f11e23f3c68af6', 118746),
+    'continuity': ('https://cdn.modrinth.com/data/1IjD5062/versions/YEKdScFW/continuity-2.0.2%2B1.18.2.jar',
+                  'continuity-2.0.2+1.18.2.jar', 'deac42ece8115f0f7e8c46dc4450bf2674d57331', 1137319),
+    'lambdynamiclights': ('https://cdn.modrinth.com/data/yBW8D80W/versions/2.1.0%2B1.17/lambdynamiclights-2.1.0%2B1.17.jar',
+                         'lambdynamiclights-2.1.0+1.17.jar', '5f1f59c0ff6d54fc7ec1d42eb347a2f6987d234c', 592987),
+    'xaeros-minimap': ('https://cdn.modrinth.com/data/1bokaNcj/versions/PthCIgVG/xaerominimap-fabric-1.18.2-26.5.0.jar',
+                      'xaerominimap-fabric-1.18.2-26.5.0.jar', 'b6a3f5af8a4a6d73d4454340ec727b8f4b0ea7de', 2203994),
     'cloth-config': ('https://cdn.modrinth.com/data/9s6osm5g/versions/BLMp2TRt/cloth-config-6.5.102-fabric.jar',
                      'cloth-config-6.5.102-fabric.jar', 'd8996df838204ebe2aa7314b0a95914d326b37e0', 1150058),
 }
