@@ -101,6 +101,22 @@ MODS = {
                'Clumps-fabric-1.18.2-8.0.0+17.jar', 'ea1367e0c8db3a5d12a0d1a731a9a98b62999490', 20369),
     'fabric-api': ('https://cdn.modrinth.com/data/P7dR8mSH/versions/qk28POfr/fabric-api-0.77.0%2B1.18.2.jar',
                    'fabric-api-0.77.0+1.18.2.jar', 'd312b2846af795ee5a99b1ec290f0e023fa48338', 1472259),
+    # Everyday mods (2026-10-04, verified on the PS4): Mod Menu, Dynamic FPS (needed the facade's
+    # iconify callback), AppleSkin, Mouse Tweaks, Zoomify (needs Fabric Language Kotlin) and Jade.
+    'modmenu': ('https://cdn.modrinth.com/data/mOgUt4GM/versions/nVxObSbX/modmenu-3.2.5.jar',
+               'modmenu-3.2.5.jar', '00ddc85a2bc6f58ca57b1a53bdd74ec5cbbaa21e', 585991),
+    'dynamic-fps': ('https://cdn.modrinth.com/data/LQ3K71Q1/versions/maKzAqnY/dynamic-fps-3.11.4%2Bminecraft-1.18.0-fabric.jar',
+                   'dynamic-fps-3.11.4+minecraft-1.18.0-fabric.jar', 'f48daa087f39e32b2ecb52632303b7ced3d75c6a', 223666),
+    'appleskin': ('https://cdn.modrinth.com/data/EsAfCjCV/versions/3wbLqeIN/appleskin-fabric-mc1.18.2-2.5.1.jar',
+                 'appleskin-fabric-mc1.18.2-2.5.1.jar', '17d3aee48833b5bdd425554743bf5cb087c08589', 918363),
+    'mouse-tweaks': ('https://cdn.modrinth.com/data/aC3cM3Vq/versions/1.18-2.22-fabric/MouseTweaks-fabric-mc1.18-2.22.jar',
+                    'MouseTweaks-fabric-mc1.18-2.22.jar', '204b054b2dd027014c8dd346e64c4cd2cc1db9b0', 77650),
+    'zoomify': ('https://cdn.modrinth.com/data/w7ThoJFB/versions/sC6H3PnU/Zoomify-1.6.0%2Bbuild.2.jar',
+               'Zoomify-1.6.0+build.2.jar', '6405f994d1760de132b8ee2c7697f8f60aa7cfe0', 444130),
+    'jade': ('https://cdn.modrinth.com/data/nvQzSEkH/versions/MSJGBHIo/Jade-1.18.2-fabric-5.100.0.jar',
+            'Jade-1.18.2-fabric-5.100.0.jar', '9f05dff14d41319000da7bcd53721d980a68d896', 455742),
+    'fabric-language-kotlin': ('https://cdn.modrinth.com/data/Ha28R6CL/versions/eRRZzGMc/fabric-language-kotlin-1.14.1%2Bkotlin.2.4.20.jar',
+                              'fabric-language-kotlin-1.14.1+kotlin.2.4.20.jar', '62ae40a31b689b52fde399f2143d547a631e942c', 8142858),
     'cloth-config': ('https://cdn.modrinth.com/data/9s6osm5g/versions/BLMp2TRt/cloth-config-6.5.102-fabric.jar',
                      'cloth-config-6.5.102-fabric.jar', 'd8996df838204ebe2aa7314b0a95914d326b37e0', 1150058),
 }
