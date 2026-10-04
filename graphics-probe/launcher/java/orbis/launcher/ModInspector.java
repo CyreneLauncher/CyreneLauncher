@@ -34,33 +34,40 @@ final class ModInspector {
     private static final Pattern GLFW_CALL = Pattern.compile("glfw[A-Z][A-Za-z0-9]+");
     private static final byte[] GLFW_CLASS = "org/lwjgl/glfw/GLFW".getBytes(StandardCharsets.US_ASCII);
 
-    record ModInfo(String id, String name, Set<String> provides, Map<String, String> depends,
-                   List<String> natives, Set<String> glfwCalls) {}
+    /** versions maps every provided id (nested JARs included) to the version that provides it. */
+    record ModInfo(String id, String name, Set<String> provides, Map<String, String> versions,
+                   Map<String, String> depends, List<String> natives, Set<String> glfwCalls) {
+        String version() { return id == null ? "" : versions.getOrDefault(id, ""); }
+    }
 
     private ModInspector() {}
 
     static ModInfo inspect(byte[] jar) throws IOException {
         Set<String> provides = new LinkedHashSet<>();
+        Map<String, String> versions = new LinkedHashMap<>();
         Map<String, String> depends = new LinkedHashMap<>();
         List<String> natives = new ArrayList<>();
         Set<String> glfw = new TreeSet<>();
         String[] identity = new String[2];
-        walk(jar, provides, depends, natives, glfw, identity, true);
+        walk(jar, provides, versions, depends, natives, glfw, identity, true);
         return new ModInfo(identity[0], identity[1] == null ? identity[0] : identity[1],
-                provides, depends, natives, glfw);
+                provides, versions, depends, natives, glfw);
     }
 
     /** The installed mods: each JAR's own id, and every id they provide (nested JARs, built-ins). */
-    record Installed(Map<String, Path> jarById, Set<String> ids) {}
+    record Installed(Map<String, Path> jarById, Set<String> ids, Map<String, String> versions) {}
 
-    static Installed installed(Path modsDir) {
+    /** builtIn: versions of the ids no mod provides (minecraft, fabricloader, java). */
+    static Installed installed(Path modsDir, Map<String, String> builtIn) {
         Map<String, Path> jars = new HashMap<>();
         Set<String> ids = new LinkedHashSet<>(BUILT_IN);
+        Map<String, String> versions = new HashMap<>(builtIn);
         try (DirectoryStream<Path> mods = Files.newDirectoryStream(modsDir, "*.jar")) {
             for (Path mod : mods) {
                 try {
                     ModInfo info = inspect(Files.readAllBytes(mod));
                     ids.addAll(info.provides());
+                    versions.putAll(info.versions());
                     if (info.id() != null) jars.put(info.id(), mod);
                 } catch (IOException | RuntimeException unreadable) {
                     // a broken JAR provides nothing
@@ -69,7 +76,7 @@ final class ModInspector {
         } catch (IOException missing) {
             // no mods folder yet
         }
-        return new Installed(jars, ids);
+        return new Installed(jars, ids, versions);
     }
 
     /** Dependencies of info that neither the given ids nor info itself provide. */
@@ -81,8 +88,8 @@ final class ModInspector {
         return out;
     }
 
-    private static void walk(byte[] jar, Set<String> provides, Map<String, String> depends, List<String> natives,
-                             Set<String> glfw, String[] identity, boolean top) throws IOException {
+    private static void walk(byte[] jar, Set<String> provides, Map<String, String> versions, Map<String, String> depends,
+                             List<String> natives, Set<String> glfw, String[] identity, boolean top) throws IOException {
         try (ZipInputStream zip = new ZipInputStream(new ByteArrayInputStream(jar))) {
             for (ZipEntry entry; (entry = zip.getNextEntry()) != null; ) {
                 String name = entry.getName();
@@ -90,9 +97,9 @@ final class ModInspector {
                         || name.endsWith(".jnilib")) {
                     natives.add(name);
                 } else if (name.equals("fabric.mod.json")) {
-                    readModJson(zip.readAllBytes(), provides, depends, identity, top);
+                    readModJson(zip.readAllBytes(), provides, versions, depends, identity, top);
                 } else if (name.endsWith(".jar")) {
-                    walk(zip.readAllBytes(), provides, depends, natives, glfw, identity, false);
+                    walk(zip.readAllBytes(), provides, versions, depends, natives, glfw, identity, false);
                 } else if (name.endsWith(".class")) {
                     byte[] bytes = zip.readAllBytes();
                     if (contains(bytes, GLFW_CLASS)) {
@@ -104,17 +111,24 @@ final class ModInspector {
         }
     }
 
-    private static void readModJson(byte[] json, Set<String> provides, Map<String, String> depends,
-                                    String[] identity, boolean top) {
+    private static void readModJson(byte[] json, Set<String> provides, Map<String, String> versions,
+                                    Map<String, String> depends, String[] identity, boolean top) {
         JsonObject mod = JsonParser.parseString(new String(json, StandardCharsets.UTF_8)).getAsJsonObject();
         String id = mod.has("id") ? mod.get("id").getAsString() : null;
-        if (id != null) provides.add(id);
+        String version = mod.has("version") ? mod.get("version").getAsString() : "";
+        if (id != null) {
+            provides.add(id);
+            versions.putIfAbsent(id, version);
+        }
         if (top && id != null) {
             identity[0] = id;
             if (mod.has("name")) identity[1] = mod.get("name").getAsString();
         }
         if (mod.has("provides"))
-            for (JsonElement p : mod.getAsJsonArray("provides")) provides.add(p.getAsString());
+            for (JsonElement p : mod.getAsJsonArray("provides")) {
+                provides.add(p.getAsString());
+                versions.putIfAbsent(p.getAsString(), version);
+            }
         if (mod.has("depends") && mod.get("depends").isJsonObject())
             for (Map.Entry<String, JsonElement> d : mod.getAsJsonObject("depends").entrySet())
                 depends.putIfAbsent(d.getKey(), d.getValue().isJsonPrimitive() ? d.getValue().getAsString()

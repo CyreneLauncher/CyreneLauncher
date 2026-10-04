@@ -7,9 +7,11 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 
@@ -19,8 +21,8 @@ import com.google.gson.JsonParser;
 
 /**
  * Plans and performs a mod install: the mod plus whatever it needs that the instance lacks,
- * resolved through Modrinth, and what would stop it working on the console. Dependency version
- * ranges are not checked; presence is.
+ * resolved through Modrinth, and what would stop it working on the console. Each mod is the newest
+ * version whose fabric.mod.json requirements the installed and planned mods meet (VersionPredicate).
  */
 class ModInstaller {
     /** A file to write; replaces is the installed JAR of the same mod it updates, or null. */
@@ -33,23 +35,31 @@ class ModInstaller {
         }
     }
 
+    /** How many of a project's newest versions are downloaded to find one that fits. */
+    private static final int CANDIDATES = 6;
+
     private final ModrinthClient modrinth;
     private final Path modsDir;
     private final Set<String> supportedGlfw;
+    private final Map<String, String> builtInVersions;
 
-    ModInstaller(ModrinthClient modrinth, Path modsDir, Path graphicsBundle) {
+    /** builtInVersions: minecraft, fabricloader and java, which no mod JAR provides. */
+    ModInstaller(ModrinthClient modrinth, Path modsDir, Path graphicsBundle, Map<String, String> builtInVersions) {
         this.modrinth = modrinth;
         this.modsDir = modsDir;
         this.supportedGlfw = supportedGlfw(graphicsBundle);
+        this.builtInVersions = builtInVersions;
     }
 
     Plan plan(String projectId, String title) throws IOException {
-        ModInspector.Installed installed = ModInspector.installed(modsDir);
-        Set<String> available = installed.ids();
+        ModInspector.Installed installed = ModInspector.installed(modsDir, builtInVersions);
+        // Versions present once the plan is installed: installed mods, then each planned entry.
+        Map<String, String> versions = new HashMap<>(installed.versions());
         List<Entry> entries = new ArrayList<>();
         List<String> blockers = new ArrayList<>(), warnings = new ArrayList<>();
         Set<String> visited = new HashSet<>();
-        Entry main = fetch(projectId, title, blockers);
+
+        Entry main = choose(projectId, title, versions, blockers);
         visited.add(projectId);
         if (main == null) return new Plan(entries, blockers, warnings);
         Path current = installed.jarById().get(main.info().id());
@@ -62,36 +72,24 @@ class ModInstaller {
             main = new Entry(main.title(), main.version(), main.info(), main.data(), current);
             warnings.add("Updates the installed " + current.getFileName() + " to " + main.version().file().filename() + ".");
         }
-        entries.add(main);
-        Set<String> provided = new HashSet<>(available);
-        provided.addAll(main.info().provides());
+        add(main, entries, versions);
 
-        // Required Modrinth dependencies first, while something is still missing; then each missing id
-        // as a Modrinth slug, which is usually the same as the mod id.
-        List<Entry> queue = new ArrayList<>(entries);
-        for (int i = 0; i < queue.size(); i++) {
-            Entry entry = queue.get(i);
-            for (ModrinthClient.Dependency d : entry.version().dependencies()) {
+        // Required Modrinth dependencies while something is still missing; then each missing id as a
+        // Modrinth slug, which is usually the same as the mod id.
+        for (int i = 0; i < entries.size(); i++) {
+            for (ModrinthClient.Dependency d : entries.get(i).version().dependencies()) {
                 if (!d.type().equals("required") || !visited.add(d.projectId())) continue;
-                if (missingIds(entries, provided).isEmpty()) break;
-                Entry dep = fetch(d.projectId(), modrinth.title(d.projectId()), blockers);
-                if (dep != null && !provided.containsAll(dep.info().provides())) {
-                    entries.add(dep);
-                    queue.add(dep);
-                    provided.addAll(dep.info().provides());
-                }
+                if (missingIds(entries, versions).isEmpty()) break;
+                Entry dep = choose(d.projectId(), modrinth.title(d.projectId()), versions, blockers);
+                if (dep != null && !versions.keySet().containsAll(dep.info().provides())) add(dep, entries, versions);
             }
         }
-        for (String id : missingIds(entries, provided)) {
+        for (String id : missingIds(entries, versions)) {
             if (!visited.add(id)) continue;
-            List<String> silent = new ArrayList<>();
-            Entry dep = fetch(id, modrinth.title(id), silent);
-            if (dep != null && dep.info().provides().contains(id)) {
-                entries.add(dep);
-                provided.addAll(dep.info().provides());
-            }
+            Entry dep = choose(id, modrinth.title(id), versions, new ArrayList<>());
+            if (dep != null && dep.info().provides().contains(id)) add(dep, entries, versions);
         }
-        for (String id : missingIds(entries, provided))
+        for (String id : missingIds(entries, versions))
             blockers.add("Needs \"" + id + "\", which is not installed and could not be found on Modrinth.");
 
         for (Entry e : entries) {
@@ -104,6 +102,10 @@ class ModInstaller {
                 warnings.add(e.title() + " calls GLFW functions the console does not support yet ("
                         + String.join(", ", unsupported) + "); it may crash when it uses them.");
         }
+        // A planned mod may not fit what was planned after it.
+        for (Entry e : entries)
+            for (String conflict : conflicts(e.info(), versions))
+                blockers.add(e.title() + " " + conflict);
         return new Plan(entries, blockers, warnings);
     }
 
@@ -119,31 +121,61 @@ class ModInstaller {
         }
     }
 
-    private Set<String> missingIds(List<Entry> entries, Set<String> provided) {
+    private static void add(Entry entry, List<Entry> entries, Map<String, String> versions) {
+        entries.add(entry);
+        versions.putAll(entry.info().versions());
+    }
+
+    private static Set<String> missingIds(List<Entry> entries, Map<String, String> versions) {
         Set<String> out = new LinkedHashSet<>();
-        for (Entry e : entries) out.addAll(ModInspector.missing(e.info(), provided).keySet());
+        for (Entry e : entries) out.addAll(ModInspector.missing(e.info(), versions.keySet()).keySet());
         return out;
     }
 
-    private Entry fetch(String projectId, String title, List<String> blockers) throws IOException {
-        ModrinthClient.Version version = modrinth.latest(projectId);
-        if (version == null) {
+    /** Requirements of info that a present mod does not meet, as "needs sodium 0.4.0-alpha5 (0.4.1 present)". */
+    private static List<String> conflicts(ModInspector.ModInfo info, Map<String, String> versions) {
+        List<String> out = new ArrayList<>();
+        for (Map.Entry<String, String> d : info.depends().entrySet()) {
+            if (info.provides().contains(d.getKey())) continue;
+            String present = versions.get(d.getKey());
+            if (present != null && !VersionPredicate.matches(present, d.getValue()))
+                out.add("needs " + d.getKey() + " " + d.getValue() + " (" + present + " present)");
+        }
+        return out;
+    }
+
+    /**
+     * The newest of a project's versions whose requirements the present versions meet (absent mods
+     * are resolved later), downloading at most CANDIDATES of them; null, with a blocker, when none fits.
+     */
+    private Entry choose(String projectId, String title, Map<String, String> versions, List<String> blockers)
+            throws IOException {
+        List<ModrinthClient.Version> candidates = modrinth.versions(projectId);
+        if (candidates.isEmpty()) {
             blockers.add(title + " has no Fabric build for this Minecraft version.");
             return null;
         }
-        byte[] data = modrinth.download(version.file());
-        ModInspector.ModInfo info;
-        try {
-            info = ModInspector.inspect(data);
-        } catch (IOException | RuntimeException broken) {
-            blockers.add(title + " could not be read as a Fabric mod: " + broken.getMessage());
-            return null;
+        String firstProblem = null;
+        for (ModrinthClient.Version version : candidates.subList(0, Math.min(CANDIDATES, candidates.size()))) {
+            byte[] data = modrinth.download(version.file());
+            ModInspector.ModInfo info;
+            try {
+                info = ModInspector.inspect(data);
+            } catch (IOException | RuntimeException broken) {
+                if (firstProblem == null) firstProblem = "could not be read as a Fabric mod: " + broken.getMessage();
+                continue;
+            }
+            if (info.id() == null) {
+                if (firstProblem == null) firstProblem = "is not a Fabric mod (no fabric.mod.json)";
+                continue;
+            }
+            List<String> conflicts = conflicts(info, versions);
+            if (conflicts.isEmpty()) return new Entry(title, version, info, data, null);
+            if (firstProblem == null)
+                firstProblem = version.versionNumber() + " " + String.join(", ", conflicts);
         }
-        if (info.id() == null) {
-            blockers.add(title + " is not a Fabric mod (no fabric.mod.json).");
-            return null;
-        }
-        return new Entry(title, version, info, data, null);
+        blockers.add("No recent version of " + title + " works with the installed mods: " + firstProblem + ".");
+        return null;
     }
 
     /** glfw_operations from the graphics bundle's manifest; empty when it cannot be read. */

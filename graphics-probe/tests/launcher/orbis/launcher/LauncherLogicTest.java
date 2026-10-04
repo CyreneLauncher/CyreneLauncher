@@ -21,11 +21,32 @@ public final class LauncherLogicTest {
     private static final Input.Action[] ACTIONS = Input.Action.values();
 
     public static void main(String[] args) throws Exception {
+        versionPredicates();
         keyboard();
         long seeds = args.length > 0 ? Long.parseLong(args[0]) : 8;
         int steps = args.length > 1 ? Integer.parseInt(args[1]) : 6000;
         for (long seed = 1; seed <= seeds; seed++) screen(seed, steps);
         System.out.println("launcher logic passed: keyboard exhaustive, " + seeds + " x " + steps + " random screen steps");
+    }
+
+    // ------------------------------------------------------------------ versions
+
+    private static void versionPredicates() {
+        String[][] yes = {
+            {"0.4.1+build.15", "*"}, {"0.4.1+build.15", ">=0.4.1"}, {"0.4.1+build.15", "0.4.1"},
+            {"0.4.1+build.15", "~0.4.0"}, {"0.4.1+build.15", "^0.4.0-alpha5"}, {"1.18.2", "1.18.x"},
+            {"1.18.2", ">=1.18 <1.19"}, {"1.18.2", "[\"1.17.x\", \"1.18.x\"]"}, {"0.19.5", ">=0.12.3"},
+            {"17", ">=16"}, {"1.18.2", "~1.18.2-"}, {"0.4.0", ">0.4.0-alpha5"}, {"2.0.0", ">=1.0.0-beta.2"},
+            {"0.77.0+1.18.2", ">=0.36.0"}, {"1.18.2", "1.18.2"}, {"8.0.0+17", "8.0.0"},
+        };
+        String[][] no = {
+            {"0.4.1+build.15", "0.4.0-alpha5"}, {"0.4.1+build.15", "<0.4.1"}, {"1.18.2", "1.19.x"},
+            {"1.18.2", ">=1.19"}, {"1.18.2", "~1.17"}, {"0.4.0-alpha5", ">=0.4.0"}, {"2.0.0", "^1.0"},
+            {"1.18.2", "[\"1.16.x\", \"1.17.x\"]"}, {"0.14.9", ">=0.15.0"},
+        };
+        for (String[] c : yes) check(VersionPredicate.matches(c[0], c[1]), c[0] + " should match " + c[1]);
+        for (String[] c : no) check(!VersionPredicate.matches(c[0], c[1]), c[0] + " should not match " + c[1]);
+        check(VersionPredicate.matches("weird", "a.b.c"), "unparseable never blocks");
     }
 
     // ------------------------------------------------------------------ keyboard
@@ -128,7 +149,7 @@ public final class LauncherLogicTest {
     static final class FakeInstaller extends ModInstaller {
         final Random random;
         final Path mods;
-        FakeInstaller(ModrinthClient m, Path mods, Random random) { super(m, mods, null); this.mods = mods; this.random = random; }
+        FakeInstaller(ModrinthClient m, Path mods, Random random) { super(m, mods, null, java.util.Map.of()); this.mods = mods; this.random = random; }
 
         @Override Plan plan(String projectId, String title) throws IOException {
             if (random.nextInt(8) == 0) throw new IOException("network unreachable");
@@ -137,7 +158,7 @@ public final class LauncherLogicTest {
             for (int i = 0; i < n; i++) {
                 ModrinthClient.ModFile file = new ModrinthClient.ModFile("https://x", projectId + "-" + i + ".jar", "00", 1);
                 entries.add(new Entry(title + " " + i, new ModrinthClient.Version(projectId, "1." + i, file, List.of()),
-                        new ModInspector.ModInfo(projectId + i, title, Set.of(), java.util.Map.of(), List.of(), Set.of()),
+                        new ModInspector.ModInfo(projectId + i, title, Set.of(), java.util.Map.of(), java.util.Map.of(), List.of(), Set.of()),
                         new byte[]{1}, null));
             }
             List<String> blockers = new ArrayList<>(), warnings = new ArrayList<>();

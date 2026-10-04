@@ -71,7 +71,8 @@ class LauncherScreen {
         this.modrinth = modrinth;
         String bundle = System.getProperty("runner.graphics.bundle");
         this.installer = installer != null ? installer
-                : new ModInstaller(modrinth, config.modsDir(), bundle == null ? null : Path.of(bundle));
+                : new ModInstaller(modrinth, config.modsDir(), bundle == null ? null : Path.of(bundle),
+                        config.builtInVersions());
     }
 
     void run() throws IOException {

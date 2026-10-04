@@ -29,7 +29,47 @@ public final class Launcher {
             startGame(mainClass, args);
             return;
         }
+        keepLog(config.home.resolve("launcher.log"));
         new LauncherScreen(config).run();
+    }
+
+    /**
+     * The launcher's output (GLFW errors among it) also goes to its own log: the runner's output log
+     * starts over when Play restarts the application.
+     */
+    private static void keepLog(Path file) {
+        try {
+            java.io.OutputStream log = Files.newOutputStream(file);
+            System.setOut(new java.io.PrintStream(new Tee(System.out, log), true, StandardCharsets.UTF_8));
+            System.setErr(new java.io.PrintStream(new Tee(System.err, log), true, StandardCharsets.UTF_8));
+            System.out.println("launcher: started " + java.time.Instant.now());
+        } catch (java.io.IOException unavailable) {
+            System.err.println("launcher: no launcher.log: " + unavailable);
+        }
+    }
+
+    private static final class Tee extends java.io.OutputStream {
+        private final java.io.OutputStream first, second;
+
+        Tee(java.io.OutputStream first, java.io.OutputStream second) {
+            this.first = first;
+            this.second = second;
+        }
+
+        @Override public synchronized void write(int b) throws java.io.IOException {
+            first.write(b);
+            second.write(b);
+        }
+
+        @Override public synchronized void write(byte[] b, int off, int len) throws java.io.IOException {
+            first.write(b, off, len);
+            second.write(b, off, len);
+        }
+
+        @Override public synchronized void flush() throws java.io.IOException {
+            first.flush();
+            second.flush();
+        }
     }
 
     static void startGame(String mainClass, String[] args) throws Throwable {

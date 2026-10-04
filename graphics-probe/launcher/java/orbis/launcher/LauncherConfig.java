@@ -29,6 +29,7 @@ final class LauncherConfig {
     final Path metadata;
     final String versionId;
     final String gameMainClass;
+    final String loaderVersion;
     int heapMib;
     int arenaMib;
     boolean debugLog;
@@ -41,6 +42,8 @@ final class LauncherConfig {
         String json = Files.readString(metadata, StandardCharsets.UTF_8);
         versionId = field(json, "id", "unknown");
         gameMainClass = field(json, "mainClass", "net.minecraft.client.main.Main");
+        Matcher loader = Pattern.compile("net\\.fabricmc:fabric-loader:([^\"]+)\"").matcher(json);
+        loaderVersion = loader.find() ? loader.group(1) : "";
         heapMib = 1024;
         arenaMib = 1536;
         for (String line : Files.readAllLines(jvmOptions(), StandardCharsets.UTF_8)) {
@@ -65,6 +68,15 @@ final class LauncherConfig {
 
     Path nextStart() { return home.resolve("next-start"); }
     Path modsDir() { return gameDir.resolve("mods"); }
+
+    /** Versions of the ids no mod JAR provides, for checking mods' requirements. */
+    java.util.Map<String, String> builtInVersions() {
+        java.util.Map<String, String> v = new java.util.HashMap<>();
+        v.put("minecraft", gameVersion());
+        if (!loaderVersion.isEmpty()) v.put("fabricloader", loaderVersion);
+        v.put("java", System.getProperty("java.specification.version", "17"));
+        return v;
+    }
 
     /** The Minecraft version: the end of a loader profile id such as fabric-loader-0.14.9-1.18.2. */
     String gameVersion() {

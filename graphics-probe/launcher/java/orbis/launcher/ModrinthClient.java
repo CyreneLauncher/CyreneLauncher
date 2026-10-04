@@ -47,33 +47,37 @@ class ModrinthClient {
         return hits;
     }
 
-    /** The newest Fabric build of a project for this game version, or null when there is none. */
-    Version latest(String projectIdOrSlug) throws IOException {
+    /** A project's Fabric builds for this game version, newest first (by publish date); empty when none. */
+    List<Version> versions(String projectIdOrSlug) throws IOException {
         JsonElement response;
         try {
             response = get(API + "/project/" + encode(projectIdOrSlug) + "/version?loaders="
                     + encode("[\"fabric\"]") + "&game_versions=" + encode("[\"" + gameVersion + "\"]"));
         } catch (NotFound missing) {
-            return null;
+            return List.of();
         }
-        JsonArray versions = response.getAsJsonArray();
-        if (versions.size() == 0) return null;
-        JsonObject v = versions.get(0).getAsJsonObject();
-        JsonObject chosen = null;
-        for (JsonElement f : v.getAsJsonArray("files")) {
-            JsonObject file = f.getAsJsonObject();
-            if (chosen == null || file.get("primary").getAsBoolean()) chosen = file;
+        List<JsonObject> raw = new ArrayList<>();
+        for (JsonElement e : response.getAsJsonArray()) raw.add(e.getAsJsonObject());
+        raw.sort((a, b) -> str(b, "date_published").compareTo(str(a, "date_published")));
+        List<Version> out = new ArrayList<>();
+        for (JsonObject v : raw) {
+            JsonObject chosen = null;
+            for (JsonElement f : v.getAsJsonArray("files")) {
+                JsonObject file = f.getAsJsonObject();
+                if (chosen == null || file.get("primary").getAsBoolean()) chosen = file;
+            }
+            if (chosen == null) continue;
+            ModFile file = new ModFile(str(chosen, "url"), str(chosen, "filename"),
+                    str(chosen.getAsJsonObject("hashes"), "sha1"), chosen.get("size").getAsLong());
+            List<Dependency> dependencies = new ArrayList<>();
+            for (JsonElement d : v.getAsJsonArray("dependencies")) {
+                JsonObject dep = d.getAsJsonObject();
+                if (!dep.get("project_id").isJsonNull())
+                    dependencies.add(new Dependency(str(dep, "project_id"), str(dep, "dependency_type")));
+            }
+            out.add(new Version(str(v, "project_id"), str(v, "version_number"), file, dependencies));
         }
-        if (chosen == null) return null;
-        ModFile file = new ModFile(str(chosen, "url"), str(chosen, "filename"),
-                str(chosen.getAsJsonObject("hashes"), "sha1"), chosen.get("size").getAsLong());
-        List<Dependency> dependencies = new ArrayList<>();
-        for (JsonElement d : v.getAsJsonArray("dependencies")) {
-            JsonObject dep = d.getAsJsonObject();
-            if (!dep.get("project_id").isJsonNull())
-                dependencies.add(new Dependency(str(dep, "project_id"), str(dep, "dependency_type")));
-        }
-        return new Version(str(v, "project_id"), str(v, "version_number"), file, dependencies);
+        return out;
     }
 
     String title(String projectIdOrSlug) throws IOException {
