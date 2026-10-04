@@ -1,0 +1,69 @@
+diff --git a/src/amd/common/ac_orbis_drm.c b/src/amd/common/ac_orbis_drm.c
+index acf09ae..9ac55ca 100644
+--- a/src/amd/common/ac_orbis_drm.c
++++ b/src/amd/common/ac_orbis_drm.c
+@@ -5687,6 +5687,34 @@ orbis_sync_reset(struct util_sync_provider *p, const uint32_t *handles, uint32_t
+    return 0;
+ }
+ 
++/* Patch 0007: a timed-out syncobj wait used to log a warning each time - 221607 lines in one
++ * session, written from the GL worker. Waits are summarised every 5 s instead: how many,
++ * how many timed out, and how long the caller spent waiting on the GPU. */
++static void
++orbis_sync_wait_note(bool timed_out, int64_t waited_ns)
++{
++   static simple_mtx_t lock = SIMPLE_MTX_INITIALIZER;
++   static int64_t window_start, total_ns;
++   static unsigned waits, timeouts;
++   const int64_t now = (int64_t)os_time_get_nano();
++   simple_mtx_lock(&lock);
++   if (!window_start)
++      window_start = now;
++   waits++;
++   if (timed_out)
++      timeouts++;
++   total_ns += waited_ns;
++   if (now - window_start >= 5000000000ll) {
++      mesa_logi("orbis-drm: syncobj waits over %lld ms: %u waits, %u timed out, %lld ms waiting on the GPU",
++                (long long)((now - window_start) / 1000000), waits, timeouts,
++                (long long)(total_ns / 1000000));
++      window_start = now;
++      waits = timeouts = 0;
++      total_ns = 0;
++   }
++   simple_mtx_unlock(&lock);
++}
++
+ static int
+ orbis_sync_wait(struct util_sync_provider *p, uint32_t *handles, unsigned num_handles,
+                 int64_t timeout_nsec, unsigned flags, uint32_t *first_signaled)
+@@ -5712,6 +5740,7 @@ orbis_sync_wait(struct util_sync_provider *p, uint32_t *handles, unsigned num_ha
+    /* The caller's own deadline is honoured; the cap only decides how often a long wait says so. */
+    struct orbis_wait_watch watch;
+    orbis_wait_begin(&watch, (uint64_t)timeout_nsec, "syncobj");
++   const int64_t orbis_wait_started = (int64_t)os_time_get_nano();
+ 
+    /* ⚠ THE MEASUREMENT THE FENCE POOL NEEDS. A title exhausted its 32-fence pool and threw "device is
+     * lost" while this arm reported the GPU label advancing normally - which means the disagreement is
+@@ -5759,8 +5788,10 @@ orbis_sync_wait(struct util_sync_provider *p, uint32_t *handles, unsigned num_ha
+       }
+       simple_mtx_unlock(&orbis_sync_lock);
+ 
+-      if (wait_all && signaled == num_handles)
++      if (wait_all && signaled == num_handles) {
++         orbis_sync_wait_note(false, (int64_t)os_time_get_nano() - orbis_wait_started);
+          return 0;
++      }
+ 
+       if (timeout_nsec == 0 || !orbis_wait_continue(&watch)) {
+          /* ⚠ errno, NOT THE RETURN VALUE, IS WHAT MESA READS - AND GETTING THAT WRONG TURNED EVERY POLL INTO A
+@@ -5788,8 +5819,7 @@ orbis_sync_wait(struct util_sync_provider *p, uint32_t *handles, unsigned num_ha
+             }
+          } else {
+             /* Loud, because a real expired deadline means the GPU did not reach the end of a submission. */
+-            mesa_logw("orbis-drm: syncobj wait timed out - the GPU did not finish; label %u",
+-                      *orbis_fence_label);
++            orbis_sync_wait_note(true, (int64_t)os_time_get_nano() - orbis_wait_started);
+          }
+          return -ETIME;
+       }
