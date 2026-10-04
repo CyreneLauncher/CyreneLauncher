@@ -431,11 +431,12 @@ def prepare(version: str, output: Path, cache: Path, username: str, *,
         # The Orbis JVM is built with the Serial collector only (no G1/Parallel). A 1.5 GiB heap left too
         # little direct memory for thread stacks once the VM saw all six cores.
         # Parallel GC: young pauses of ~14-30 ms against Serial's 65-80 ms. It needs the Orbis runtime's
-        # direct-first allocation, which keeps the ~448 MiB flexible budget free for thread stacks. A full
-        # 1.5 GiB heap and a 256 MiB Metaspace trigger: every early full collection was "Metadata GC
-        # Threshold".
-        jvm_options = ['-Xms1536m', '-Xmx1536m', '-XX:+UseParallelGC', '-XX:MetaspaceSize=256m',
-                       '-Dorbis.graphics.arenaMib=1536', '-Djava.awt.headless=true',
+        # direct-first allocation, which keeps the ~448 MiB flexible budget free for thread stacks. A
+        # 256 MiB Metaspace trigger: every early full collection was "Metadata GC Threshold". The live heap
+        # is ~260-310 MiB, so 1 GiB is enough; the memory goes to the graphics arena (Iris shaders peaked at
+        # 1479 of 1503 MiB in 1.5 GiB) and to native buffers (applying shader settings ran them out).
+        jvm_options = ['-Xms1024m', '-Xmx1024m', '-XX:+UseParallelGC', '-XX:MetaspaceSize=256m',
+                       '-Dorbis.graphics.arenaMib=1792', '-Djava.awt.headless=true',
                        '-Djava.net.preferIPv4Stack=true']
         if fabric:
             jvm_options.extend(FABRIC_JVM_OPTIONS)
