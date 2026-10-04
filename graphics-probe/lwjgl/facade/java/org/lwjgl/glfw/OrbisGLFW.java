@@ -61,6 +61,7 @@ final class OrbisGLFW {
     private static GLFWWindowPosCallbackI windowPosCallback;
     private static GLFWWindowFocusCallbackI windowFocusCallback;
     private static GLFWWindowCloseCallbackI windowCloseCallback;
+    private static GLFWWindowIconifyCallbackI windowIconifyCallback;
 
     private static final boolean[] keys = new boolean[GLFW_KEY_LAST + 1];
     private static final boolean[] stickyKeys = new boolean[GLFW_KEY_LAST + 1];
@@ -209,7 +210,7 @@ final class OrbisGLFW {
         keyCallback = null; charCallback = null; charModsCallback = null; mouseButtonCallback = null;
         cursorPosCallback = null; cursorEnterCallback = null; scrollCallback = null; dropCallback = null;
         framebufferSizeCallback = null; windowSizeCallback = null; windowPosCallback = null;
-        windowFocusCallback = null; windowCloseCallback = null; monitorCallback = null;
+        windowFocusCallback = null; windowCloseCallback = null; windowIconifyCallback = null; monitorCallback = null;
         if (modes != null) { nmemFree(modes.address()); modes = null; }
         if (monitors != null) { memFree(monitors); monitors = null; }
         clipboard = null;
@@ -733,15 +734,22 @@ final class OrbisGLFW {
         return previous instanceof GLFWWindowCloseCallback ? (GLFWWindowCloseCallback) previous : null;
     }
 
+    /** Stored for API compatibility; the full-screen console window is never iconified. */
+    static GLFWWindowIconifyCallback glfwSetWindowIconifyCallback(long handle, GLFWWindowIconifyCallbackI cbfun) {
+        if (!requireWindow(handle)) return null;
+        GLFWWindowIconifyCallbackI previous = windowIconifyCallback; windowIconifyCallback = cbfun;
+        return previous instanceof GLFWWindowIconifyCallback ? (GLFWWindowIconifyCallback) previous : null;
+    }
+
     static void freeWindowCallbacks(long handle) {
         if (!requireWindow(handle)) return;
         Object[] previous = {keyCallback, charCallback, charModsCallback, mouseButtonCallback, cursorPosCallback,
             cursorEnterCallback, scrollCallback, dropCallback, framebufferSizeCallback, windowSizeCallback,
-            windowPosCallback, windowFocusCallback, windowCloseCallback};
+            windowPosCallback, windowFocusCallback, windowCloseCallback, windowIconifyCallback};
         keyCallback = null; charCallback = null; charModsCallback = null; mouseButtonCallback = null;
         cursorPosCallback = null; cursorEnterCallback = null; scrollCallback = null; dropCallback = null;
         framebufferSizeCallback = null; windowSizeCallback = null; windowPosCallback = null;
-        windowFocusCallback = null; windowCloseCallback = null;
+        windowFocusCallback = null; windowCloseCallback = null; windowIconifyCallback = null;
         for (Object callback : previous)
             if (callback instanceof org.lwjgl.system.Callback) ((org.lwjgl.system.Callback) callback).free();
     }
