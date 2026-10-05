@@ -1,0 +1,234 @@
+diff --git a/src/amd/common/ac_linux_drm.h b/src/amd/common/ac_linux_drm.h
+index ea60b7e..ead25fb 100644
+--- a/src/amd/common/ac_linux_drm.h
++++ b/src/amd/common/ac_linux_drm.h
+@@ -393,6 +393,15 @@ struct drm_amdgpu_userq_wait;
+ struct amdgpu_va;
+ typedef struct amdgpu_va *amdgpu_va_handle;
+ 
++/* The two libdrm_amdgpu VA-handle calls radeonsi's winsys makes outside ac_drm_*: the Orbis layer's own
++ * handle carries its base, and freeing one is ac_drm_va_range_free. */
++#ifdef __cplusplus
++extern "C"
++#endif
++uint64_t ac_drm_va_get_start_addr(amdgpu_va_handle va_handle);
++#define amdgpu_va_get_start_addr ac_drm_va_get_start_addr
++#define amdgpu_va_range_free ac_drm_va_range_free
++
+ #endif /* MESA_SYSTEM_HAS_KMS_DRM */
+ 
+ #ifdef __cplusplus
+diff --git a/src/amd/common/ac_orbis_drm.c b/src/amd/common/ac_orbis_drm.c
+index fb8fb36..384912c 100644
+--- a/src/amd/common/ac_orbis_drm.c
++++ b/src/amd/common/ac_orbis_drm.c
+@@ -2828,6 +2828,12 @@ ac_orbis_sony_tf_ring(uint64_t *size)
+    return orbis_sony_tf_va;
+ }
+ 
++uint64_t
++ac_drm_va_get_start_addr(amdgpu_va_handle va_handle)
++{
++   return va_handle ? va_handle->base : 0;
++}
++
+ void
+ ac_orbis_note_tf_base(uint32_t base_shifted)
+ {
+diff --git a/src/gallium/drivers/radeonsi/gfx/si_gfx_screen.c b/src/gallium/drivers/radeonsi/gfx/si_gfx_screen.c
+index 7363c67..f7d343f 100644
+--- a/src/gallium/drivers/radeonsi/gfx/si_gfx_screen.c
++++ b/src/gallium/drivers/radeonsi/gfx/si_gfx_screen.c
+@@ -20,7 +20,9 @@
+ #include <llvm-c/TargetMachine.h>
+ #endif
+ 
++#if MESA_SYSTEM_HAS_KMS_DRM
+ #include <xf86drm.h>
++#endif
+ 
+ static const struct debug_named_value radeonsi_shader_debug_options[] = {
+    /* Shader logging options: */
+diff --git a/src/gallium/drivers/radeonsi/meson.build b/src/gallium/drivers/radeonsi/meson.build
+index 7177c60..1f99a1a 100644
+--- a/src/gallium/drivers/radeonsi/meson.build
++++ b/src/gallium/drivers/radeonsi/meson.build
+@@ -186,10 +186,12 @@ libradeonsi = static_library(
+   dependencies : radeonsi_deps,
+ )
+ 
++radeonsi_winsys_libs = with_platform_orbis ? [libamdgpuwinsys] : [libradeonwinsys, libamdgpuwinsys]
++
+ driver_radeonsi = declare_dependency(
+   compile_args : ['-DGALLIUM_RADEONSI'] + libradeonsi_cflags,
+-  link_with : radeonsi_gfx_libs + [
+-    libradeonsi, libradeonwinsys, libamdgpuwinsys, amd_common_libs, libvpe, libgm, liblanczos
++  link_with : radeonsi_gfx_libs + [libradeonsi] + radeonsi_winsys_libs + [
++    amd_common_libs, libvpe, libgm, liblanczos
+   ],
+   dependencies : idep_nir,
+ )
+diff --git a/src/gallium/drivers/radeonsi/si_fence.c b/src/gallium/drivers/radeonsi/si_fence.c
+index ae10436..cd95bff 100644
+--- a/src/gallium/drivers/radeonsi/si_fence.c
++++ b/src/gallium/drivers/radeonsi/si_fence.c
+@@ -12,7 +12,7 @@
+ #include "util/u_queue.h"
+ #include "util/u_upload_mgr.h"
+ 
+-#include <libsync.h>
++#include "util/libsync.h"
+ 
+ struct si_fine_fence {
+    struct si_resource *buf;
+diff --git a/src/gallium/drivers/radeonsi/si_pipe.c b/src/gallium/drivers/radeonsi/si_pipe.c
+index bd600dd..5a7607b 100644
+--- a/src/gallium/drivers/radeonsi/si_pipe.c
++++ b/src/gallium/drivers/radeonsi/si_pipe.c
+@@ -25,7 +25,9 @@
+ #include "virtio/virtio-gpu/drm_hw.h"
+ #endif
+ 
++#if MESA_SYSTEM_HAS_KMS_DRM
+ #include <xf86drm.h>
++#endif
+ 
+ static const struct debug_named_value radeonsi_debug_options[] = {
+    /* Information logging options: */
+@@ -261,6 +263,14 @@ static struct pipe_screen *radeonsi_screen_create_impl(struct radeon_winsys *ws,
+ struct pipe_screen *radeonsi_screen_create(int fd, const struct pipe_screen_config *config)
+ {
+    struct radeon_winsys *rw = NULL;
++#if !MESA_SYSTEM_HAS_KMS_DRM
++   /* No DRM node to ask which kernel driver it belongs to: the amdgpu interface is the Orbis layer's,
++    * reached through ac_drm_* with fd -1, as RADV reaches it. */
++   driParseConfigFiles(config->options, config->options_info,
++                       &(driConfigFileParseParams) { .driverName = "radeonsi" });
++   rw = amdgpu_winsys_create(fd, config, radeonsi_screen_create_impl, false);
++   return rw ? rw->screen : NULL;
++#else
+    drmVersionPtr version;
+ 
+    version = drmGetVersion(fd);
+@@ -300,4 +310,5 @@ struct pipe_screen *radeonsi_screen_create(int fd, const struct pipe_screen_conf
+ 
+    drmFreeVersion(version);
+    return rw ? rw->screen : NULL;
++#endif
+ }
+diff --git a/src/gallium/meson.build b/src/gallium/meson.build
+index 67011f5..168dbef 100644
+--- a/src/gallium/meson.build
++++ b/src/gallium/meson.build
+@@ -76,7 +76,8 @@ if with_gallium_asahi
+ else
+   driver_asahi = declare_dependency()
+ endif
+-if with_gallium_r300 or with_gallium_radeonsi or with_gallium_r600
++# The radeon winsys drives pre-amdgpu kernels; on Orbis radeonsi only ever runs on the amdgpu one.
++if with_gallium_r300 or with_gallium_r600 or (with_gallium_radeonsi and not with_platform_orbis)
+   subdir('winsys/radeon/drm')
+ endif
+ if with_gallium_r300
+diff --git a/src/gallium/winsys/amdgpu/drm/amdgpu_bo.c b/src/gallium/winsys/amdgpu/drm/amdgpu_bo.c
+index cc34c4a..21b2973 100644
+--- a/src/gallium/winsys/amdgpu/drm/amdgpu_bo.c
++++ b/src/gallium/winsys/amdgpu/drm/amdgpu_bo.c
+@@ -19,7 +19,9 @@
+ #include "drm-uapi/amdgpu_drm.h"
+ #include "drm-uapi/dma-buf.h"
+ #include "sid.h"
++#if MESA_SYSTEM_HAS_KMS_DRM
+ #include <xf86drm.h>
++#endif
+ #include <stdio.h>
+ #include <inttypes.h>
+ 
+@@ -1781,7 +1783,11 @@ static bool amdgpu_bo_get_handle(struct radeon_winsys *rws,
+    if (whandle->type == WINSYS_HANDLE_TYPE_KMS) {
+       int dma_fd = whandle->handle;
+ 
++#if MESA_SYSTEM_HAS_KMS_DRM
+       r = drmPrimeFDToHandle(sws->fd, dma_fd, &whandle->handle);
++#else
++      r = -ENOSYS; /* no KMS handles without a DRM device */
++#endif
+       close(dma_fd);
+ 
+       if (r)
+diff --git a/src/gallium/winsys/amdgpu/drm/amdgpu_winsys.c b/src/gallium/winsys/amdgpu/drm/amdgpu_winsys.c
+index 833dba0..2295ab2 100644
+--- a/src/gallium/winsys/amdgpu/drm/amdgpu_winsys.c
++++ b/src/gallium/winsys/amdgpu/drm/amdgpu_winsys.c
+@@ -19,7 +19,9 @@
+ #include "util/thread_sched.h"
+ #include "util/xmlconfig.h"
+ #include "drm-uapi/amdgpu_drm.h"
++#if MESA_SYSTEM_HAS_KMS_DRM
+ #include <xf86drm.h>
++#endif
+ #include <stdio.h>
+ #include <sys/stat.h>
+ #include <fcntl.h>
+@@ -413,6 +415,7 @@ amdgpu_winsys_create(int fd, const struct pipe_screen_config *config,
+    /* Initialize the amdgpu device. This should always return the same pointer
+     * for the same fd. */
+    r = ac_drm_device_initialize(fd, is_virtio, &drm_major, &drm_minor, &dev);
++#if MESA_SYSTEM_HAS_KMS_DRM
+    if (r == -EACCES && drmGetNodeTypeFromFd(fd) != DRM_NODE_RENDER) {
+       char *render_device = drmGetRenderDeviceNameFromFd(fd);
+ 
+@@ -431,6 +434,7 @@ amdgpu_winsys_create(int fd, const struct pipe_screen_config *config,
+          free(render_device);
+       }
+    }
++#endif
+ 
+    if (r) {
+       mesa_loge("amdgpu: amd%s_device_initialize failed.\n", is_virtio ? "vgpu" : "gpu");
+diff --git a/src/util/os_drm.h b/src/util/os_drm.h
+index 0390ecd..14f7718 100644
+--- a/src/util/os_drm.h
++++ b/src/util/os_drm.h
+@@ -16,11 +16,22 @@
+ 
+ #include <sys/ioctl.h>
+ #include <errno.h>
++#if MESA_SYSTEM_HAS_KMS_DRM
+ #include <xf86drm.h>
++#else
++/* No DRM device on this system (Orbis): the structures and request numbers still compile, and every
++ * ioctl answers ENOSYS - the callers that remain only close or import buffers shared with another
++ * process, which nothing here does. */
++#include "drm-uapi/drm.h"
++#endif
+ 
+ static inline int
+ drm_ioctl(int fd, uint32_t request, void *arg)
+ {
++#if !MESA_SYSTEM_HAS_KMS_DRM
++   (void)fd; (void)request; (void)arg;
++   return -ENOSYS;
++#else
+    int ret;
+ 
+    do {
+@@ -28,8 +39,11 @@ drm_ioctl(int fd, uint32_t request, void *arg)
+    } while (ret == -1 && (errno == EINTR || errno == EAGAIN));
+ 
+    return ret ? -errno : 0;
++#endif
+ }
+ 
++#if MESA_SYSTEM_HAS_KMS_DRM
++
+ static inline int
+ drm_ioctl_write(int fd, unsigned drm_command_index, void *data, unsigned size)
+ {
+@@ -46,5 +60,6 @@ drm_ioctl_write_read(int fd, unsigned drm_command_index, void *data,
+                               DRM_COMMAND_BASE + drm_command_index, size);
+    return drm_ioctl(fd, request, data);
+ }
++#endif /* MESA_SYSTEM_HAS_KMS_DRM */
+ 
+ #endif

@@ -243,7 +243,7 @@ def run(command, log, *, cwd=None, env=None):
         raise RuntimeError(f"command failed ({result.returncode}); see {log}")
 
 
-def build(sources, sdk, output):
+def build(sources, sdk, output, radeonsi=False, keep_going=False):
     sources = inside_build(Path(sources))
     output = inside_build(Path(output))
     sdk = Path(sdk).resolve()
@@ -330,12 +330,16 @@ def build(sources, sdk, output):
         build_id = hashlib.sha256(lock["sources"]["mesa"]["revision"].encode()).hexdigest()[:40]
         options = ["-Ddefault_library=static", "-Dwrap_mode=nodownload", "-Dzstd=disabled",
                    "-Dvalgrind=disabled", "-Dlmsensors=disabled", "-Dlibunwind=disabled",
-                   "-Dvulkan-drivers=amd", "-Dgallium-drivers=zink", "-Dopengl=true",
+                   "-Dvulkan-drivers=amd", "-Dopengl=true",
                    "-Dgles1=enabled", "-Dgles2=enabled", "-Degl=enabled", "-Dglx=disabled",
                    "-Dgbm=disabled", "-Dglvnd=disabled", "-Dvideo-codecs=", "-Dllvm=disabled",
                    "-Dxmlconfig=disabled", "-Dbuildtype=release", "-Dplatforms=orbis",
                    "-Dzlib=enabled", "-Dshader-cache=enabled", "-Dforce_fallback_for=zlib",
                    "-Dradv-build-id=" + build_id]
+        # radeonsi (Mesa's native AMD OpenGL driver, compiled with ACO - there is no LLVM here) next to
+        # Zink, for the port that drops Zink's GL-to-Vulkan translation. Build it into its own --output.
+        options += (["-Dgallium-drivers=zink,radeonsi", "-Damd-use-llvm=false"] if radeonsi
+                    else ["-Dgallium-drivers=zink"])
         setup = [venv / "meson", "setup", build_dir, mesa]
         configured = (build_dir / "meson-info/meson-info.json").is_file()
         if configured:
@@ -356,7 +360,8 @@ def build(sources, sdk, output):
             raise RuntimeError("sysconf configure probe failed; see meson-setup.log")
         if re.search(r"(?:libdrm|libelf|libstdc\+\+) found: YES", meson_log, re.I):
             raise RuntimeError("host dependency found in Meson configuration")
-        run(["ninja", "-C", build_dir, "-j", str(os.cpu_count() or 2)], output / "ninja-build.log", env=env)
+        run(["ninja", "-C", build_dir, "-j", str(os.cpu_count() or 2), *(["-k", "0"] if keep_going else [])],
+            output / "ninja-build.log", env=env)
         probe = output / "gllinkprobe.elf"
         initial_probe = output / "gllinkprobe-before-libc16.elf"
         env["ORBIS_COMPAT_DIR"] = str(compat)
@@ -419,6 +424,8 @@ def main():
     parser.add_argument("--check-compat")
     parser.add_argument("--verify-deps")
     parser.add_argument("--verify-support-tree")
+    parser.add_argument("--radeonsi", action="store_true", help="also build the radeonsi Gallium driver")
+    parser.add_argument("--keep-going", action="store_true", help="ninja -k 0: report every failing object")
     args = parser.parse_args()
     try:
         lock = json.loads(LOCK.read_text())
@@ -434,7 +441,7 @@ def main():
             return 0
         if not all((args.sources, args.sdk, args.output)):
             parser.error("--sources, --sdk, and --output are required")
-        build(args.sources, args.sdk, args.output)
+        build(args.sources, args.sdk, args.output, args.radeonsi, args.keep_going)
     except (ValueError, OSError, RuntimeError, subprocess.CalledProcessError) as error:
         if args.output:
             try:

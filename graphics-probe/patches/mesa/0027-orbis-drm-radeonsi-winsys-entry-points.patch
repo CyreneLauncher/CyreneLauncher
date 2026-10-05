@@ -1,0 +1,104 @@
+diff --git a/src/amd/common/ac_orbis_drm.c b/src/amd/common/ac_orbis_drm.c
+index 384912c..ecb4aa5 100644
+--- a/src/amd/common/ac_orbis_drm.c
++++ b/src/amd/common/ac_orbis_drm.c
+@@ -7162,6 +7162,99 @@ ac_drm_cs_destroy_syncobj(ac_drm_device *dev, uint32_t handle)
+    return orbis_sync_destroy(dev->sync, handle);
+ }
+ 
++/* ⚠ THE REST OF WHAT radeonsi's amdgpu winsys ASKS FOR, and RADV never did: RADV waits through the sync
++ * provider directly, radeonsi through the libdrm-shaped call. Same wait either way. */
++int
++ac_drm_cs_syncobj_wait(ac_drm_device *dev, uint32_t *handles, unsigned num_handles, int64_t timeout_nsec,
++                       unsigned flags, uint32_t *first_signaled)
++{
++   return orbis_sync_wait(dev->sync, handles, num_handles, timeout_nsec, flags, first_signaled);
++}
++
++/* A syncobj from another process's fd: there is no other process. */
++int
++ac_drm_cs_import_syncobj(ac_drm_device *dev, int shared_fd, uint32_t *handle)
++{
++   ORBIS_DRM_REFUSED("syncobj fds are cross-process sharing, and this layer has one process");
++   return -ENOSYS;
++}
++
++/* No reset is ever observed here: a hung GPU takes the whole title down (and the system UI with it). */
++int
++ac_drm_cs_query_reset_state2(ac_drm_device *dev, uint32_t ctx_id, uint64_t *flags)
++{
++   *flags = 0;
++   return 0;
++}
++
++/* The general range is the arena's window, the same one DEV_INFO reports. */
++int
++ac_drm_va_range_query(ac_drm_device *dev, enum amdgpu_gpu_va_range type, uint64_t *start, uint64_t *end)
++{
++   if (type != amdgpu_gpu_va_range_general)
++      return -EINVAL;
++   *start = orbis_va_base;
++   *end = orbis_va_end;
++   return 0;
++}
++
++/* User queues: userq_ip_mask is 0, so the winsys never asks; refused rather than missing if it does. */
++int
++ac_drm_create_userqueue(ac_drm_device *dev, uint32_t ip_type, uint32_t doorbell_handle, uint32_t doorbell_offset,
++                        uint64_t queue_va, uint64_t queue_size, uint64_t wptr_va, uint64_t rptr_va, void *mqd_in,
++                        uint32_t flags, uint32_t *queue_id)
++{
++   ORBIS_DRM_REFUSED("user queues need kernel doorbells this console does not expose");
++   return -ENOSYS;
++}
++
++int
++ac_drm_free_userqueue(ac_drm_device *dev, uint32_t queue_id)
++{
++   return -ENOSYS;
++}
++
++int
++ac_drm_userq_signal(ac_drm_device *dev, struct drm_amdgpu_userq_signal *signal_data)
++{
++   return -ENOSYS;
++}
++
++int
++ac_drm_userq_wait(ac_drm_device *dev, struct drm_amdgpu_userq_wait *wait_data)
++{
++   return -ENOSYS;
++}
++
++#ifndef USE_LIBELF
++/* ac_rtld loads ELF shader binaries, which only LLVM produces. Without libelf radeonsi compiles with
++ * ACO, whose binaries are raw; these answer the ELF paths it keeps compiled in. */
++#include "ac_rtld.h"
++
++bool
++ac_rtld_open(struct ac_rtld_binary *binary, struct ac_rtld_open_info i)
++{
++   return false;
++}
++
++void
++ac_rtld_close(struct ac_rtld_binary *binary)
++{
++}
++
++bool
++ac_rtld_get_section_by_name(struct ac_rtld_binary *binary, const char *name, const char **data, size_t *nbytes)
++{
++   return false;
++}
++
++int
++ac_rtld_upload(struct ac_rtld_upload_info *u)
++{
++   return -1;
++}
++#endif
++
+ /* ---------------------------------------------------------------- memory, BO and VA - phase 3
+  *
+  * Every right-hand side already exists in the Tempest fork (sceKernelAllocateDirectMemory, GnmAllocator's
