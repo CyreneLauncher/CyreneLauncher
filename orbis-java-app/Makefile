@@ -27,14 +27,19 @@ CXX = $(SDK)/bin/orbis-clang++
 LD = $(SDK)/bin/orbis-ld
 FSELF ?= $(TOOLCHAIN)/bin/linux/create-fself
 TITLE ?= Orbis Java JAR Runner
-VERSION ?= 0.41
+VERSION ?= 0.42
 TITLE_ID ?= OJDK00003
 CONTENT_ID ?= IV0000-OJDK00003_00-ORBISJARRUNNER01
 PAID ?= 0x3800000000000011
 # param.sfo ATTRIBUTE bits (LibOrbisPkg SfoData.AttributeNames, from psdevwiki): 0x00800000 is
 # "The application supports NEO mode (PS4 pro)" - on a PS4 Pro the title then runs in Neo mode
 # (36 CUs, higher GPU and CPU clocks) instead of Base mode. ATTRIBUTE=0 builds a Base-mode package.
-ATTRIBUTE ?= 0x00800000
+# 0x00010000 is "CPU mode (7 CPU)": a seventh CPU core for the application.
+ATTRIBUTE ?= 0x00810000
+# param.sfo ATTRIBUTE2 bits (SfoData.Attribute2Names): 0x00004000 is "Enlarge FMEM 256MB", 256 MiB more
+# flexible memory - every anonymous mapping is charged to it. Asking for more in the executable's own
+# memory parameters instead is refused at load (PRX_INVALID_IMAGE).
+ATTRIBUTE2 ?= 0x00004000
 BUILD := $(PROJECT_DIR)/build-runner
 STAGE := $(BUILD)/stage
 OUT := $(BUILD)/output
@@ -53,7 +58,7 @@ FORCE:
 # Compare content to track command-line settings without rebuilding on every make.
 $(BUILD)/settings: FORCE
 	@mkdir -p $(BUILD)
-	@printf '%s\n' '$(VERSION)|$(TITLE)|$(TITLE_ID)|$(CONTENT_ID)|$(PAID)|$(ATTRIBUTE)|$(SDK)|$(TOOLCHAIN)|$(BOOT_JDK)|$(JNI_HEADERS)|$(JNI_PLATFORM)|$(CC)|$(CXX)|$(LD)|$(FSELF)|$(PKGTOOL)|$(TARGET_FLAGS)|$(DOTNET)' > $@.tmp
+	@printf '%s\n' '$(VERSION)|$(TITLE)|$(TITLE_ID)|$(CONTENT_ID)|$(PAID)|$(ATTRIBUTE)|$(ATTRIBUTE2)|$(SDK)|$(TOOLCHAIN)|$(BOOT_JDK)|$(JNI_HEADERS)|$(JNI_PLATFORM)|$(CC)|$(CXX)|$(LD)|$(FSELF)|$(PKGTOOL)|$(TARGET_FLAGS)|$(DOTNET)' > $@.tmp
 	@sha256sum $(PROJECT_DIR)/Makefile >> $@.tmp
 	@cmp -s $@.tmp $@ && rm $@.tmp || mv $@.tmp $@
 $(EXPORT_BUILD)/settings: FORCE
@@ -113,6 +118,7 @@ $(STAGE)/sce_sys/param.sfo: $(BUILD)/settings
 	$(DOTNET) $(PKGTOOL) sfo_setentry $@ APP_TYPE --type Integer --maxsize 4 --value 1
 	$(DOTNET) $(PKGTOOL) sfo_setentry $@ APP_VER --type Utf8 --maxsize 8 --value '$(VERSION)'
 	$(DOTNET) $(PKGTOOL) sfo_setentry $@ ATTRIBUTE --type Integer --maxsize 4 --value $$(($(ATTRIBUTE)))
+	$(DOTNET) $(PKGTOOL) sfo_setentry $@ ATTRIBUTE2 --type Integer --maxsize 4 --value $$(($(ATTRIBUTE2)))
 	$(DOTNET) $(PKGTOOL) sfo_setentry $@ CATEGORY --type Utf8 --maxsize 4 --value gd
 	$(DOTNET) $(PKGTOOL) sfo_setentry $@ CONTENT_ID --type Utf8 --maxsize 48 --value '$(CONTENT_ID)'
 	$(DOTNET) $(PKGTOOL) sfo_setentry $@ DOWNLOAD_DATA_SIZE --type Integer --maxsize 4 --value 0
