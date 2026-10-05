@@ -1,0 +1,39 @@
+diff --git a/src/amd/common/ac_orbis_drm.c b/src/amd/common/ac_orbis_drm.c
+index fab005a..a2f60b9 100644
+--- a/src/amd/common/ac_orbis_drm.c
++++ b/src/amd/common/ac_orbis_drm.c
+@@ -6332,6 +6332,34 @@ orbis_query_dev_info(struct drm_amdgpu_info_device *d)
+     * lines against the reference dump that is CORRECT rather than a defect. */
+    d->num_rb_pipes = 8;
+    d->enabled_rb_pipes_mask = 0xff;
++   /* Neo (Gladius): 64 ROPs, i.e. 16 backends, 4 per shader engine - the shape the Gladius raster_config's
++    * second half (Hawaii's 4-engine SE pair map) describes. Reporting Liverpool's 8 under 4 engines made
++    * RADV treat two backends per engine as harvested and write per-engine raster configs for that; the GPU
++    * hung a few seconds into Minecraft's title screen. Not measured on hardware yet: ORBIS_NUM_RB=<n>
++    * overrides it for an A/B. */
++   if (neo_mode) {
++      d->num_rb_pipes = 16;
++      d->enabled_rb_pipes_mask = 0xffff;
++   }
++   {
++      const char *const rb = getenv("ORBIS_NUM_RB");
++      if (rb != NULL) {
++         char *end;
++         const unsigned long value = strtoul(rb, &end, 10);
++         if (*rb == '\0' || *end != '\0' || value < 1 || value > 16) {
++            mesa_loge("orbis-drm: ORBIS_NUM_RB=%s must be an integer from 1 to 16", rb);
++            return -EINVAL;
++         }
++         d->num_rb_pipes = (uint32_t)value;
++         d->enabled_rb_pipes_mask = (uint32_t)BITFIELD_MASK(value);
++      }
++   }
++   {
++      static unsigned rb_logged;
++      if (orbis_budget(&rb_logged, 1))
++         mesa_logi("orbis-drm: %u render backend(s), enabled mask 0x%x, %u shader engine(s)", d->num_rb_pipes,
++                   d->enabled_rb_pipes_mask, d->num_shader_engines);
++   }
+ 
+    /* --- clocks. gpu_counter_freq is the one measured value in this group, and it is measured twice:
+     * gnmprof.h:477 says "100 ticks = 1 us, cross-checked against fence-wait", i.e. 100 MHz. RADV turns

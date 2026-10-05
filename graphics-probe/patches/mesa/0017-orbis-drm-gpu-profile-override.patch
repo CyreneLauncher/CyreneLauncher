@@ -1,0 +1,37 @@
+diff --git a/src/amd/common/ac_orbis_drm.c b/src/amd/common/ac_orbis_drm.c
+index a2f60b9..e6cd540 100644
+--- a/src/amd/common/ac_orbis_drm.c
++++ b/src/amd/common/ac_orbis_drm.c
+@@ -6186,6 +6186,20 @@ orbis_query_dev_info(struct drm_amdgpu_info_device *d)
+                 (unsigned)neo_mode);
+       return -EINVAL;
+    }
++   /* From here neo_mode selects the Gladius PROFILE. ORBIS_GPU_PROFILE=liverpool|gladius overrides it for an
++    * A/B, e.g. Liverpool in Neo mode to tell Gladius programming apart from Neo mode itself. */
++   const int execution_neo = neo_mode;
++   const char *const profile_override = getenv("ORBIS_GPU_PROFILE");
++   if (profile_override != NULL) {
++      if (strcmp(profile_override, "liverpool") == 0) {
++         neo_mode = 0;
++      } else if (strcmp(profile_override, "gladius") == 0) {
++         neo_mode = 1;
++      } else {
++         mesa_loge("orbis-drm: ORBIS_GPU_PROFILE=%s must be liverpool or gladius", profile_override);
++         return -EINVAL;
++      }
++   }
+ 
+    /* --- chip identity. DECISION, and research/04 explains why this one is about inheriting a bug list
+     * rather than about resembling a chip: ac_identify_chip maps (family, external_rev) through addrlib's
+@@ -6239,8 +6253,9 @@ orbis_query_dev_info(struct drm_amdgpu_info_device *d)
+    d->device_id = neo_mode ? 0x9924 : 0x9920;
+    static unsigned mode_logged;
+    if (orbis_budget(&mode_logged, 1))
+-      mesa_logi("orbis-drm: execution mode=%s, GPU profile=%s, device_id=0x%x; Neo profile is pending hardware validation",
+-                neo_mode ? "Neo" : "Base", neo_mode ? "Gladius" : "Liverpool", d->device_id);
++      mesa_logi("orbis-drm: execution mode=%s, GPU profile=%s%s, device_id=0x%x; Neo profile is pending hardware validation",
++                execution_neo ? "Neo" : "Base", neo_mode ? "Gladius" : "Liverpool",
++                profile_override != NULL ? " (forced by ORBIS_GPU_PROFILE)" : "", d->device_id);
+ 
+    /* --- shader array topology. ALL UNCITED, and gnmtune.h:732 says so in the fork's own words:
+     * "the fork cannot cite Liverpool's CU/SIMD topology from any oracle in the stash".

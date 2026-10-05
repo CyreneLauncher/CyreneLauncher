@@ -294,6 +294,39 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *vm, void *reserved) {
 
 /* -Dorbis.graphics.glthread=true|false sets Mesa's mesa_glthread (read at context creation);
  * unset leaves Mesa's own choice. Read here so the Java signature stays unchanged. */
+/* The GPU driver's A/B knobs, set from jvm-options.txt as -Dorbis.graphics.env.<NAME>=<value>. Only these
+ * names are passed through, so a typo cannot reach an unrelated environment variable. */
+static const char *const DRIVER_KNOBS[] = {
+    "ORBIS_GPU_PROFILE", "ORBIS_NUM_SE", "ORBIS_NUM_RB", "ORBIS_TCC_BLOCKS", "ORBIS_CHIP",
+    "ORBIS_DUMP_INIT_STATE", "ORBIS_INIT_HW_STATE", "ORBIS_IA_MULTI_VGT",
+};
+
+static int seed_driver_knobs(JNIEnv *env) {
+    jclass system = (*env)->FindClass(env, "java/lang/System");
+    if (!system) { (*env)->ExceptionClear(env); return 0; }
+    jmethodID get = (*env)->GetStaticMethodID(env, system, "getProperty", "(Ljava/lang/String;)Ljava/lang/String;");
+    int failed = 0;
+    for (size_t i = 0; get && i < sizeof(DRIVER_KNOBS) / sizeof(DRIVER_KNOBS[0]); i++) {
+        char property[96];
+        snprintf(property, sizeof(property), "orbis.graphics.env.%s", DRIVER_KNOBS[i]);
+        jstring key = (*env)->NewStringUTF(env, property);
+        jstring value = key ? (jstring)(*env)->CallStaticObjectMethod(env, system, get, key) : NULL;
+        if ((*env)->ExceptionCheck(env)) { (*env)->ExceptionClear(env); value = NULL; }
+        if (value) {
+            const char *chars = (*env)->GetStringUTFChars(env, value, NULL);
+            if (chars) {
+                failed |= setenv(DRIVER_KNOBS[i], chars, 1) != 0;
+                diag("driver knob %s=%s (from -D%s)", DRIVER_KNOBS[i], chars, property);
+                (*env)->ReleaseStringUTFChars(env, value, chars);
+            }
+            (*env)->DeleteLocalRef(env, value);
+        }
+        if (key) (*env)->DeleteLocalRef(env, key);
+    }
+    (*env)->DeleteLocalRef(env, system);
+    return failed;
+}
+
 static int seed_glthread_option(JNIEnv *env) {
     jclass system = (*env)->FindClass(env, "java/lang/System");
     if (!system) { (*env)->ExceptionClear(env); return 0; }
@@ -312,6 +345,24 @@ static int seed_glthread_option(JNIEnv *env) {
     }
     if (key) (*env)->DeleteLocalRef(env, key);
     if (value) (*env)->DeleteLocalRef(env, value);
+    /* Isolated CU diagnostic: disable the shader disk cache so a cached clock
+     * shader cannot bypass the hardware-ID instrumentation. */
+    jstring probe_key = get ? (*env)->NewStringUTF(env, "orbis.graphics.cuProbe") : NULL;
+    jstring probe_value = probe_key ? (jstring)(*env)->CallStaticObjectMethod(env, system, get, probe_key) : NULL;
+    if ((*env)->ExceptionCheck(env)) { (*env)->ExceptionClear(env); probe_value = NULL; }
+    if (probe_value) {
+        const char *chars = (*env)->GetStringUTFChars(env, probe_value, NULL);
+        if (chars) {
+            if (strcmp(chars, "true") == 0) {
+                failed |= setenv("ORBIS_CU_PROBE", "1", 1) != 0;
+                failed |= setenv("MESA_SHADER_CACHE_DISABLE", "true", 1) != 0;
+                diag("CU hardware-ID diagnostic enabled; shader clocks are not timestamps");
+            }
+            (*env)->ReleaseStringUTFChars(env, probe_value, chars);
+        }
+    }
+    if (probe_key) (*env)->DeleteLocalRef(env, probe_key);
+    if (probe_value) (*env)->DeleteLocalRef(env, probe_value);
     (*env)->DeleteLocalRef(env, system);
     return failed;
 }
@@ -341,6 +392,7 @@ JNIEXPORT jint JNICALL Java_orbis_graphics_NativePlatform_nInitialize(
         env_failed = setenv("MESA_LOG_FILE", log_file, 0) != 0;
     install_compat_logger(log_file);
     if (!env_failed) env_failed = seed_glthread_option(env);
+    if (!env_failed) env_failed = seed_driver_knobs(env);
     start_creator();
     if (log_file) (*env)->ReleaseStringUTFChars(env, mesa_log_file, log_file);
     if (env_failed) { record("cannot seed Mesa environment"); goto done; }

@@ -1,0 +1,41 @@
+diff --git a/src/amd/common/ac_orbis_drm.c b/src/amd/common/ac_orbis_drm.c
+index e6cd540..f32c790 100644
+--- a/src/amd/common/ac_orbis_drm.c
++++ b/src/amd/common/ac_orbis_drm.c
+@@ -4064,6 +4064,36 @@ orbis_dump_sony_init_state(void)
+          mesa_logi("orbis-drm:   %s: and %u packet(s) that set no register (waits, events, clears)",
+                    inits[i].name, other);
+    }
++
++   /* ⚠ WHERE DOES THIS CONSOLE WANT IA_MULTI_VGT_PARAM?
++    *
++    * libSceGnmDriverForNeoMode builds the register two ways, chosen by a flag it takes from a /dev/gc
++    * query at init: as context register 0x28AA8 with index 1, or as the uconfig register at 0x30960 with
++    * index 4 and EN_INST_OPT_BASIC|EN_INST_OPT_ADV added - the GFX9 address. The Base library only ever
++    * writes 0x28AA8, which is what RADV emits for GFX7. Both builders only fill the buffer, so asking them
++    * shows which branch this console takes. Arguments as the library checks them: buffer, 3 dwords,
++    * primgroup size minus one (<= 255), partial VS wave (0/1), WD switch only on EOP (0/1). */
++   {
++      static const struct {
++         const char *what;
++         uint32_t    prim, partial_vs, wd_eop;
++      } asks[] = {
++         {"SetVgtControl(127, 0, 1)", 127, 0, 1},
++         {"SetVgtControl(127, 0, 0)", 127, 0, 0},
++      };
++      uint32_t vgt[3];
++
++      mesa_logi("orbis-drm: VGT_CONTROL - sceKernelIsNeoMode() = %d", sceKernelIsNeoMode());
++      memset(vgt, 0, sizeof(vgt));
++      int r = ((int (*)(uint32_t *, uint32_t))sceGnmResetVgtControl)(vgt, 3);
++      mesa_logi("orbis-drm: VGT_CONTROL ResetVgtControl -> %d: %08x %08x %08x", r, vgt[0], vgt[1], vgt[2]);
++      for (unsigned i = 0; i < ARRAY_SIZE(asks); ++i) {
++         memset(vgt, 0, sizeof(vgt));
++         r = ((int (*)(uint32_t *, uint32_t, uint32_t, uint32_t, uint32_t))sceGnmSetVgtControl)(
++            vgt, 3, asks[i].prim, asks[i].partial_vs, asks[i].wd_eop);
++         mesa_logi("orbis-drm: VGT_CONTROL %s -> %d: %08x %08x %08x", asks[i].what, r, vgt[0], vgt[1], vgt[2]);
++      }
++   }
+ #endif
+ }
+ 

@@ -1,0 +1,86 @@
+diff --git a/src/amd/common/ac_linux_drm.h b/src/amd/common/ac_linux_drm.h
+index a1f6a6e..ea60b7e 100644
+--- a/src/amd/common/ac_linux_drm.h
++++ b/src/amd/common/ac_linux_drm.h
+@@ -597,6 +597,12 @@ uint64_t ac_orbis_sony_tf_ring(uint64_t *size);
+  * value back when it tests whether that register is reachable at all. */
+ void ac_orbis_note_tf_base(uint32_t base_shifted);
+ 
++/* Whether IA_MULTI_VGT_PARAM goes to uconfig 0x30960 (index 4) instead of context 0x28AA8: decided the way
++ * Sony's own driver decides it, by asking sceGnmResetVgtControl which form it builds. Neo mode on a PS4 Pro
++ * takes the uconfig form; the context form there leaves the work distributor busy with no waves launched.
++ * ORBIS_IA_MULTI_VGT=uconfig|context overrides. */
++bool ac_orbis_ia_multi_vgt_uconfig(void);
++
+ /* The same for the two GS ring sizes, in the 256-byte units the registers take. The ladder reads them back
+  * and compares, which is the difference between "this register holds something" and "this register holds
+  * what we put there". Zero until a geometry shader has made the queue emit a preamble. */
+diff --git a/src/amd/common/ac_orbis_drm.c b/src/amd/common/ac_orbis_drm.c
+index f32c790..fb8fb36 100644
+--- a/src/amd/common/ac_orbis_drm.c
++++ b/src/amd/common/ac_orbis_drm.c
+@@ -2834,6 +2834,38 @@ ac_orbis_note_tf_base(uint32_t base_shifted)
+    orbis_roundtrip_base = base_shifted;
+ }
+ 
++bool
++ac_orbis_ia_multi_vgt_uconfig(void)
++{
++   static int uconfig = -1;
++   if (uconfig >= 0)
++      return uconfig;
++
++   const char *const e = getenv("ORBIS_IA_MULTI_VGT");
++   const char *why;
++   if (e != NULL && !strcmp(e, "uconfig")) {
++      uconfig = 1;
++      why = "forced by ORBIS_IA_MULTI_VGT";
++   } else if (e != NULL && !strcmp(e, "context")) {
++      uconfig = 0;
++      why = "forced by ORBIS_IA_MULTI_VGT";
++   } else {
++      uint32_t vgt[3] = {0};
++      uconfig = 0;
++      why = "Sony's ResetVgtControl did not answer";
++#if defined(__PS4__)
++      /* A PM4 builder: it only fills the buffer. The header's opcode is the answer. */
++      if (((int (*)(uint32_t *, uint32_t))sceGnmResetVgtControl)(vgt, 3) == 0) {
++         uconfig = ((vgt[0] >> 8) & 0xff) == 0x79; /* SET_UCONFIG_REG */
++         why = "as Sony's ResetVgtControl builds it";
++      }
++#endif
++   }
++   mesa_logi("orbis-drm: IA_MULTI_VGT_PARAM written as %s (%s)",
++             uconfig ? "uconfig 0x30960 index 4" : "context 0x28AA8", why);
++   return uconfig;
++}
++
+ /* The same idea for the GS rings, and for the same reason: the register ladder is worth far more if it fires
+  * AFTER radv_emit_gs_ring_sizes has run, because then rungs 1-2 stop being "what did Sony leave" and become
+  * "is the number we programmed actually in the register". Both are zero until a pipeline with a geometry
+diff --git a/src/amd/vulkan/radv_cmd_buffer.c b/src/amd/vulkan/radv_cmd_buffer.c
+index 924bd60..2e8e9c3 100644
+--- a/src/amd/vulkan/radv_cmd_buffer.c
++++ b/src/amd/vulkan/radv_cmd_buffer.c
+@@ -18,6 +18,7 @@
+ #include "radv_cp_dma.h"
+ #include "radv_cs.h"
+ #ifdef HAVE_ORBIS_PLATFORM
++#include "ac_linux_drm.h"
+ #include "radv_descriptor_pool.h"
+ #endif
+ #include "radv_descriptor_update_template.h"
+@@ -7376,6 +7377,13 @@ radv_emit_ia_multi_vgt_param(struct radv_cmd_buffer *cmd_buffer, bool instanced_
+    if (state->last_ia_multi_vgt_param != ia_multi_vgt_param) {
+       radeon_begin(cs);
+ 
++#ifdef HAVE_ORBIS_PLATFORM
++      /* Neo mode wants this register at its GFX9 address; ac_orbis_ia_multi_vgt_uconfig says why. */
++      if (ac_orbis_ia_multi_vgt_uconfig()) {
++         radeon_set_uconfig_reg_idx(&pdev->info, R_030960_IA_MULTI_VGT_PARAM, 4,
++                                    ia_multi_vgt_param | (1u << 21) | (1u << 22));
++      } else
++#endif
+       if (gpu_info->gfx_level == GFX9) {
+          radeon_set_uconfig_reg_idx(&pdev->info, R_030960_IA_MULTI_VGT_PARAM, 4, ia_multi_vgt_param);
+       } else if (gpu_info->gfx_level >= GFX7) {
