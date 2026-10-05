@@ -327,7 +327,10 @@ def build(sources, sdk, output, radeonsi=False, keep_going=False):
                 output / "zlib-download.log", cwd=mesa, env=env)
         verify_zlib(mesa, lock)
         build_dir = output / "mesa"
-        build_id = hashlib.sha256(lock["sources"]["mesa"]["revision"].encode()).hexdigest()[:40]
+        # The drivers' shader caches are keyed by this, and our patches change the compiler without changing
+        # the pinned revision - so the patches are part of it, or a stale cache would look valid.
+        build_id = hashlib.sha256((lock["sources"]["mesa"]["revision"] + "".join(
+            sha256(patch) for patch in mesa_patches())).encode()).hexdigest()[:40]
         options = ["-Ddefault_library=static", "-Dwrap_mode=nodownload", "-Dzstd=disabled",
                    "-Dvalgrind=disabled", "-Dlmsensors=disabled", "-Dlibunwind=disabled",
                    "-Dvulkan-drivers=amd", "-Dopengl=true",
@@ -338,7 +341,8 @@ def build(sources, sdk, output, radeonsi=False, keep_going=False):
                    "-Dradv-build-id=" + build_id]
         # radeonsi (Mesa's native AMD OpenGL driver, compiled with ACO - there is no LLVM here) next to
         # Zink, for the port that drops Zink's GL-to-Vulkan translation. Build it into its own --output.
-        options += (["-Dgallium-drivers=zink,radeonsi", "-Damd-use-llvm=false"] if radeonsi
+        options += (["-Dgallium-drivers=zink,radeonsi", "-Damd-use-llvm=false",
+                     "-Dradeonsi-build-id=" + build_id] if radeonsi
                     else ["-Dgallium-drivers=zink"])
         setup = [venv / "meson", "setup", build_dir, mesa]
         configured = (build_dir / "meson-info/meson-info.json").is_file()
