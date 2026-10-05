@@ -1,0 +1,30 @@
+diff --git a/src/egl/drivers/dri2/platform_orbis.c b/src/egl/drivers/dri2/platform_orbis.c
+index 520ccf9..b70a988 100644
+--- a/src/egl/drivers/dri2/platform_orbis.c
++++ b/src/egl/drivers/dri2/platform_orbis.c
+@@ -601,6 +601,25 @@ dri2_orbis_image_swap_buffers(_EGLDisplay *disp, _EGLSurface *draw)
+ 
+    dri2_flush_drawable_for_swapbuffers(disp, draw);
+ 
++   /* ⚠ THE FRAME, NOT "THE GPU IS IDLE". The flush above can reach the GPU after it returns - GL work goes
++    * through a driver thread - so waiting for whatever was already submitted could flip a frame missing its
++    * last part. That showed as one dark frame whenever new chunks loaded: their uploads split the frame into
++    * several submissions, and the flip caught only the first (the clear). A fence created after the flush
++    * covers all of it. */
++   {
++      _EGLContext *ctx = _eglGetCurrentContext();
++      struct dri2_egl_context *dri2_ctx = ctx ? dri2_egl_context(ctx) : NULL;
++      if (dri2_ctx && dri2_ctx->dri_context) {
++         void *fence = dri_create_fence(dri2_ctx->dri_context);
++         if (fence) {
++            if (!dri_client_wait_sync(dri2_ctx->dri_context, fence, __DRI2_FENCE_FLAG_FLUSH_COMMANDS,
++                                      2000000000ull))
++               _eglLog(_EGL_WARNING, "orbis-egl: the frame did not finish within 2 s; flipping it anyway");
++            dri_destroy_fence(dri2_egl_display(disp)->dri_screen_render_gpu, fence);
++         }
++      }
++   }
++
+    /* The previous flip on screen before this one is queued (see the block comment above). */
+    for (unsigned waited = 0; wsi_orbis_flips_pending(w->so) > 0 && waited < 100000; waited += 250)
+       usleep(250);
