@@ -1,5 +1,5 @@
 diff --git a/src/egl/drivers/dri2/platform_orbis.c b/src/egl/drivers/dri2/platform_orbis.c
-index 57134a2..8e3bf02 100644
+index 57134a2..520ccf9 100644
 --- a/src/egl/drivers/dri2/platform_orbis.c
 +++ b/src/egl/drivers/dri2/platform_orbis.c
 @@ -28,6 +28,7 @@
@@ -10,7 +10,7 @@ index 57134a2..8e3bf02 100644
  
  #include "util/macros.h"
  #include "util/os_misc.h"
-@@ -366,6 +367,275 @@ static const struct dri2_egl_display_vtbl dri2_orbis_display_vtbl = {
+@@ -366,6 +367,277 @@ static const struct dri2_egl_display_vtbl dri2_orbis_display_vtbl = {
  /* Configs. dri2_add_pbuffer_configs_for_visuals() cannot be used: it filters on dri2_pbuffer_visuals[],
   * which is a BGRA-ordered list, and it tags everything EGL_PBUFFER_BIT only - the two things this
   * platform must not do. This loop is the same shape with the two decisions reversed. */
@@ -148,7 +148,9 @@ index 57134a2..8e3bf02 100644
 +static unsigned
 +orbis_image_get_capability(void *loaderPrivate, enum dri_loader_cap cap)
 +{
-+   return 0;
++   /* The R8G8B8A8 configs exist only if the loader says so, and with an image loader its answer replaces
++    * dri_loader_get_cap's Orbis default: 0 here left no EGLConfig at all and glfwInit failed. */
++   return cap == DRI_LOADER_CAP_RGBA_ORDERING ? 1 : 0;
 +}
 +
 +static const __DRIimageLoaderExtension orbis_image_loader_extension = {
@@ -286,7 +288,7 @@ index 57134a2..8e3bf02 100644
  static void
  dri2_orbis_add_configs(_EGLDisplay *disp)
  {
-@@ -407,10 +677,26 @@ dri2_initialize_orbis(_EGLDisplay *disp)
+@@ -407,10 +679,26 @@ dri2_initialize_orbis(_EGLDisplay *disp)
     dri2_dpy->fd_render_gpu = -1;
     dri2_dpy->fd_display_gpu = -1;
  

@@ -1,0 +1,42 @@
+diff --git a/src/amd/common/ac_orbis_drm.c b/src/amd/common/ac_orbis_drm.c
+index 195d404..356d654 100644
+--- a/src/amd/common/ac_orbis_drm.c
++++ b/src/amd/common/ac_orbis_drm.c
+@@ -7434,8 +7434,17 @@ orbis_garlic_back(struct orbis_bo *bo, uint64_t start, uint64_t bytes)
+       return false;
+ 
+    off_t gphys = 0;
+-   int32_t err = sceKernelAllocateDirectMemory(0, sceKernelGetDirectMemorySize(), bytes,
+-                                               orbis_page_size(), ORBIS_KERNEL_WC_GARLIC, &gphys);
++   /* A 2 MiB-aligned buffer of 2 MiB or more gets 2 MiB-aligned physical memory too: video-out refuses a
++    * scan-out buffer that is not (radeonsi's EGL back buffers are scanned out of directly), and the
++    * GPU's page tables use large fragments for it. Page alignment when that cannot be had. */
++   const uint64_t big = 2ull * 1024 * 1024;
++   int32_t err = -1;
++   if (bytes >= big && (start & (big - 1)) == 0)
++      err = sceKernelAllocateDirectMemory(0, sceKernelGetDirectMemorySize(), bytes, big,
++                                          ORBIS_KERNEL_WC_GARLIC, &gphys);
++   if (err != 0)
++      err = sceKernelAllocateDirectMemory(0, sceKernelGetDirectMemorySize(), bytes, orbis_page_size(),
++                                          ORBIS_KERNEL_WC_GARLIC, &gphys);
+    if (err != 0) {
+       static unsigned said;
+       if (orbis_budget(&said, 4))
+diff --git a/src/gallium/drivers/radeonsi/si_texture.c b/src/gallium/drivers/radeonsi/si_texture.c
+index 3bd53bb..ed70120 100644
+--- a/src/gallium/drivers/radeonsi/si_texture.c
++++ b/src/gallium/drivers/radeonsi/si_texture.c
+@@ -1508,6 +1508,13 @@ si_texture_create_with_modifier(struct pipe_screen *screen,
+       max_alignment = MAX2(max_alignment, 1 << surface[i].surf_alignment_log2);
+    }
+ 
++#ifdef HAVE_ORBIS_PLATFORM
++   /* Video-out registers a scan-out buffer only if it is 2 MiB aligned (MEMORY_INVALID_ALIGNMENT,
++    * 0x80290015, otherwise) - EGL's back buffers on this platform are scanned out of directly. */
++   if (plane_templ[0].bind & PIPE_BIND_SCANOUT)
++      max_alignment = MAX2(max_alignment, 2 * 1024 * 1024);
++#endif
++
+    struct si_texture *plane0 = NULL, *last_plane = NULL;
+ 
+    for (unsigned i = 0; i < num_planes; i++) {

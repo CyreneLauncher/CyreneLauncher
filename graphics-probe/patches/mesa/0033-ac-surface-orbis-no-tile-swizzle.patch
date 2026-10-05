@@ -1,0 +1,26 @@
+diff --git a/src/amd/common/ac_surface.c b/src/amd/common/ac_surface.c
+index 346dd1e..40c815d 100644
+--- a/src/amd/common/ac_surface.c
++++ b/src/amd/common/ac_surface.c
+@@ -1287,6 +1287,21 @@ static bool get_display_flag(const struct ac_surf_config *config, const struct r
+ static bool use_tile_swizzle(const struct ac_surf_config *config, const struct radeon_surf *surf,
+                              bool fmask)
+ {
++#ifdef HAVE_ORBIS_PLATFORM
++   /* ⚠ OFF ON THE PS4 unless ORBIS_TILE_SWIZZLE=1. With radeonsi, which swizzles nearly every 2D-tiled
++    * texture, the block atlas sampled as large checkerboards; RADV under Zink rarely swizzled (its images
++    * are mostly aliased or mutable-format) and rendered cleanly. The swizzle is only a channel-balancing
++    * optimisation. */
++   {
++      static int allowed = -1;
++      if (allowed < 0) {
++         const char *e = getenv("ORBIS_TILE_SWIZZLE");
++         allowed = e != NULL && e[0] == '1';
++      }
++      if (!allowed)
++         return false;
++   }
++#endif
+    if (fmask) {
+       return !(surf->flags & (RADEON_SURF_SHAREABLE | RADEON_SURF_ALIASED |
+                               RADEON_SURF_REPLAYABLE));

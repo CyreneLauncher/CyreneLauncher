@@ -1,0 +1,66 @@
+diff --git a/src/amd/common/ac_orbis_drm.c b/src/amd/common/ac_orbis_drm.c
+index ecb4aa5..195d404 100644
+--- a/src/amd/common/ac_orbis_drm.c
++++ b/src/amd/common/ac_orbis_drm.c
+@@ -401,6 +401,11 @@ struct orbis_bo {
+    off_t    garlic_phys;
+    uint64_t garlic_addr;
+    uint64_t garlic_bytes;
++
++   /* The address ac_drm_bo_cpu_map gave a BO the winsys mapped for the CPU before (or without) giving it a
++    * GPU address - radeonsi's user-fence BO. Undone in ac_drm_bo_free. */
++   amdgpu_va_handle self_va;
++   uint64_t self_va_addr;
+ };
+ 
+ /* THE uint32_t HANDLE IS NOT DECORATION. Six functions in this layer take a bo_handle rather than an
+@@ -7960,6 +7965,9 @@ ac_drm_bo_alloc(ac_drm_device *dev, struct amdgpu_bo_alloc_request *alloc_buffer
+    return -ENOMEM;
+ }
+ 
++static int orbis_bo_va_op(uint32_t bo_handle, uint64_t offset, uint64_t size, uint64_t addr, uint64_t flags,
++                          uint32_t ops);
++
+ int
+ ac_drm_bo_free(ac_drm_device *dev, ac_drm_bo bo)
+ {
+@@ -7967,6 +7975,12 @@ ac_drm_bo_free(ac_drm_device *dev, ac_drm_bo bo)
+    if (!obo)
+       return -EINVAL;
+ 
++   if (obo->self_va) {
++      orbis_bo_va_op(obo->handle, 0, obo->size, obo->self_va_addr, 0, AMDGPU_VA_OP_UNMAP);
++      ac_drm_va_range_free(obo->self_va);
++      obo->self_va = NULL;
++   }
++
+    simple_mtx_lock(&orbis_bo_lock);
+    if (obo->handle)
+       orbis_bo_slot[obo->handle - 1] = NULL;
+@@ -8001,6 +8015,26 @@ ac_drm_bo_cpu_map(ac_drm_device *dev, ac_drm_bo bo, void **cpu)
+       return -EINVAL;
+ 
+    if (!obo->cpu) {
++      /* ⚠ A CPU MAP BEFORE ANY GPU ADDRESS. Here a BO's memory IS its GPU address in the arena, so there is
++       * nothing to map until it has one. RADV always maps the GPU side first; radeonsi's winsys maps its
++       * user-fence BO for the CPU and never gives it one. Give it one now, as the kernel would hand out
++       * a CPU mapping regardless. */
++      uint64_t va = 0;
++      amdgpu_va_handle h = NULL;
++      const uint64_t align = MAX2(obo->alignment, (uint64_t)orbis_page_size());
++      int r = ac_drm_va_range_alloc(dev, amdgpu_gpu_va_range_general, obo->size, align, 0, &va, &h, 0);
++      if (r == 0) {
++         r = orbis_bo_va_op(obo->handle, 0, obo->size, va,
++                            AMDGPU_VM_PAGE_READABLE | AMDGPU_VM_PAGE_WRITEABLE, AMDGPU_VA_OP_MAP);
++         if (r != 0)
++            ac_drm_va_range_free(h);
++      }
++      if (r == 0 && obo->cpu) {
++         obo->self_va = h;
++         obo->self_va_addr = va;
++         *cpu = obo->cpu;
++         return 0;
++      }
+       /* A BO asked for by the CPU before anything mapped it. Refusing is right - inventing a second mapping
+        * at a different address would give the CPU and the GPU two views of one buffer. */
+       mesa_logw("orbis-drm: cpu_map on a BO with no VA mapping yet (handle %u)", obo->handle);
