@@ -1,0 +1,410 @@
+diff --git a/src/egl/drivers/dri2/platform_orbis.c b/src/egl/drivers/dri2/platform_orbis.c
+index 57134a2..8e3bf02 100644
+--- a/src/egl/drivers/dri2/platform_orbis.c
++++ b/src/egl/drivers/dri2/platform_orbis.c
+@@ -28,6 +28,7 @@
+ #include <stdio.h>
+ #include <stdlib.h>
+ #include <string.h>
++#include <unistd.h>
+ 
+ #include "util/macros.h"
+ #include "util/os_misc.h"
+@@ -366,6 +367,275 @@ static const struct dri2_egl_display_vtbl dri2_orbis_display_vtbl = {
+ /* Configs. dri2_add_pbuffer_configs_for_visuals() cannot be used: it filters on dri2_pbuffer_visuals[],
+  * which is a BGRA-ordered list, and it tags everything EGL_PBUFFER_BIT only - the two things this
+  * platform must not do. This loop is the same shape with the two decisions reversed. */
++/* ⚠ radeonsi: THE SAME SCAN-OUT, WITHOUT VULKAN IN BETWEEN.
++ *
++ * With ORBIS_GL_DRIVER=radeonsi this platform hands Mesa's native AMD GL driver its back buffers itself,
++ * instead of Zink drawing through kopper -> a Vulkan swapchain -> wsi_orbis. The buffers are linear
++ * images radeonsi allocates; their own memory is registered with video-out once (wsi_orbis_scanout_create,
++ * the zero-copy shape RADV's swapchain already uses), and a swap is a flush, then a flip of the buffer just
++ * drawn. Three buffers: wsi_orbis_scanout_reserve's floor for one held by the application - one on
++ * screen, one queued, one drawn into. Before each flip the previous one must be on screen, so at most one
++ * flip is ever pending and the buffer handed out next is never the displayed one. */
++#include "vulkan/wsi/wsi_orbis.h"
++
++/* radeonsi's (si_texture.c) when it is linked in; this fallback otherwise. A weak REFERENCE would do the same on
++ * Linux, but in a PRX an unresolved weak symbol becomes an import the module tools reject. */
++bool si_orbis_texture_cpu_address(struct pipe_resource *res, void **ptr, uint32_t *pitch_px);
++
++__attribute__((weak)) bool
++si_orbis_texture_cpu_address(struct pipe_resource *res, void **ptr, uint32_t *pitch_px)
++{
++   return false;
++}
++
++#define ORBIS_GL_BUFFERS 3
++
++static struct orbis_gl_window {
++   struct dri2_egl_surface *surf;
++   struct dri_image *images[ORBIS_GL_BUFFERS];
++   void *addrs[ORBIS_GL_BUFFERS];
++   uint32_t pitch_px;
++   struct wsi_orbis_scanout *so;
++   unsigned back;
++   bool failed;
++} orbis_gl_window; /* one display, one window surface */
++
++static bool
++orbis_gl_use_radeonsi(void)
++{
++   const char *driver = os_get_option("ORBIS_GL_DRIVER");
++   return driver != NULL && strcmp(driver, "radeonsi") == 0;
++}
++
++static void
++orbis_gl_window_release(struct orbis_gl_window *w)
++{
++   if (w->so)
++      wsi_orbis_scanout_destroy(w->so);
++   for (unsigned i = 0; i < ORBIS_GL_BUFFERS; i++) {
++      if (w->images[i])
++         dri2_destroy_image(w->images[i]);
++   }
++   memset(w, 0, sizeof(*w));
++}
++
++static bool
++orbis_gl_window_init(struct dri2_egl_display *dri2_dpy, struct dri2_egl_surface *dri2_surf)
++{
++   struct orbis_gl_window *w = &orbis_gl_window;
++
++   if (w->so && w->surf == dri2_surf)
++      return true;
++   if (w->failed)
++      return false;
++   orbis_gl_window_release(w);
++   w->surf = dri2_surf;
++   for (unsigned i = 0; i < ORBIS_GL_BUFFERS; i++) {
++      w->images[i] = dri_create_image(dri2_dpy->dri_screen_render_gpu, dri2_surf->base.Width,
++                                      dri2_surf->base.Height, dri2_surf->visual, NULL, 0,
++                                      __DRI_IMAGE_USE_LINEAR | __DRI_IMAGE_USE_SCANOUT |
++                                         __DRI_IMAGE_USE_BACKBUFFER,
++                                      dri2_surf);
++      uint32_t pitch = 0;
++      if (!w->images[i] ||
++          !si_orbis_texture_cpu_address(w->images[i]->texture, &w->addrs[i], &pitch) ||
++          (i > 0 && pitch != w->pitch_px)) {
++         _eglLog(_EGL_WARNING, "orbis-egl: back buffer %u could not be created as a linear image", i);
++         goto fail;
++      }
++      w->pitch_px = pitch;
++   }
++
++   w->so = wsi_orbis_scanout_create(dri2_surf->base.Width, dri2_surf->base.Height, ORBIS_GL_BUFFERS,
++                                    w->addrs, w->pitch_px);
++   if (!w->so) {
++      _eglLog(_EGL_WARNING, "orbis-egl: video-out refused radeonsi's back buffers");
++      goto fail;
++   }
++   wsi_orbis_scanout_reserve(w->so, 1);
++   _eglLog(_EGL_INFO, "orbis-egl: radeonsi presents %u linear %ux%u buffers (pitch %u px) by flipping them",
++           ORBIS_GL_BUFFERS, dri2_surf->base.Width, dri2_surf->base.Height, w->pitch_px);
++   return true;
++
++fail:
++   orbis_gl_window_release(w);
++   w->failed = true;
++   return false;
++}
++
++static int
++orbis_image_get_buffers(struct dri_drawable *driDrawable, unsigned int format, uint32_t *stamp,
++                        void *loaderPrivate, uint32_t buffer_mask, struct __DRIimageList *buffers)
++{
++   struct dri2_egl_surface *dri2_surf = loaderPrivate;
++   struct dri2_egl_display *dri2_dpy = dri2_egl_display(dri2_surf->base.Resource.Display);
++
++   buffers->image_mask = 0;
++   buffers->front = NULL;
++   buffers->back = NULL;
++
++   if (dri2_surf->base.Type != EGL_WINDOW_BIT) {
++      /* A pbuffer: one image of its own, as platform_surfaceless does. */
++      if (!dri2_surf->front)
++         dri2_surf->front = dri_create_image(dri2_dpy->dri_screen_render_gpu, dri2_surf->base.Width,
++                                             dri2_surf->base.Height, dri2_surf->visual, NULL, 0, 0, NULL);
++      if (!dri2_surf->front)
++         return 0;
++      buffers->image_mask = __DRI_IMAGE_BUFFER_FRONT;
++      buffers->front = dri2_surf->front;
++      return 1;
++   }
++
++   if (!orbis_gl_window_init(dri2_dpy, dri2_surf))
++      return 0;
++   buffers->image_mask = __DRI_IMAGE_BUFFER_BACK;
++   buffers->back = orbis_gl_window.images[orbis_gl_window.back];
++   return 1;
++}
++
++static void
++orbis_image_flush_front_buffer(struct dri_drawable *driDrawable, void *loaderPrivate)
++{
++}
++
++static unsigned
++orbis_image_get_capability(void *loaderPrivate, enum dri_loader_cap cap)
++{
++   return 0;
++}
++
++static const __DRIimageLoaderExtension orbis_image_loader_extension = {
++   .base = {__DRI_IMAGE_LOADER, 2},
++   .getBuffers = orbis_image_get_buffers,
++   .flushFrontBuffer = orbis_image_flush_front_buffer,
++   .getCapability = orbis_image_get_capability,
++};
++
++static const __DRIextension *orbis_image_loader_extensions[] = {
++   &orbis_image_loader_extension.base,
++   &image_lookup_extension.base,
++   NULL,
++};
++
++static _EGLSurface *
++dri2_orbis_image_create_surface(_EGLDisplay *disp, EGLint type, _EGLConfig *conf,
++                                const EGLint *attrib_list)
++{
++   struct dri2_egl_display *dri2_dpy = dri2_egl_display(disp);
++   struct dri2_egl_config *dri2_conf = dri2_egl_config(conf);
++   struct dri2_egl_surface *dri2_surf = calloc(1, sizeof *dri2_surf);
++
++   if (!dri2_surf) {
++      _eglError(EGL_BAD_ALLOC, "eglCreateSurface");
++      return NULL;
++   }
++   if (!dri2_init_surface(&dri2_surf->base, disp, type, conf, attrib_list, false, NULL))
++      goto fail;
++   if (type == EGL_WINDOW_BIT)
++      orbis_get_scanout_size(&dri2_surf->base.Width, &dri2_surf->base.Height);
++
++   const struct dri_config *config = dri2_get_dri_config(dri2_conf, type, dri2_surf->base.GLColorspace);
++   if (!config) {
++      _eglError(EGL_BAD_MATCH, "Unsupported surfacetype/colorspace configuration");
++      goto fail;
++   }
++   dri2_surf->visual = dri2_image_format_for_pbuffer_config(dri2_dpy, config);
++   if (dri2_surf->visual == PIPE_FORMAT_NONE)
++      goto fail;
++   if (!dri2_create_drawable(dri2_dpy, config, dri2_surf, dri2_surf))
++      goto fail;
++   return &dri2_surf->base;
++
++fail:
++   free(dri2_surf);
++   return NULL;
++}
++
++static _EGLSurface *
++dri2_orbis_image_create_window_surface(_EGLDisplay *disp, _EGLConfig *conf, void *native_window,
++                                       const EGLint *attrib_list)
++{
++   _EGLSurface *surf = dri2_orbis_image_create_surface(disp, EGL_WINDOW_BIT, conf, attrib_list);
++   if (surf)
++      surf->SwapInterval = 1;
++   return surf;
++}
++
++static _EGLSurface *
++dri2_orbis_image_create_pbuffer_surface(_EGLDisplay *disp, _EGLConfig *conf, const EGLint *attrib_list)
++{
++   return dri2_orbis_image_create_surface(disp, EGL_PBUFFER_BIT, conf, attrib_list);
++}
++
++static EGLBoolean
++dri2_orbis_image_destroy_surface(_EGLDisplay *disp, _EGLSurface *surf)
++{
++   struct dri2_egl_surface *dri2_surf = dri2_egl_surface(surf);
++
++   driDestroyDrawable(dri2_surf->dri_drawable);
++   if (orbis_gl_window.surf == dri2_surf)
++      orbis_gl_window_release(&orbis_gl_window);
++   if (dri2_surf->front)
++      dri2_destroy_image(dri2_surf->front);
++   dri2_fini_surface(surf);
++   free(dri2_surf);
++   return EGL_TRUE;
++}
++
++static EGLBoolean
++dri2_orbis_image_swap_interval(_EGLDisplay *disp, _EGLSurface *surf, EGLint interval)
++{
++   return EGL_TRUE; /* vsync-locked flips, as on the Zink path */
++}
++
++static EGLBoolean
++dri2_orbis_image_swap_buffers(_EGLDisplay *disp, _EGLSurface *draw)
++{
++   struct dri2_egl_surface *dri2_surf = dri2_egl_surface(draw);
++   struct orbis_gl_window *w = &orbis_gl_window;
++
++   if (draw->Type != EGL_WINDOW_BIT || w->surf != dri2_surf || !w->so)
++      return EGL_TRUE;
++
++   dri2_flush_drawable_for_swapbuffers(disp, draw);
++
++   /* The previous flip on screen before this one is queued (see the block comment above). */
++   for (unsigned waited = 0; wsi_orbis_flips_pending(w->so) > 0 && waited < 100000; waited += 250)
++      usleep(250);
++
++   if (!wsi_orbis_scanout_present(w->so, w->back, w->addrs[w->back], w->pitch_px * 4, 0))
++      _eglLog(_EGL_WARNING, "orbis-egl: flip of buffer %u failed", w->back);
++
++   w->back = (w->back + 1) % ORBIS_GL_BUFFERS;
++   dri_invalidate_drawable(dri2_surf->dri_drawable);
++   return EGL_TRUE;
++}
++
++static EGLBoolean
++dri2_orbis_image_swap_buffers_with_damage(_EGLDisplay *disp, _EGLSurface *draw, const EGLint *rects,
++                                          EGLint numRects)
++{
++   return dri2_orbis_image_swap_buffers(disp, draw);
++}
++
++static EGLint
++dri2_orbis_image_query_buffer_age(_EGLDisplay *disp, _EGLSurface *surf)
++{
++   return 0; /* undefined contents: the application redraws everything */
++}
++
++static const struct dri2_egl_display_vtbl dri2_orbis_image_display_vtbl = {
++   .create_window_surface = dri2_orbis_image_create_window_surface,
++   .create_pbuffer_surface = dri2_orbis_image_create_pbuffer_surface,
++   .destroy_surface = dri2_orbis_image_destroy_surface,
++   .create_image = dri2_create_image_khr,
++   .swap_interval = dri2_orbis_image_swap_interval,
++   .swap_buffers = dri2_orbis_image_swap_buffers,
++   .swap_buffers_with_damage = dri2_orbis_image_swap_buffers_with_damage,
++   .query_buffer_age = dri2_orbis_image_query_buffer_age,
++   .get_dri_drawable = dri2_surface_get_dri_drawable,
++};
++
+ static void
+ dri2_orbis_add_configs(_EGLDisplay *disp)
+ {
+@@ -407,10 +677,26 @@ dri2_initialize_orbis(_EGLDisplay *disp)
+    dri2_dpy->fd_render_gpu = -1;
+    dri2_dpy->fd_display_gpu = -1;
+ 
+-   dri2_dpy->driver_name = strdup("zink");
++   const bool radeonsi = orbis_gl_use_radeonsi();
++   dri2_dpy->driver_name = strdup(radeonsi ? "radeonsi" : "zink");
+    if (!dri2_dpy->driver_name)
+       return _eglError(EGL_NOT_INITIALIZED, "orbis-egl: out of memory");
+ 
++   if (radeonsi) {
++      /* No kopper: a DRI3-type screen, which dri2_init_screen creates for fd -1 on this platform. */
++      dri2_dpy->kopper = false;
++      dri2_dpy->loader_extensions = orbis_image_loader_extensions;
++      if (!dri2_create_screen(disp))
++         return _eglError(EGL_NOT_INITIALIZED, "orbis-egl: radeonsi failed to create a screen");
++      if (!dri2_setup_device(disp, EGL_TRUE))
++         return _eglError(EGL_NOT_INITIALIZED, "orbis-egl: failed to set up EGLDevice");
++      dri2_setup_screen(disp);
++      dri2_orbis_add_configs(disp);
++      dri2_dpy->vtbl = &dri2_orbis_image_display_vtbl;
++      _eglLog(_EGL_INFO, "orbis-egl: OpenGL through radeonsi (ORBIS_GL_DRIVER=radeonsi)");
++      return EGL_TRUE;
++   }
++
+    /* Sets dri2_dpy->kopper from the driver name. It can still come back false, via
+     * LIBGL_KOPPER_DISABLE, and there is no second path to fall back to here - no swrast, no
+     * llvmpipe, nothing. Fail cleanly and say why rather than proceeding into a screen that cannot
+diff --git a/src/gallium/drivers/radeonsi/si_texture.c b/src/gallium/drivers/radeonsi/si_texture.c
+index 937529d..3bd53bb 100644
+--- a/src/gallium/drivers/radeonsi/si_texture.c
++++ b/src/gallium/drivers/radeonsi/si_texture.c
+@@ -2548,3 +2548,28 @@ void si_init_context_texture_functions(struct si_context *sctx)
+    sctx->b.texture_map = si_texture_transfer_map;
+    sctx->b.texture_unmap = si_texture_transfer_unmap;
+ }
++
++#ifdef HAVE_ORBIS_PLATFORM
++/* The CPU address and pitch of a linear 2D texture's level 0, for registering EGL's back buffers with
++ * video-out: the console scans out of memory the GPU renders into, and on Orbis every buffer the winsys
++ * hands out is mapped in the one arena, so this is the address itself, never a staging copy. */
++bool si_orbis_texture_cpu_address(struct pipe_resource *res, void **ptr, uint32_t *pitch_px);
++
++bool si_orbis_texture_cpu_address(struct pipe_resource *res, void **ptr, uint32_t *pitch_px)
++{
++   struct si_screen *sscreen = (struct si_screen *)res->screen;
++   struct si_texture *tex = (struct si_texture *)res;
++
++   if (res->target != PIPE_TEXTURE_2D || !tex->surface.is_linear || sscreen->info.gfx_level >= GFX9)
++      return false;
++
++   void *map = sscreen->ws->buffer_map(sscreen->ws, tex->buffer.buf, NULL,
++                                       PIPE_MAP_READ | PIPE_MAP_WRITE | PIPE_MAP_UNSYNCHRONIZED);
++   if (!map)
++      return false;
++
++   *ptr = (uint8_t *)map + (uint64_t)tex->surface.u.legacy.level[0].offset_256B * 256;
++   *pitch_px = tex->surface.u.legacy.level[0].nblk_x;
++   return true;
++}
++#endif
+diff --git a/src/gallium/frontends/dri/dri2.c b/src/gallium/frontends/dri/dri2.c
+index 292757a..58d1c2c 100644
+--- a/src/gallium/frontends/dri/dri2.c
++++ b/src/gallium/frontends/dri/dri2.c
+@@ -1750,6 +1750,36 @@ dri2_init_drawable(struct dri_drawable *drawable, bool isPixmap, int alphaBits)
+  *
+  * Returns the struct gl_config supported by this driver.
+  */
++#ifdef HAVE_ORBIS_PLATFORM
++/* ⚠ radeonsi WITHOUT A DRM NODE. The pipe loader finds a driver by asking a device fd who it belongs to,
++ * and Orbis has neither the fd nor the DRM loader (only the sw one is built, which is how Zink is
++ * reached). radeonsi's driver descriptor is in this same library either way - the target defines every
++ * descriptor, a stub for drivers not built - so a minimal device that calls it with fd -1 is all the
++ * loader needs; options still go through pipe_loader_create_screen as for any driver. */
++#include "pipe-loader/pipe_loader_priv.h"
++#include "target-helpers/drm_helper_public.h"
++
++static struct pipe_screen *
++orbis_radeonsi_create_screen(struct pipe_loader_device *dev, const struct pipe_screen_config *config,
++                             bool sw_vk)
++{
++   return radeonsi_driver_descriptor.create_screen(-1, config);
++}
++
++static const struct driOptionDescription *
++orbis_radeonsi_get_driconf(struct pipe_loader_device *dev, unsigned *count)
++{
++   *count = radeonsi_driver_descriptor.driconf_count;
++   return radeonsi_driver_descriptor.driconf;
++}
++
++static const struct pipe_loader_ops orbis_radeonsi_loader_ops = {
++   .create_screen = orbis_radeonsi_create_screen,
++   .get_driconf = orbis_radeonsi_get_driconf,
++   .release = pipe_loader_base_release,
++};
++#endif
++
+ struct pipe_screen *
+ dri2_init_screen(struct dri_screen *screen, bool driver_name_is_inferred)
+ {
+@@ -1757,6 +1787,19 @@ dri2_init_screen(struct dri_screen *screen, bool driver_name_is_inferred)
+ 
+    screen->can_share_buffer = true;
+ 
++#ifdef HAVE_ORBIS_PLATFORM
++   if (screen->fd < 0) {
++      struct pipe_loader_device *dev = CALLOC_STRUCT(pipe_loader_device);
++      if (!dev)
++         return NULL;
++      dev->type = PIPE_LOADER_DEVICE_PLATFORM;
++      dev->driver_name = strdup("radeonsi");
++      dev->ops = &orbis_radeonsi_loader_ops;
++      screen->dev = dev;
++      return pipe_loader_create_screen(dev, driver_name_is_inferred);
++   }
++#endif
++
+ #ifdef HAVE_LIBDRM
+    if (pipe_loader_drm_probe_fd(&screen->dev, screen->fd, false))
+       pscreen = pipe_loader_create_screen(screen->dev, driver_name_is_inferred);

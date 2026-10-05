@@ -298,7 +298,7 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *vm, void *reserved) {
  * names are passed through, so a typo cannot reach an unrelated environment variable. */
 static const char *const DRIVER_KNOBS[] = {
     "ORBIS_GPU_PROFILE", "ORBIS_NUM_SE", "ORBIS_NUM_RB", "ORBIS_TCC_BLOCKS", "ORBIS_CHIP",
-    "ORBIS_DUMP_INIT_STATE", "ORBIS_INIT_HW_STATE", "ORBIS_IA_MULTI_VGT", "ORBIS_RASTER_CONFIG", "RADV_DEBUG", "MESA_SHADER_CACHE_DIR",
+    "ORBIS_DUMP_INIT_STATE", "ORBIS_INIT_HW_STATE", "ORBIS_IA_MULTI_VGT", "ORBIS_RASTER_CONFIG", "RADV_DEBUG", "MESA_SHADER_CACHE_DIR", "ORBIS_GL_DRIVER",
 };
 
 static int seed_driver_knobs(JNIEnv *env) {
