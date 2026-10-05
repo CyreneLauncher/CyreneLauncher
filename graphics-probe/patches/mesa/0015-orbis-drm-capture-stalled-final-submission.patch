@@ -1,0 +1,83 @@
+--- a/src/amd/common/ac_orbis_drm.c
++++ b/src/amd/common/ac_orbis_drm.c
+@@ -233,6 +233,8 @@
+ }
+ 
+ /* true: keep waiting. false: the CALLER's own deadline has passed, so a timeout is the right answer. */
++static void orbis_dump_wait_stall(void);
++
+ static bool
+ orbis_wait_continue(struct orbis_wait_watch *w)
+ {
+@@ -249,6 +251,7 @@
+                 "would be worse than a slow frame.",
+                 w->what, (unsigned long long)(w->periods * (ORBIS_WAIT_CAP_NS / 1000000000ull)),
+                 w->caller_deadline == INT64_MAX ? "no timeout at all" : "longer than this");
++      orbis_dump_wait_stall();
+    }
+    return true;
+ }
+@@ -2881,6 +2884,7 @@
+    uint32_t stream[ORBIS_FENCE_CB_BYTES / 4];
+ };
+ static struct orbis_hung_slot orbis_hung_ring[ORBIS_HUNG_RING];
++static simple_mtx_t orbis_hung_snapshot_lock = SIMPLE_MTX_INITIALIZER;
+ 
+ /* Time spent in the fence-slot throttle since the last periodic sample, and the totals the WSI's idle wait keeps.
+  * Plain globals under the submit lock, which is the only thing that touches the first of them. */
+@@ -3038,6 +3042,41 @@
+    return cached == 1;
+ }
+ 
++/* Capture a stalled final submission even when the application stops submitting.
++ * Separate snapshot lock: callers may already hold the submit lock. Never follow
++ * live GPU pointers from this dump; only read the CPU-owned saved stream. */
++static void
++orbis_dump_wait_stall(void)
++{
++   static unsigned reported;
++   static struct orbis_hung_slot capture;
++   if (!orbis_dump_hung_enabled() || p_atomic_read(&reported))
++      return;
++   const uint32_t label = *orbis_fence_label;
++   const uint64_t queued = p_atomic_read(&orbis_submit_seq_no);
++   if (p_atomic_cmpxchg(&reported, 0, 1) != 0)
++      return;
++   mesa_logw("orbis-drm: WAIT_STALL completed=%u queued=%" PRIu64,
++             label, queued);
++   if (label >= queued) {
++      mesa_logw("orbis-drm: WAIT_STALL has no unfinished submission; inspect sync payload lifecycle");
++      return;
++   }
++   const uint64_t pending = (uint64_t)label + 1;
++   simple_mtx_lock(&orbis_hung_snapshot_lock);
++   const struct orbis_hung_slot *hs = &orbis_hung_ring[pending % ORBIS_HUNG_RING];
++   if (hs->seq == pending && hs->dwords > 0 && hs->dwords <= ARRAY_SIZE(capture.stream)) {
++      capture.seq = hs->seq;
++      capture.dwords = hs->dwords;
++      memcpy(capture.stream, hs->stream, (size_t)hs->dwords * sizeof(uint32_t));
++   }
++   simple_mtx_unlock(&orbis_hung_snapshot_lock);
++   if (capture.seq == pending && capture.dwords > 0)
++      orbis_dump_ib(capture.seq, capture.stream, capture.dwords, "WAIT_STALL", false);
++   else
++      mesa_logw("orbis-drm: WAIT_STALL submit #%" PRIu64 " is absent from the %u-slot snapshot ring",
++                pending, ORBIS_HUNG_RING);
++}
+ 
+ #if !defined(__PS4__)
+ /* ⚠ THE HOST ARM'S HALF OF orbis_test_mirror_mapping(), AND IT EXISTS TO REFUSE OUT LOUD.
+@@ -10069,11 +10108,13 @@
+        * than referenced: the staging slot it lives in is reused ORBIS_FENCE_CB_SLOTS submissions later, and by the
+        * time a hang is noticed the original would be somebody else's stream. */
+       if (orbis_dump_hung_enabled()) {
++         simple_mtx_lock(&orbis_hung_snapshot_lock);
+          struct orbis_hung_slot *const hs = &orbis_hung_ring[seq % ORBIS_HUNG_RING];
+          hs->dwords = (uint32_t)(dw - cb);
+          memcpy(hs->stream, cb, (size_t)hs->dwords * 4);
+          /* Last, so a reader can never see a size that does not match the sequence number. */
+          hs->seq = seq;
++         simple_mtx_unlock(&orbis_hung_snapshot_lock);
+       }
+    }
+ 

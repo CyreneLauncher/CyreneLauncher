@@ -1,0 +1,53 @@
+--- a/src/amd/common/ac_orbis_drm.c
++++ b/src/amd/common/ac_orbis_drm.c
+@@ -6106,6 +6106,18 @@
+ {
+    memset(d, 0, sizeof(*d));
+ 
++   /* Use the process execution mode, not merely whether the console is a Pro.
++    * A Pro running a Base-mode title must retain the Liverpool profile. */
++   int neo_mode = 0;
++#if defined(__PS4__)
++   neo_mode = sceKernelIsNeoMode();
++#endif
++   if (neo_mode != 0 && neo_mode != 1) {
++      mesa_loge("orbis-drm: sceKernelIsNeoMode returned 0x%08x; refusing an unknown GPU profile",
++                (unsigned)neo_mode);
++      return -EINVAL;
++   }
++
+    /* --- chip identity. DECISION, and research/04 explains why this one is about inheriting a bug list
+     * rather than about resembling a chip: ac_identify_chip maps (family, external_rev) through addrlib's
+     * ASICREV macros, and Liverpool is in no arm of that switch. FAMILY_CI + external_rev 21 is what makes
+@@ -6155,7 +6167,11 @@
+ 
+    ORBIS_DRM_UNCITED("drm_amdgpu_info_device.device_id", "Liverpool's PCI id is in no oracle; "
+                                                          "it reaches only radeon_info.pci_id");
+-   d->device_id = 0x9920;
++   d->device_id = neo_mode ? 0x9924 : 0x9920;
++   static unsigned mode_logged;
++   if (orbis_budget(&mode_logged, 1))
++      mesa_logi("orbis-drm: execution mode=%s, GPU profile=%s, device_id=0x%x; Neo profile is pending hardware validation",
++                neo_mode ? "Neo" : "Base", neo_mode ? "Gladius" : "Liverpool", d->device_id);
+ 
+    /* --- shader array topology. ALL UNCITED, and gnmtune.h:732 says so in the fork's own words:
+     * "the fork cannot cite Liverpool's CU/SIMD topology from any oracle in the stash".
+@@ -6208,7 +6224,17 @@
+     * contradiction it sits on: GB_ADDR_CONFIG's own NUM_SHADER_ENGINES field reads ONE. */
+    {
+       const char *const se = getenv("ORBIS_NUM_SE");
+-      d->num_shader_engines = se != NULL ? (uint32_t)MAX2(atoi(se), 1) : 2u;
++      const unsigned default_se = neo_mode ? 4u : 2u;
++      d->num_shader_engines = default_se;
++      if (se != NULL) {
++         char *end;
++         const unsigned long value = strtoul(se, &end, 10);
++         if (*se == '\0' || *end != '\0' || value < 1 || value > 4) {
++            mesa_loge("orbis-drm: ORBIS_NUM_SE=%s must be an integer from 1 to 4", se);
++            return -EINVAL;
++         }
++         d->num_shader_engines = (uint32_t)value;
++      }
+       if (se != NULL)
+          mesa_logi("orbis-drm: ORBIS_NUM_SE=%u - AN EXPERIMENT. This field is uncited, "
+                    "GB_ADDR_CONFIG says one, and the GSVS ring needs exactly twice what it sizes.",

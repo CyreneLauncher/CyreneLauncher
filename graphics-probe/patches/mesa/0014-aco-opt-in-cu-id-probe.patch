@@ -1,0 +1,26 @@
+--- a/src/amd/compiler/instruction_selection/aco_select_nir_intrinsics.cpp
++++ b/src/amd/compiler/instruction_selection/aco_select_nir_intrinsics.cpp
+@@ -14,6 +14,7 @@
+ #include "amdgfxregs.h"
+ #include <numeric>
+ #include <stdint.h>
++#include <cstdlib>
+ 
+ namespace aco {
+ namespace {
+@@ -4738,7 +4739,14 @@
+    }
+    case nir_intrinsic_shader_clock: {
+       Temp dst = get_ssa_temp(ctx, &instr->def);
+-      if (nir_intrinsic_memory_scope(instr) == SCOPE_SUBGROUP && ctx->options->gfx_level >= GFX12) {
++      const char *cu_probe = std::getenv("ORBIS_CU_PROBE");
++      if (ctx->options->gfx_level == GFX7 && ctx->program->stage == compute_cs &&
++          cu_probe && cu_probe[0] == '1' && cu_probe[1] == '\0') {
++         /* Diagnostic only: clock2x32ARB returns HW_ID plus an unmistakable tag.
++          * SQ_WAVE_HW_ID is hwreg 4 on GFX7. Do not use this switch for applications. */
++         Temp hw = bld.sopk(aco_opcode::s_getreg_b32, bld.def(s1), ((32 - 1) << 11) | 4);
++         bld.pseudo(aco_opcode::p_create_vector, Definition(dst), hw, Operand::c32(0x43555052));
++      } else if (nir_intrinsic_memory_scope(instr) == SCOPE_SUBGROUP && ctx->options->gfx_level >= GFX12) {
+          Temp hi0 = bld.tmp(s1);
+          Temp hi1 = bld.tmp(s1);
+          Temp lo = bld.tmp(s1);
