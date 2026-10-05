@@ -93,11 +93,19 @@ class LauncherScreen {
         try (GLFWGamepadState pad = GLFWGamepadState.calloc()) {
             while (!glfwWindowShouldClose(window)) {
                 glfwPollEvents();
-                applyResults();
-                input.poll(pad);
-                apply(input.takeTyped(), input.actions());
-                glfwGetFramebufferSize(window, w, h);
-                frame(w[0], h[0]);
+                try {
+                    applyResults();
+                    input.poll(pad);
+                    apply(input.takeTyped(), input.actions());
+                    glfwGetFramebufferSize(window, w, h);
+                    frame(w[0], h[0]);
+                } catch (RuntimeException | LinkageError | AssertionError failure) {
+                    internalError(failure);
+                } catch (VirtualMachineError fatal) {
+                    System.err.println("launcher: fatal error");
+                    fatal.printStackTrace();
+                    throw fatal;
+                }
                 glfwSwapBuffers(window);
             }
         }
@@ -146,6 +154,17 @@ class LauncherScreen {
         r.begin(framebufferWidth, framebufferHeight);
         draw();
         r.end();
+    }
+
+    /** An unexpected error in a frame: logged with its stack (launcher.log) and shown, not fatal. */
+    void internalError(Throwable failure) {
+        System.err.println("launcher: internal error on page " + page);
+        failure.printStackTrace();
+        busy = false;
+        keyboardOpen = false;
+        selected = 0;
+        scroll = 0;
+        setStatus("Internal error: " + failure + " (details in launcher.log)", ERROR);
     }
 
     // Platform effects, replaced in tests.

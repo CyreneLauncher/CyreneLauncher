@@ -39,6 +39,9 @@ public final class Launcher {
      */
     private static void keepLog(Path file) {
         try {
+            // The previous launcher run's log survives one more start, as launcher.log.1.
+            if (Files.exists(file))
+                Files.move(file, file.resolveSibling("launcher.log.1"), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
             java.io.OutputStream log = Files.newOutputStream(file);
             System.setOut(new java.io.PrintStream(new Tee(System.out, log), true, StandardCharsets.UTF_8));
             System.setErr(new java.io.PrintStream(new Tee(System.err, log), true, StandardCharsets.UTF_8));
