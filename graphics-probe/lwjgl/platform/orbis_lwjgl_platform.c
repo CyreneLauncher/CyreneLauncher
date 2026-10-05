@@ -298,7 +298,7 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *vm, void *reserved) {
  * names are passed through, so a typo cannot reach an unrelated environment variable. */
 static const char *const DRIVER_KNOBS[] = {
     "ORBIS_GPU_PROFILE", "ORBIS_NUM_SE", "ORBIS_NUM_RB", "ORBIS_TCC_BLOCKS", "ORBIS_CHIP",
-    "ORBIS_DUMP_INIT_STATE", "ORBIS_INIT_HW_STATE", "ORBIS_IA_MULTI_VGT", "ORBIS_RASTER_CONFIG", "RADV_DEBUG",
+    "ORBIS_DUMP_INIT_STATE", "ORBIS_INIT_HW_STATE", "ORBIS_IA_MULTI_VGT", "ORBIS_RASTER_CONFIG", "RADV_DEBUG", "MESA_SHADER_CACHE_DIR",
 };
 
 static int seed_driver_knobs(JNIEnv *env) {
@@ -324,6 +324,13 @@ static int seed_driver_knobs(JNIEnv *env) {
         if (key) (*env)->DeleteLocalRef(env, key);
     }
     (*env)->DeleteLocalRef(env, system);
+    /* Mesa keeps compiled shaders and Zink's pipelines in its disk cache, under MESA_SHADER_CACHE_DIR,
+     * XDG_CACHE_HOME or HOME - none of which the console sets, so every session compiled everything again,
+     * stuttering whenever new geometry or effects came into view. */
+    if (!getenv("MESA_SHADER_CACHE_DIR")) {
+        failed |= setenv("MESA_SHADER_CACHE_DIR", "/data/orbis-jdk/mesa-shader-cache", 1) != 0;
+        diag("MESA_SHADER_CACHE_DIR=/data/orbis-jdk/mesa-shader-cache");
+    }
     return failed;
 }
 

@@ -1,0 +1,53 @@
+diff --git a/src/util/disk_cache.c b/src/util/disk_cache.c
+index 1f43388..45d92c5 100644
+--- a/src/util/disk_cache.c
++++ b/src/util/disk_cache.c
+@@ -47,6 +47,9 @@
+ #include "util/ralloc.h"
+ #include "util/compiler.h"
+ #include "util/log.h"
++#ifdef __PS4__
++#include <unistd.h>
++#endif
+ 
+ #include "disk_cache.h"
+ #include "disk_cache_os.h"
+@@ -120,9 +123,11 @@ disk_cache_type_create(const char *gpu_name,
+    cache->path_init_failed = true;
+    cache->type = DISK_CACHE_NONE;
+ 
++   const char *why = "disabled (MESA_SHADER_CACHE_DISABLE, or real and effective user ids differ)";
+    if (!disk_cache_enabled())
+       goto path_fail;
+ 
++   why = "no cache directory (MESA_SHADER_CACHE_DIR, XDG_CACHE_HOME and HOME unset, or mkdir failed)";
+    const char *path =
+       disk_cache_generate_cache_dir(local, gpu_name, driver_id, cache_dir_name, cache_type, true);
+    if (!path)
+@@ -155,6 +160,7 @@ disk_cache_type_create(const char *gpu_name,
+    cache->stats.enabled = debug_get_bool_option("MESA_SHADER_CACHE_SHOW_STATS",
+                                                 false);
+ 
++   why = "the cache index could not be opened and mapped";
+    if (!disk_cache_mmap_cache_index(local, cache))
+       goto path_fail;
+ 
+@@ -167,8 +173,18 @@ disk_cache_type_create(const char *gpu_name,
+       goto fail;
+ 
+    cache->path_init_failed = false;
++   why = NULL;
+ 
+  path_fail:
++#ifdef __PS4__
++   /* The console gives no other sign that a driver runs without its shader cache: every session then
++    * compiles everything again. Said once per cache (RADV's and Zink's). */
++   if (why != NULL)
++      mesa_logw("disk_cache: %s cache off - %s (uid %d euid %d gid %d egid %d)", driver_id, why,
++                (int)getuid(), (int)geteuid(), (int)getgid(), (int)getegid());
++   else
++      mesa_logi("disk_cache: %s cache at %s", driver_id, cache->path);
++#endif
+ 
+    cache->driver_keys_blob_size = cv_size;
+ 
