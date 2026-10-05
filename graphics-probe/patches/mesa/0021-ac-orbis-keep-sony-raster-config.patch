@@ -1,0 +1,40 @@
+diff --git a/src/amd/common/ac_cmdbuf.c b/src/amd/common/ac_cmdbuf.c
+index 0710dc7..2372ca7 100644
+--- a/src/amd/common/ac_cmdbuf.c
++++ b/src/amd/common/ac_cmdbuf.c
+@@ -226,6 +226,22 @@ ac_emit_raster_config(const struct radeon_info *info, struct ac_pm4_state *pm4)
+    const unsigned num_rb = MIN2(info->max_render_backends, 16);
+    const uint64_t rb_mask = info->enabled_rb_mask;
+ 
++#ifdef HAVE_ORBIS_PLATFORM
++   /* ORBIS_RASTER_CONFIG=sony: write neither register, so the value Sony's clear state loads stays. The
++    * table values already are Sony's - the kernel writes 0x2a00161a, and PA_SC_RASTER_CONFIG_1 = 0x2e in
++    * Neo mode, to every shader engine - so this is a cross-check, not a default. */
++   {
++      const char *const e = getenv("ORBIS_RASTER_CONFIG");
++      if (e != NULL && !strcmp(e, "sony")) {
++         static bool said;
++         if (!said) {
++            said = true;
++            mesa_logi("orbis: PA_SC_RASTER_CONFIG left as Sony's clear state sets it");
++         }
++         return;
++      }
++   }
++#endif
+    if (!rb_mask || util_bitcount64(rb_mask) >= num_rb) {
+       /* Always use the default config when all backends are enabled
+        * (or when we failed to determine the enabled backends).
+diff --git a/src/amd/common/ac_gpu_info.c b/src/amd/common/ac_gpu_info.c
+index df220fa..4aede69 100644
+--- a/src/amd/common/ac_gpu_info.c
++++ b/src/amd/common/ac_gpu_info.c
+@@ -2550,6 +2550,8 @@ void ac_get_raster_config(const struct radeon_info *info, uint32_t *raster_confi
+     * targets and its pair is consistent.
+     */
+    case CHIP_GLADIUS:
++      /* Sony's: the kernel's GPU setup writes exactly this pair to each of the four shader engines in Neo
++       * mode (PA_SC_RASTER_CONFIG_1 is 0 on a Pro in base mode). */
+       raster_config = 0x2a00161a;
+       raster_config_1 = 0x0000002e;
+       break;

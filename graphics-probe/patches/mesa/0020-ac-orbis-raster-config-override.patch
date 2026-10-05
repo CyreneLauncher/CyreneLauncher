@@ -1,0 +1,24 @@
+diff --git a/src/amd/common/ac_gpu_info.c b/src/amd/common/ac_gpu_info.c
+index 138472a..df220fa 100644
+--- a/src/amd/common/ac_gpu_info.c
++++ b/src/amd/common/ac_gpu_info.c
+@@ -2599,6 +2599,19 @@ void ac_get_raster_config(const struct radeon_info *info, uint32_t *raster_confi
+    /* I don't know how to calculate this, though this is probably a good guess. */
+    se_tile_repeat = MAX2(se_width, se_height) * info->max_se;
+ 
++#ifdef HAVE_ORBIS_PLATFORM
++   /* ORBIS_RASTER_CONFIG=<raster_config>:<raster_config_1>, both hex, for trying a layout without a rebuild. */
++   if (info->family == CHIP_LIVERPOOL || info->family == CHIP_GLADIUS) {
++      const char *const e = getenv("ORBIS_RASTER_CONFIG");
++      unsigned a, b;
++      if (e != NULL && sscanf(e, "%x:%x", &a, &b) == 2) {
++         raster_config = a;
++         raster_config_1 = b;
++      }
++      mesa_logi("orbis: PA_SC_RASTER_CONFIG 0x%08x, PA_SC_RASTER_CONFIG_1 0x%08x%s", raster_config,
++                raster_config_1, e != NULL ? " (ORBIS_RASTER_CONFIG)" : "");
++   }
++#endif
+    *raster_config_p = raster_config;
+    *raster_config_1_p = raster_config_1;
+    if (se_tile_repeat_p)

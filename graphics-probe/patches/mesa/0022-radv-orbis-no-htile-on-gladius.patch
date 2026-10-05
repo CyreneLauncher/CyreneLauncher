@@ -1,0 +1,18 @@
+diff --git a/src/amd/vulkan/radv_physical_device.c b/src/amd/vulkan/radv_physical_device.c
+index 9a7580d..de3cc5a 100644
+--- a/src/amd/vulkan/radv_physical_device.c
++++ b/src/amd/vulkan/radv_physical_device.c
+@@ -2972,6 +2972,13 @@ radv_physical_device_try_create(struct radv_instance *instance, drmDevicePtr drm
+    pdev->force_64_byte_sampled_image = !pdev->use_fmask && pdev->drirc.debug.force_64_byte_sampled_image;
+ 
+    pdev->use_hiz = !(instance->debug_flags & RADV_DEBUG_NO_HIZ);
++#ifdef HAVE_ORBIS_PLATFORM
++   /* No HTILE on a PS4 Pro: with all 16 render backends drawing, depth tests failed tile by tile - terrain
++    * showed what was behind it in a fine grid of blocks - and RADV_DEBUG=nohiz cleared it for about 1 fps.
++    * The 8 backends of the Liverpool profile rendered the same frames cleanly. */
++   if (pdev->info.family == CHIP_GLADIUS)
++      pdev->use_hiz = false;
++#endif
+ 
+    if (pdev->info.gfx_level == GFX12) {
+       const char *gfx12_hiz_wa_str = pdev->drirc.performance.gfx12_hiz_wa;
