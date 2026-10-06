@@ -112,7 +112,38 @@ final class OrbisGLFW {
     static GLFWErrorCallback glfwSetErrorCallback(GLFWErrorCallbackI cbfun) {
         GLFWErrorCallbackI previous = errorCallback;
         errorCallback = cbfun;
-        return previous instanceof GLFWErrorCallback ? (GLFWErrorCallback) previous : null;
+        return asCallback(previous);
+    }
+
+    /**
+     * GLFW returns the previous callback even when it was set as a lambda, which LWJGL wraps in a callback
+     * object; Minecraft 1.14 frees it at once. These wrappers are Java only: there is no native upcall
+     * stub behind them (the address is a non-null placeholder nothing reads), so free() releases nothing.
+     */
+    private static final long JAVA_ONLY = 1L;
+
+    private static final class JavaErrorCallback extends GLFWErrorCallback {
+        private final GLFWErrorCallbackI delegate;
+        JavaErrorCallback(GLFWErrorCallbackI delegate) { super(JAVA_ONLY); this.delegate = delegate; }
+        @Override public void invoke(int error, long description) { delegate.invoke(error, description); }
+        @Override public void free() { }
+    }
+
+    private static final class JavaMonitorCallback extends GLFWMonitorCallback {
+        private final GLFWMonitorCallbackI delegate;
+        JavaMonitorCallback(GLFWMonitorCallbackI delegate) { super(JAVA_ONLY); this.delegate = delegate; }
+        @Override public void invoke(long monitor, int event) { delegate.invoke(monitor, event); }
+        @Override public void free() { }
+    }
+
+    private static GLFWErrorCallback asCallback(GLFWErrorCallbackI callback) {
+        return callback == null || callback instanceof GLFWErrorCallback ? (GLFWErrorCallback) callback
+                : new JavaErrorCallback(callback);
+    }
+
+    private static GLFWMonitorCallback asCallback(GLFWMonitorCallbackI callback) {
+        return callback == null || callback instanceof GLFWMonitorCallback ? (GLFWMonitorCallback) callback
+                : new JavaMonitorCallback(callback);
     }
 
     static int glfwGetError(PointerBuffer description) {
@@ -362,7 +393,7 @@ final class OrbisGLFW {
     static GLFWMonitorCallback glfwSetMonitorCallback(GLFWMonitorCallbackI cbfun) {
         GLFWMonitorCallbackI previous = monitorCallback;
         monitorCallback = cbfun;
-        return previous instanceof GLFWMonitorCallback ? (GLFWMonitorCallback) previous : null;
+        return asCallback(previous);
     }
 
     // ---------------------------------------------------------------- window

@@ -274,7 +274,8 @@ if platform_built is None or platform_built.exported_members() != official_platf
     problems.append('Platform shim exported members differ from lwjgl-3.2.2.jar')
 allowed = set(official) | {'org/lwjgl/system/Platform.class', 'orbis/graphics/NativePlatform.class',
                            'org/lwjgl/glfw/OrbisGLFW.class', 'org/lwjgl/glfw/OrbisGLFW$EglFunctionProvider.class',
-                           'org/lwjgl/glfw/OrbisKeys.class'}
+                           'org/lwjgl/glfw/OrbisKeys.class', 'org/lwjgl/glfw/OrbisGLFW$JavaErrorCallback.class',
+                           'org/lwjgl/glfw/OrbisGLFW$JavaMonitorCallback.class'}
 allowed |= {n for n in built if n.startswith('org/lwjgl/system/Platform$')}
 problems += [f'unexpected class {name}' for name in sorted(set(built) - allowed)]
 exported = {f'{m.name} {m.descriptor}' for m in glfw.methods if m.exported and m.name != '<init>'}

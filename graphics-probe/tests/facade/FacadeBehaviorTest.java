@@ -26,6 +26,11 @@ public final class FacadeBehaviorTest {
         GLFWErrorCallback previous = glfwSetErrorCallback((code, description) ->
                 errors.add(code));
         check(previous == null, "no previous error callback");
+        // Minecraft 1.14: replace a lambda error callback and free the one returned.
+        GLFWErrorCallback replaced = glfwSetErrorCallback((code, description) -> errors.add(code));
+        check(replaced != null, "a previous lambda callback comes back as a callback object");
+        replaced.free();
+        replaced.invoke(0, 0L);
 
         check(glfwInit(), "glfwInit");
         check(NativePlatform.mesaLogFile != null && NativePlatform.mesaLogFile.endsWith("/mesa.log")
