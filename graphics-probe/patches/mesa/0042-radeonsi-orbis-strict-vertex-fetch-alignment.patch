@@ -1,0 +1,60 @@
+diff --git a/src/gallium/drivers/radeonsi/gfx/si_nir_lower_vs_inputs.c b/src/gallium/drivers/radeonsi/gfx/si_nir_lower_vs_inputs.c
+index 2ca591e..0a50b94 100644
+--- a/src/gallium/drivers/radeonsi/gfx/si_nir_lower_vs_inputs.c
++++ b/src/gallium/drivers/radeonsi/gfx/si_nir_lower_vs_inputs.c
+@@ -7,6 +7,9 @@
+ #include "nir_builder.h"
+ 
+ #include "ac_nir.h"
++#ifdef HAVE_ORBIS_PLATFORM
++#include "ac_shader_util.h"
++#endif
+ #include "si_shader_internal.h"
+ #include "si_state.h"
+ #include "si_pipe.h"
+@@ -220,7 +223,12 @@ opencoded_load_format(nir_builder *b, nir_def *rsrc, nir_def *vindex,
+    }
+ 
+    int log_recombine = 0;
+-   if ((gfx_level == GFX6 || gfx_level >= GFX10) && !known_aligned) {
++   bool split_bytes = gfx_level == GFX6 || gfx_level >= GFX10;
++#ifdef HAVE_ORBIS_PLATFORM
++   /* The PS4 runs strict alignment, like GFX6: see check_alignment in si_state.c. */
++   split_bytes = split_bytes || ac_orbis_strict_vtx_align();
++#endif
++   if (split_bytes && !known_aligned) {
+       /* Avoid alignment restrictions by loading one byte at a time. */
+       load_num_channels <<= load_log_size;
+       log_recombine = load_log_size;
+diff --git a/src/gallium/drivers/radeonsi/si_state.c b/src/gallium/drivers/radeonsi/si_state.c
+index fe6d8fe..170330c 100644
+--- a/src/gallium/drivers/radeonsi/si_state.c
++++ b/src/gallium/drivers/radeonsi/si_state.c
+@@ -4,6 +4,9 @@
+  * SPDX-License-Identifier: MIT
+  */
+ 
++#ifdef HAVE_ORBIS_PLATFORM
++#include "ac_shader_util.h"
++#endif
+ #include "si_build_pm4.h"
+ #include "si_query.h"
+ #include "gfx/si_gfx.h"
+@@ -4431,7 +4434,16 @@ static void *si_create_vertex_elements(struct pipe_context *ctx, unsigned count,
+        */
+       bool check_alignment =
+             log_hw_load_size >= 1 &&
+-            (sscreen->info.gfx_level == GFX6 || sscreen->info.gfx_level >= GFX10);
++            (sscreen->info.gfx_level == GFX6 || sscreen->info.gfx_level >= GFX10
++#ifdef HAVE_ORBIS_PLATFORM
++             /* The PS4's shader memory unit runs in strict alignment mode, which GFX7-9 drivers elsewhere
++              * never see because their kernel programs the unaligned mode. Unaligned typed or dword vertex
++              * fetches read the wrong bytes - Flywheel's instance data (a float matrix at a 2-byte offset)
++              * drew Create parts at the camera and dropped chest lids. Treat it like GFX6, as RADV's
++              * ac_get_safe_fetch_size already does (ORBIS_VS_STRICT_ALIGN). */
++             || ac_orbis_strict_vtx_align()
++#endif
++            );
+       bool opencode = sscreen->options.vs_fetch_always_opencode;
+ 
+       if (check_alignment && ((elements[i].src_offset & ((1 << log_hw_load_size) - 1)) != 0 ||
