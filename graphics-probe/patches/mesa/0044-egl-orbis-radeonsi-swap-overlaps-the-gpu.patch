@@ -1,0 +1,312 @@
+diff --git a/src/amd/common/ac_linux_drm.h b/src/amd/common/ac_linux_drm.h
+index 60faa59..0d9cc70 100644
+--- a/src/amd/common/ac_linux_drm.h
++++ b/src/amd/common/ac_linux_drm.h
+@@ -573,6 +573,11 @@ bool ac_orbis_wait_gpu_seq(uint64_t seq, uint64_t timeout_ns);
+  * amdgpu_fence_wait. */
+ bool ac_orbis_gpu_seq_reached(uint64_t seq);
+ 
++/* The newest submission the GPU has finished: the fence label as it reads now. A value a wait on it can
++ * never block for, which is what a present taken off the frame's own fence wants to pass - the frame is done,
++ * and "the newest submission" would by then include the next frame. Zero before anything has finished. */
++uint64_t ac_orbis_gpu_seq_retired(void);
++
+ /* Whether a device address lies inside this arm's single arena. See the definition for why descriptor
+  * construction asks. */
+ bool ac_orbis_va_is_ours(uint64_t va, uint64_t size);
+diff --git a/src/amd/common/ac_orbis_drm.c b/src/amd/common/ac_orbis_drm.c
+index 709b541..b77fcc3 100644
+--- a/src/amd/common/ac_orbis_drm.c
++++ b/src/amd/common/ac_orbis_drm.c
+@@ -9531,6 +9531,12 @@ ac_orbis_gpu_seq_reached(uint64_t seq)
+    return (int32_t)(*orbis_fence_label - (uint32_t)seq) >= 0;
+ }
+ 
++uint64_t
++ac_orbis_gpu_seq_retired(void)
++{
++   return *orbis_fence_label;
++}
++
+ bool
+ ac_orbis_wait_gpu_idle(uint64_t timeout_ns)
+ {
+diff --git a/src/egl/drivers/dri2/platform_orbis.c b/src/egl/drivers/dri2/platform_orbis.c
+index b70a988..019e2a5 100644
+--- a/src/egl/drivers/dri2/platform_orbis.c
++++ b/src/egl/drivers/dri2/platform_orbis.c
+@@ -25,13 +25,17 @@
+  *      the television.
+  */
+ 
++#include <pthread.h>
+ #include <stdio.h>
+ #include <stdlib.h>
+ #include <string.h>
+ #include <unistd.h>
+ 
++#include "util/log.h"
+ #include "util/macros.h"
+ #include "util/os_misc.h"
++#include "util/os_time.h"
++#include "util/u_debug.h"
+ 
+ #include "egl_dri2.h"
+ #include "eglglobals.h"
+@@ -390,6 +394,25 @@ si_orbis_texture_cpu_address(struct pipe_resource *res, void **ptr, uint32_t *pi
+ 
+ #define ORBIS_GL_BUFFERS 3
+ 
++/* ⚠ THE SWAP DOES NOT WAIT FOR THE GPU. It used to: flush, wait for the whole frame, flip, return - so the CPU sat
++ * idle while the GPU finished frame N, and the GPU then sat idle while the CPU built the start of frame N+1. The
++ * two never worked at once. Now the swap flushes, hands the frame's fence to the FLIPPER THREAD and returns; the
++ * flipper waits for the GPU, flips, and waits for the flip to reach the screen. Every video-out call is the
++ * flipper's while it runs.
++ *
++ * THREE BUFFERS STILL DO, because the CPU may get only one frame ahead. A job is finished when its frame is ON
++ * SCREEN, and the swap posts frame N only once frame N-1's job is finished - so N-1 is displayed, N is the
++ * flipper's, and the buffer handed out for N+1 is N-2's, which the display has let go of. No added latency: a
++ * frame flips when the GPU finishes it, as before.
++ *
++ * ORBIS_SWAP_OVERLAP=0 restores the waiting swap. */
++struct orbis_gl_flip_job {
++   void *fence; /* dri2_fence of the frame, or NULL: then the flip waits for the GPU to go idle */
++   struct dri_screen *screen;
++   unsigned index;
++   uint64_t swap_ns; /* when the swap posted it */
++};
++
+ static struct orbis_gl_window {
+    struct dri2_egl_surface *surf;
+    struct dri_image *images[ORBIS_GL_BUFFERS];
+@@ -398,8 +421,135 @@ static struct orbis_gl_window {
+    struct wsi_orbis_scanout *so;
+    unsigned back;
+    bool failed;
++
++   /* The flipper. lock guards everything below it. */
++   bool flipper_live;
++   pthread_t flipper;
++   pthread_mutex_t lock;
++   pthread_cond_t cond;
++   bool busy; /* a job has been posted and its frame is not on screen yet */
++   bool job_pending; /* posted, not yet taken */
++   bool stop;
++   struct orbis_gl_flip_job job;
++
++   /* Per window of ORBIS_GL_STATS_FRAMES swaps, logged and reset by the swap; gpu_ns and shown_ns are the
++    * flipper's and under the lock while it runs. */
++   uint64_t frames, swap_ns, gpu_ns, shown_ns;
+ } orbis_gl_window; /* one display, one window surface */
+ 
++#define ORBIS_GL_STATS_FRAMES 600
++#define ORBIS_GL_WAIT_NS (2ull * 1000 * 1000 * 1000)
++
++static bool
++orbis_gl_overlap_enabled(void)
++{
++   static int enabled = -1;
++   if (enabled < 0)
++      enabled = debug_get_bool_option("ORBIS_SWAP_OVERLAP", true) ? 1 : 0;
++   return enabled == 1;
++}
++
++/* One frame onto the screen: its GPU work, then the flip, then - when `wait_shown` - until the display shows it.
++ * The waiting swap does not wait for the showing; it waited for the previous flip before queueing instead. */
++static void
++orbis_gl_flip(struct orbis_gl_window *w, const struct orbis_gl_flip_job *job, bool wait_shown,
++              uint64_t *gpu_ns, uint64_t *shown_ns)
++{
++   /* The present waits for the GPU too. Given 0 it waits for the NEWEST submission, which with the swap no longer
++    * waiting is already the next frame's work - so it gets the label as it stands once this frame's fence has
++    * signalled: done by definition, and no wait at all. */
++   extern uint64_t ac_orbis_gpu_seq_retired(void);
++   uint64_t gpu_seq = 0;
++
++   const uint64_t t0 = os_time_get_nano();
++   if (job->fence) {
++      if (!dri_client_wait_sync(NULL, job->fence, 0, ORBIS_GL_WAIT_NS))
++         _eglLog(_EGL_WARNING, "orbis-egl: the frame did not finish within 2 s; flipping it anyway");
++      else
++         gpu_seq = ac_orbis_gpu_seq_retired();
++      dri_destroy_fence(job->screen, job->fence);
++   }
++   const uint64_t t1 = os_time_get_nano();
++
++   /* The previous flip on screen before this one is queued (see the block comment above). */
++   for (unsigned waited = 0; wsi_orbis_flips_pending(w->so) > 0 && waited < 100000; waited += 250)
++      usleep(250);
++
++   if (!wsi_orbis_scanout_present(w->so, job->index, w->addrs[job->index], w->pitch_px * 4, gpu_seq))
++      _eglLog(_EGL_WARNING, "orbis-egl: flip of buffer %u failed", job->index);
++
++   if (wait_shown) {
++      for (unsigned waited = 0; wsi_orbis_flips_pending(w->so) > 0 && waited < 100000; waited += 250)
++         usleep(250);
++   }
++
++   *gpu_ns = t1 - (job->swap_ns != 0 ? job->swap_ns : t0);
++   *shown_ns = os_time_get_nano() - t1;
++}
++
++static void *
++orbis_gl_flipper_main(void *arg)
++{
++   struct orbis_gl_window *w = arg;
++
++   pthread_mutex_lock(&w->lock);
++   for (;;) {
++      while (!w->job_pending && !w->stop)
++         pthread_cond_wait(&w->cond, &w->lock);
++      if (!w->job_pending)
++         break; /* stopping, and nothing left to show */
++      const struct orbis_gl_flip_job job = w->job;
++      w->job_pending = false;
++      pthread_mutex_unlock(&w->lock);
++
++      uint64_t gpu_ns, shown_ns;
++      orbis_gl_flip(w, &job, true, &gpu_ns, &shown_ns);
++
++      pthread_mutex_lock(&w->lock);
++      w->gpu_ns += gpu_ns;
++      w->shown_ns += shown_ns;
++      w->busy = false;
++      pthread_cond_broadcast(&w->cond);
++   }
++   pthread_mutex_unlock(&w->lock);
++   return NULL;
++}
++
++static void
++orbis_gl_flipper_start(struct orbis_gl_window *w)
++{
++   if (!orbis_gl_overlap_enabled()) {
++      mesa_logi("orbis-egl: ORBIS_SWAP_OVERLAP=0 - the swap waits for each frame before flipping it");
++      return;
++   }
++   pthread_mutex_init(&w->lock, NULL);
++   pthread_cond_init(&w->cond, NULL);
++   if (pthread_create(&w->flipper, NULL, orbis_gl_flipper_main, w) != 0) {
++      mesa_logw("orbis-egl: the flipper thread could not be created; the swap waits for each frame instead");
++      pthread_cond_destroy(&w->cond);
++      pthread_mutex_destroy(&w->lock);
++      return;
++   }
++   w->flipper_live = true;
++   mesa_logi("orbis-egl: frames flip from a thread of their own - the swap returns without waiting for the GPU");
++}
++
++/* Shows whatever is still posted, then joins. */
++static void
++orbis_gl_flipper_stop(struct orbis_gl_window *w)
++{
++   if (!w->flipper_live)
++      return;
++   pthread_mutex_lock(&w->lock);
++   w->stop = true;
++   pthread_cond_broadcast(&w->cond);
++   pthread_mutex_unlock(&w->lock);
++   pthread_join(w->flipper, NULL);
++   pthread_cond_destroy(&w->cond);
++   pthread_mutex_destroy(&w->lock);
++   w->flipper_live = false;
++}
++
+ static bool
+ orbis_gl_use_radeonsi(void)
+ {
+@@ -410,6 +560,7 @@ orbis_gl_use_radeonsi(void)
+ static void
+ orbis_gl_window_release(struct orbis_gl_window *w)
+ {
++   orbis_gl_flipper_stop(w);
+    if (w->so)
+       wsi_orbis_scanout_destroy(w->so);
+    for (unsigned i = 0; i < ORBIS_GL_BUFFERS; i++) {
+@@ -455,6 +606,7 @@ orbis_gl_window_init(struct dri2_egl_display *dri2_dpy, struct dri2_egl_surface
+    wsi_orbis_scanout_reserve(w->so, 1);
+    _eglLog(_EGL_INFO, "orbis-egl: radeonsi presents %u linear %ux%u buffers (pitch %u px) by flipping them",
+            ORBIS_GL_BUFFERS, dri2_surf->base.Width, dri2_surf->base.Height, w->pitch_px);
++   orbis_gl_flipper_start(w);
+    return true;
+ 
+ fail:
+@@ -599,36 +751,62 @@ dri2_orbis_image_swap_buffers(_EGLDisplay *disp, _EGLSurface *draw)
+    if (draw->Type != EGL_WINDOW_BIT || w->surf != dri2_surf || !w->so)
+       return EGL_TRUE;
+ 
++   const uint64_t t0 = os_time_get_nano();
+    dri2_flush_drawable_for_swapbuffers(disp, draw);
+ 
+    /* ⚠ THE FRAME, NOT "THE GPU IS IDLE". The flush above can reach the GPU after it returns - GL work goes
+     * through a driver thread - so waiting for whatever was already submitted could flip a frame missing its
+     * last part. That showed as one dark frame whenever new chunks loaded: their uploads split the frame into
+     * several submissions, and the flip caught only the first (the clear). A fence created after the flush
+-    * covers all of it. */
++    * covers all of it. Creating it flushes everything, so the GPU is working on the frame from here on. */
++   struct orbis_gl_flip_job job = {
++      .screen = dri2_egl_display(disp)->dri_screen_render_gpu,
++      .index = w->back,
++   };
+    {
+       _EGLContext *ctx = _eglGetCurrentContext();
+       struct dri2_egl_context *dri2_ctx = ctx ? dri2_egl_context(ctx) : NULL;
+-      if (dri2_ctx && dri2_ctx->dri_context) {
+-         void *fence = dri_create_fence(dri2_ctx->dri_context);
+-         if (fence) {
+-            if (!dri_client_wait_sync(dri2_ctx->dri_context, fence, __DRI2_FENCE_FLAG_FLUSH_COMMANDS,
+-                                      2000000000ull))
+-               _eglLog(_EGL_WARNING, "orbis-egl: the frame did not finish within 2 s; flipping it anyway");
+-            dri_destroy_fence(dri2_egl_display(disp)->dri_screen_render_gpu, fence);
+-         }
+-      }
++      if (dri2_ctx && dri2_ctx->dri_context)
++         job.fence = dri_create_fence(dri2_ctx->dri_context);
+    }
+ 
+-   /* The previous flip on screen before this one is queued (see the block comment above). */
+-   for (unsigned waited = 0; wsi_orbis_flips_pending(w->so) > 0 && waited < 100000; waited += 250)
+-      usleep(250);
+-
+-   if (!wsi_orbis_scanout_present(w->so, w->back, w->addrs[w->back], w->pitch_px * 4, 0))
+-      _eglLog(_EGL_WARNING, "orbis-egl: flip of buffer %u failed", w->back);
++   if (w->flipper_live) {
++      /* The previous frame on screen first - that is what frees the buffer handed out below. */
++      pthread_mutex_lock(&w->lock);
++      while (w->busy)
++         pthread_cond_wait(&w->cond, &w->lock);
++      job.swap_ns = os_time_get_nano();
++      w->job = job;
++      w->busy = true;
++      w->job_pending = true;
++      pthread_cond_broadcast(&w->cond);
++      pthread_mutex_unlock(&w->lock);
++   } else {
++      uint64_t gpu_ns, shown_ns;
++      orbis_gl_flip(w, &job, false, &gpu_ns, &shown_ns);
++   }
+ 
+    w->back = (w->back + 1) % ORBIS_GL_BUFFERS;
+    dri_invalidate_drawable(dri2_surf->dri_drawable);
++
++   /* What the swap costs the application, comparable across ORBIS_SWAP_OVERLAP: with it, how long the swap
++    * blocked and how long the GPU took to finish a frame after its swap; without it, the swap is all of it. */
++   w->swap_ns += os_time_get_nano() - t0;
++   if (++w->frames == ORBIS_GL_STATS_FRAMES) {
++      if (w->flipper_live)
++         pthread_mutex_lock(&w->lock);
++      const double n = (double)w->frames * 1e6;
++      if (w->flipper_live)
++         mesa_logi("orbis-egl: swap overlap over %u frames - swap blocked %.2f ms/frame, GPU finished %.2f ms "
++                   "after the swap, flip on screen %.2f ms after that",
++                   ORBIS_GL_STATS_FRAMES, w->swap_ns / n, w->gpu_ns / n, w->shown_ns / n);
++      else
++         mesa_logi("orbis-egl: waiting swap over %u frames - swap blocked %.2f ms/frame",
++                   ORBIS_GL_STATS_FRAMES, w->swap_ns / n);
++      w->frames = w->swap_ns = w->gpu_ns = w->shown_ns = 0;
++      if (w->flipper_live)
++         pthread_mutex_unlock(&w->lock);
++   }
+    return EGL_TRUE;
+ }
+ 
