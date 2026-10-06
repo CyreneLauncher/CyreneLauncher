@@ -15,7 +15,11 @@ def main():
     classpath = ':'.join(str(JARS / name) for name in (
         'lwjgl-3.2.2.jar', 'lwjgl-opengl-3.2.2.jar', 'lwjgl-glfw-3.2.2.jar', 'lwjgl-3.2.2-natives-linux.jar')) + f':{GSON}'
     sources = sorted((ROOT / 'launcher/java').rglob('*.java')) + sorted((ROOT / 'tests/launcher').rglob('*.java'))
+    # The launcher JAR embeds the compatibility mod; Play extracts it from the class path.
+    subprocess.run([sys.executable, str(ROOT / 'tools/build_launcher.py')], check=True, stdout=subprocess.DEVNULL)
     with tempfile.TemporaryDirectory() as tmp:
+        (Path(tmp) / 'orbis/launcher').mkdir(parents=True)
+        (Path(tmp) / 'orbis/launcher/orbis-compat.jar').write_bytes((ROOT / 'build/launcher/orbis-compat.jar').read_bytes())
         subprocess.run([str(JDK / 'javac'), '--release', '17', '-Xlint:all', '-Werror', '-encoding', 'UTF-8',
                         '-cp', classpath, '-sourcepath', str(ROOT / 'lwjgl/java'), '-implicit:class',
                         '-d', tmp, *map(str, sources)], check=True)

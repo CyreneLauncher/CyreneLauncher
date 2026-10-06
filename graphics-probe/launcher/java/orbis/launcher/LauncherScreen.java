@@ -29,7 +29,7 @@ import static org.lwjgl.glfw.GLFW.*;
  * its results are applied on this, the GL thread.
  */
 class LauncherScreen {
-    private enum Page { INSTANCES, MODS, ACCOUNTS, SETTINGS, BROWSE, DETAIL }
+    private enum Page { INSTANCES, MODS, ACCOUNTS, SETTINGS, BROWSE, DETAIL, VERSIONS }
     private enum Focus { LIST, DETAIL }
     private enum Field { SEARCH, INSTANCE_NAME, OFFLINE_NAME }
     private enum NameMode { CREATE, CLONE, RENAME }
@@ -44,7 +44,8 @@ class LauncherScreen {
         return t;
     });
     private final Queue<Runnable> results = new ConcurrentLinkedQueue<>();
-    private final ModrinthClient modrinth;
+    private ModrinthClient modrinth;
+    private final ModrinthClient suppliedModrinth;
     private ModInstaller installer;
     private final ModInstaller suppliedInstaller;
 
@@ -69,6 +70,13 @@ class LauncherScreen {
     private long activeTask;
     private boolean cancellable;
 
+    // Versions page: choosing what a new instance runs.
+    private VersionStore.Loader versionLoader = VersionStore.Loader.FABRIC;
+    private List<VersionStore.GameVersion> catalog = List.of();
+    private VersionStore.Loader catalogLoader;
+    private VersionStore.GameVersion pendingVersion;
+    private VersionStore.Loader pendingLoader;
+
     // Accounts page.
     private AccountStore accounts;
     private MicrosoftAuthClient.DeviceSession login;
@@ -91,7 +99,7 @@ class LauncherScreen {
     private ModInstaller.Plan plan;
 
     LauncherScreen(LauncherConfig config) {
-        this(config, new Renderer(), new ModrinthClient(config.gameVersion()), null);
+        this(config, new Renderer(), null, null);
     }
 
     /** Tests pass a renderer without GL and a Modrinth client and installer that do not use the network. */
@@ -99,11 +107,12 @@ class LauncherScreen {
         this.config = config;
         this.crash = config.lastSession();
         this.r = renderer;
-        this.modrinth = modrinth;
+        this.suppliedModrinth = modrinth;
+        this.modrinth = modrinth != null ? modrinth : new ModrinthClient(config.gameVersion());
         this.suppliedInstaller = installer;
         String bundle = System.getProperty("runner.graphics.bundle");
         this.installer = installer != null ? installer
-                : new ModInstaller(modrinth, config.modsDir(), bundle == null ? null : Path.of(bundle),
+                : new ModInstaller(this.modrinth, config.modsDir(), bundle == null ? null : Path.of(bundle),
                         config.builtInVersions());
         List<InstanceStore.Instance> all = config.instances.list();
         for (int i = 0; i < all.size(); i++)
@@ -296,6 +305,7 @@ class LauncherScreen {
                 : field == Field.OFFLINE_NAME ? offlineName()
                 : nameMode == NameMode.RENAME ? config.instances.get(nameTargetId).name()
                 : nameMode == NameMode.CLONE ? config.instances.get(nameTargetId).name() + " Copy"
+                : pendingVersion != null ? pendingLoader.title + " " + pendingVersion.id()
                 : "New Minecraft";
         editor.begin(initial);
         input.releaseBarrier();
@@ -388,8 +398,12 @@ class LauncherScreen {
                     config.instances.rename(nameTargetId, value);
                     setStatus("Instance renamed.", ACCENT);
                 } else if (nameMode == NameMode.CREATE) {
+                    VersionStore.GameVersion version = pendingVersion;
+                    VersionStore.Loader loader = pendingLoader;
+                    pendingVersion = null;
+                    go(Page.INSTANCES, -1);
                     startInstanceOperation("Creating instance...", new InstanceStore.Operation(),
-                            op -> config.instances.create(value, op));
+                            op -> config.instances.create(value, profileFor(version, loader, op), op));
                 } else {
                     pendingCloneName = value;
                     cloneOptions = true;
@@ -485,6 +499,7 @@ class LauncherScreen {
     private int items() {
         return switch (page) {
             case INSTANCES -> config.instances.list().size();
+            case VERSIONS -> 1 + catalog.size();
             case SETTINGS -> 5;
             case ACCOUNTS -> accountList().size() + 2;
             case MODS -> 1 + mods.size();
@@ -505,7 +520,7 @@ class LauncherScreen {
     private void switchSection(int direction) {
         Page[] sections = {Page.INSTANCES, Page.MODS, Page.ACCOUNTS, Page.SETTINGS};
         int current = switch (page) {
-            case INSTANCES -> 0;
+            case INSTANCES, VERSIONS -> 0;
             case MODS, BROWSE, DETAIL -> 1;
             case ACCOUNTS -> 2;
             case SETTINGS -> 3;
@@ -531,7 +546,11 @@ class LauncherScreen {
                 else adjust(+1);
             }
             case MODS -> {
-                if (selected == 0) { go(Page.BROWSE, -1); setStatus("", DIM); }
+                if (selected == 0) {
+                    if (config.loader() == VersionStore.Loader.VANILLA)
+                        setStatus("Vanilla instances do not load mods. Create a Fabric or Quilt instance for mods.", WARN);
+                    else { go(Page.BROWSE, -1); setStatus("", DIM); }
+                }
                 else toggle(mods.get(selected - 1));
             }
             case BROWSE -> {
@@ -541,6 +560,16 @@ class LauncherScreen {
             case DETAIL -> {
                 if (selected == 0 && plan != null && plan.installable()) install();
                 else back();
+            }
+            case VERSIONS -> {
+                if (selected == 0) cycleLoader(+1);
+                else if (catalogLoader == versionLoader && selected - 1 < catalog.size()) {
+                    pendingVersion = catalog.get(selected - 1);
+                    pendingLoader = versionLoader;
+                    nameMode = NameMode.CREATE;
+                    nameTargetId = null;
+                    beginEdit(Field.INSTANCE_NAME, source);
+                }
             }
         }
     }
@@ -555,6 +584,7 @@ class LauncherScreen {
             case ACCOUNTS -> go(Page.INSTANCES, -1);
             case MODS -> go(Page.INSTANCES, -1);
             case BROWSE -> { go(Page.MODS, -1); refreshMods(); }
+            case VERSIONS -> { go(Page.INSTANCES, -1); setStatus("", DIM); }
             case DETAIL -> { go(Page.BROWSE, -1); plan = null; }
             default -> { }
         }
@@ -586,7 +616,7 @@ class LauncherScreen {
                 InstanceStore.Instance current = config.selectedInstance();
                 switch (detailSelected) {
                     case 0 -> play();
-                    case 1 -> { nameMode = NameMode.CREATE; nameTargetId = null; beginEdit(Field.INSTANCE_NAME, source); }
+                    case 1 -> openVersions();
                     case 2 -> { nameMode = NameMode.CLONE; nameTargetId = current.id(); beginEdit(Field.INSTANCE_NAME, source); }
                     case 3 -> { nameMode = NameMode.RENAME; nameTargetId = current.id(); beginEdit(Field.INSTANCE_NAME, source); }
                     case 4 -> {
@@ -618,6 +648,7 @@ class LauncherScreen {
         for (int i = 0; i < values.size(); i++)
             if (values.get(i).id().equals(config.selectedInstance().id())) { selected = i; break; }
         crash = config.lastSession();
+        if (suppliedModrinth == null) modrinth = new ModrinthClient(config.gameVersion());
         String bundle = System.getProperty("runner.graphics.bundle");
         installer = suppliedInstaller != null ? suppliedInstaller
                 : new ModInstaller(modrinth, config.modsDir(), bundle == null ? null : Path.of(bundle),
@@ -722,6 +753,7 @@ class LauncherScreen {
     }
 
     private void adjust(int direction) {
+        if (page == Page.VERSIONS && selected == 0) { cycleLoader(direction); return; }
         if (page == Page.ACCOUNTS && selected == accountList().size() + 1) { cycleInstanceAccount(direction); return; }
         if (page != Page.SETTINGS) return;
         int step = direction * LauncherConfig.STEP_MIB;
@@ -767,6 +799,62 @@ class LauncherScreen {
             catch (IOException recovery) { setStatus("Restart failed; runner settings require recovery", ERROR); return; }
             setStatus(String.format("Restart failed (0x%08x)", error), ERROR);
         });
+    }
+
+    // ------------------------------------------------------------------ versions
+
+    private void openVersions() {
+        go(Page.VERSIONS, 0);
+        if (catalogLoader != versionLoader) loadCatalog();
+        else setStatus("Choose what the new instance runs.", DIM);
+    }
+
+    private void cycleLoader(int direction) {
+        VersionStore.Loader[] all = VersionStore.Loader.values();
+        versionLoader = all[(versionLoader.ordinal() + direction + all.length) % all.length];
+        selected = 0;
+        loadCatalog();
+    }
+
+    private void loadCatalog() {
+        VersionStore.Loader loader = versionLoader;
+        catalog = List.of();
+        catalogLoader = null;
+        background("Loading Minecraft versions for " + loader.title + "...", true, () -> fetchCatalog(loader), found -> {
+            if (loader != versionLoader) return;
+            catalog = found;
+            catalogLoader = loader;
+            setStatus(found.size() + " versions. 1.14 to 1.16 use older OpenGL and are less tested.", DIM);
+        });
+    }
+
+    /** Network seams, replaced in tests. */
+    protected List<VersionStore.GameVersion> fetchCatalog(VersionStore.Loader loader) throws IOException {
+        return config.versions.catalog(loader);
+    }
+
+    protected VersionStore.Installed installVersion(VersionStore.GameVersion version, VersionStore.Loader loader,
+                                                    InstanceStore.Operation op) throws IOException {
+        return config.versions.install(version, loader, op);
+    }
+
+    /** The game profile a new instance runs: the built-in 1.18.2, an installed version, or a fresh download. */
+    private Path profileFor(VersionStore.GameVersion version, VersionStore.Loader loader, InstanceStore.Operation op)
+            throws IOException {
+        if (version == null || builtIn(version, loader)) return config.metadata;
+        VersionStore.Installed present = installedFor(version, loader);
+        if (present != null) return present.gameProfile();
+        return installVersion(version, loader, op).gameProfile();
+    }
+
+    private boolean builtIn(VersionStore.GameVersion version, VersionStore.Loader loader) {
+        return loader == VersionStore.Loader.FABRIC && version.id().equals(config.builtInGameVersion());
+    }
+
+    private VersionStore.Installed installedFor(VersionStore.GameVersion version, VersionStore.Loader loader) {
+        for (VersionStore.Installed installed : config.versions.list())
+            if (installed.minecraft().equals(version.id()) && installed.loader() == loader) return installed;
+        return null;
     }
 
     // ------------------------------------------------------------------ accounts
@@ -1034,6 +1122,7 @@ class LauncherScreen {
             case MODS -> drawMods(s);
             case BROWSE -> drawBrowse(s);
             case DETAIL -> drawDetail(s);
+            case VERSIONS -> drawVersions(s);
         }
 
         if (removePending != null) drawRemoveDialog(s);
@@ -1065,6 +1154,7 @@ class LauncherScreen {
         return switch (page) {
             case MODS -> "Cross: open / enable-disable   Triangle: remove   Circle: back   L1/R1: section";
             case BROWSE -> "Cross/Enter: edit search / details   Circle/Escape: back   L1/R1: section";
+            case VERSIONS -> "Left/Right: loader   Cross/Enter: choose version   Circle/Escape: back";
             case INSTANCES -> "Cross/Enter: select   Left/Right or Tab: focus   L1/R1: section";
             case ACCOUNTS -> "Cross: make default / choose   Triangle: rename or sign out   Circle: back   L1/R1: section";
             default -> "Cross/Enter: select   Circle/Escape: back   L1/R1: section";
@@ -1091,7 +1181,8 @@ class LauncherScreen {
         r.rect(x, 205 * s, 870 * s, 250 * s, PANEL);
         r.rect(x, 205 * s, 8 * s, 250 * s, ACCENT);
         r.text(r.fit(active.name(), 800 * s, 4 * s), x + 35 * s, 230 * s, 4 * s, TEXT);
-        r.text(active.imported() ? "Imported installation" : "Managed installation", x + 35 * s, 295 * s, 2.6f * s, DIM);
+        r.text(r.fit(config.describe(active) + (active.imported() ? "  |  Imported" : "  |  Managed"), 790 * s, 2.6f * s),
+                x + 35 * s, 295 * s, 2.6f * s, DIM);
         r.text(r.fit(active.gameDir().toString(), 790 * s, 2.3f * s), x + 35 * s, 330 * s, 2.3f * s, DIM);
         r.text(config.modCount() + " mods  |  Heap " + config.heapMib + " MiB  |  GPU " + config.arenaMib + " MiB",
                 x + 35 * s, 375 * s, 2.5f * s, DIM);
@@ -1105,6 +1196,25 @@ class LauncherScreen {
             if (highlighted) r.rect(x, y - 7 * s, 870 * s, 48 * s, ACCENT);
             r.text(actions.get(i), x + 30 * s, y, 3 * s, highlighted ? DARK : i == 0 ? ACCENT : TEXT);
         }
+    }
+
+    private void drawVersions(float s) {
+        r.text("NEW INSTANCE  -  CHOOSE MINECRAFT", 120 * s, 210 * s, 4 * s, TEXT);
+        List<String> rows = new ArrayList<>();
+        List<Integer> colors = new ArrayList<>();
+        rows.add("Loader:  < " + versionLoader.title + " >");
+        colors.add(ACCENT);
+        java.util.Set<String> present = new java.util.HashSet<>();
+        for (VersionStore.Installed installed : config.versions.list())
+            if (installed.loader() == versionLoader) present.add(installed.minecraft());
+        for (VersionStore.GameVersion version : catalog) {
+            boolean ready = present.contains(version.id()) || builtIn(version, versionLoader);
+            boolean legacy = VersionStore.compare(VersionStore.parts(version.id()), new int[]{1, 17}) < 0;
+            rows.add("Minecraft " + version.id() + (ready ? "   (installed)" : "   (download)")
+                    + (legacy ? "   older OpenGL" : ""));
+            colors.add(ready ? TEXT : DIM);
+        }
+        list(rows, colors, 120 * s, 280 * s, 1680 * s, 12);
     }
 
     private void drawNameDialog(float s) {

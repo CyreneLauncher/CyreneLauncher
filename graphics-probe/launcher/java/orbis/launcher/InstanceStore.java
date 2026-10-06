@@ -35,24 +35,25 @@ final class InstanceStore {
         boolean cancelled() { return cancelled; }
         String progress() { return progress; }
         Path destination() { return destination; }
-        private void check() {
+        void check() {
             if (cancelled || Thread.currentThread().isInterrupted()) throw new CancellationException("Operation cancelled");
         }
-        private void progress(String value) { progress = value; check(); }
+        void progress(String value) { progress = value; check(); }
     }
 
     private final Path root;
     private final Path importedDir;
-    private final Path runtimeProfile;
+    private final Path runtimeProfile, versionsRoot;
     private final int importedHeap, importedArena;
     private final List<Instance> instances = new ArrayList<>();
     private String selectedId;
     private String recoveryWarning = "";
 
-    InstanceStore(Path home, Path importedDir, Path runtimeProfile, int heapMib, int arenaMib) {
+    InstanceStore(Path home, Path importedDir, Path runtimeProfile, Path versionsRoot, int heapMib, int arenaMib) {
         this.root = home.toAbsolutePath().normalize().resolve("instances");
         this.importedDir = importedDir.toAbsolutePath().normalize();
         this.runtimeProfile = runtimeProfile.toAbsolutePath().normalize();
+        this.versionsRoot = versionsRoot.toAbsolutePath().normalize();
         // Records only accept step-aligned values within limits; the runner's own may be anything.
         int heap = clamp(heapMib - heapMib % LauncherConfig.STEP_MIB, LauncherConfig.MIN_HEAP_MIB, LauncherConfig.MAX_HEAP_MIB);
         int arena = clamp(arenaMib - arenaMib % LauncherConfig.STEP_MIB, LauncherConfig.MIN_ARENA_MIB, LauncherConfig.MAX_ARENA_MIB);
@@ -130,7 +131,12 @@ final class InstanceStore {
 
     Instance create(String name) throws IOException { return create(name, new Operation()); }
 
-    Instance create(String name, Operation operation) throws IOException {
+    Instance create(String name, Operation operation) throws IOException { return create(name, runtimeProfile, operation); }
+
+    /** A new managed instance running the built-in runtime or a downloaded version's game profile. */
+    Instance create(String name, Path profile, Operation operation) throws IOException {
+        Path chosen = profile.toAbsolutePath().normalize();
+        if (!knownProfile(chosen)) throw new IOException("That Minecraft version is not installed");
         LauncherFiles.rejectSymlinks(root);
         String clean = validName(name);
         synchronized (this) { uniqueName(clean, null); }
@@ -148,7 +154,7 @@ final class InstanceStore {
             Files.createDirectory(game.resolve("config"));
             Files.createDirectory(game.resolve("saves"));
             operation.check();
-            Instance value = new Instance(id, clean, finalDir.resolve("game"), runtimeProfile,
+            Instance value = new Instance(id, clean, finalDir.resolve("game"), chosen,
                     "", importedHeap, importedArena, false);
             writeRecord(stage, value);
             operation.check();
@@ -311,9 +317,11 @@ final class InstanceStore {
         Path profile = Path.of(o.get("runtimeProfile").getAsString()).toAbsolutePath().normalize();
         boolean imported = o.get("imported").getAsBoolean();
         if (!imported && !game.equals(recordDir(id).resolve("game"))) throw new IOException("Escaping managed game directory");
-        // There is one installed runtime; a moved profile file must not orphan every instance.
-        if (!profile.equals(runtimeProfile))
+        // A moved built-in profile must not orphan every instance: unknown profiles fall back to it.
+        if (!knownProfile(profile)) {
             System.err.println("launcher: instance " + id + " now uses runtime profile " + runtimeProfile);
+            profile = runtimeProfile;
+        }
         if (!imported && (Files.isSymbolicLink(game) || Files.isSymbolicLink(recordDir(id)))) throw new IOException("Symlinked managed path");
         String name = validName(o.get("name").getAsString());
         int heap = o.get("heapMib").getAsInt(), arena = o.get("arenaMib").getAsInt();
@@ -322,7 +330,14 @@ final class InstanceStore {
                 || heap + arena > LauncherConfig.MAX_TOTAL_MIB
                 || heap % LauncherConfig.STEP_MIB != 0 || arena % LauncherConfig.STEP_MIB != 0)
             throw new IOException("Invalid memory settings");
-        return new Instance(id, name, game, runtimeProfile, o.get("accountId").getAsString(), heap, arena, imported);
+        return new Instance(id, name, game, profile, o.get("accountId").getAsString(), heap, arena, imported);
+    }
+
+    /** The built-in runtime, or a downloaded version's game profile under launcher/versions/<id>/. */
+    private boolean knownProfile(Path profile) {
+        return profile.equals(runtimeProfile) || (profile.getFileName().toString().equals("game.json")
+                && profile.getParent() != null && versionsRoot.equals(profile.getParent().getParent())
+                && Files.isRegularFile(profile, LinkOption.NOFOLLOW_LINKS));
     }
 
     private void writeRecord(Instance value) throws IOException { writeRecord(recordDir(value.id()), value); }

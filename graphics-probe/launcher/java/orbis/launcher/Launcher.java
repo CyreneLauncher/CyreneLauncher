@@ -48,10 +48,14 @@ public final class Launcher {
                 AccountStore.Account account = accounts.get(request.accountId());
                 if (account == null) throw new java.io.IOException("The requested account no longer exists");
                 AccountStore.Session session = new MicrosoftAuthClient(accounts, config.home).refresh(account.id());
-                String[] gameArgs = LaunchArguments.build(base.toArray(String[]::new), instance, session);
+                VersionStore.Installed version = config.installed(instance);
+                if (version == null && !instance.runtimeProfile().equals(config.metadata.toAbsolutePath().normalize()))
+                    throw new java.io.IOException("The instance's Minecraft version is no longer installed");
+                String[] gameArgs = LaunchArguments.build(base.toArray(String[]::new), instance, session, version);
                 config.recordPlay(instance);
-                System.out.println("launcher: starting instance " + instance.id());
-                startGame(config.gameMainClass, gameArgs);
+                System.out.println("launcher: starting instance " + instance.id() + " ("
+                        + config.describe(instance) + ")");
+                startGame(version != null ? version.mainClass() : config.gameMainClass, gameArgs);
                 return;
             }
         } catch (java.io.IOException | RuntimeException failed) {
@@ -116,5 +120,9 @@ public final class Launcher {
         } catch (java.lang.reflect.InvocationTargetException failure) {
             throw failure.getCause();
         }
+        // The game is over once its main returns: a quit, or a failure Minecraft only logged (such as window
+        // creation). Leftover non-daemon threads would otherwise keep a dark application open.
+        System.out.println("launcher: game main returned; closing the application");
+        System.exit(0);
     }
 }

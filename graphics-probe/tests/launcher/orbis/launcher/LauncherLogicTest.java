@@ -135,8 +135,39 @@ public final class LauncherLogicTest {
 
     static final class TestScreen extends LauncherScreen {
         final LauncherConfig config;
-        int relaunches, consumed, closes;
-        TestScreen(LauncherConfig c, Renderer r, ModrinthClient m, ModInstaller i) { super(c, r, m, i); config = c; }
+        final Random random;
+        int relaunches, consumed, closes, installs, compatLaunches;
+        TestScreen(LauncherConfig c, Renderer r, ModrinthClient m, ModInstaller i, Random random) {
+            super(c, r, m, i);
+            config = c;
+            this.random = random;
+        }
+
+        @Override protected List<VersionStore.GameVersion> fetchCatalog(VersionStore.Loader loader) throws IOException {
+            if (random.nextInt(6) == 0) throw new IOException("offline");
+            List<VersionStore.GameVersion> out = new ArrayList<>();
+            for (String id : new String[]{"1.20.4", "1.19.2", "1.18.2", "1.16.5", "1.14"})
+                out.add(new VersionStore.GameVersion(id, "https://example.invalid/" + id, "0"));
+            return out;
+        }
+
+        /** A real install record and files under the versions folder, without the network. */
+        @Override protected VersionStore.Installed installVersion(VersionStore.GameVersion version,
+                VersionStore.Loader loader, InstanceStore.Operation op) throws IOException {
+            if (random.nextInt(5) == 0) throw new IOException("download failed");
+            String loaderVersion = loader == VersionStore.Loader.VANILLA ? "" : "0.1";
+            String id = VersionStore.profileId(version.id(), loader, loaderVersion);
+            Path dir = Files.createDirectories(config.versions.versionsRoot().resolve(id));
+            Files.copy(config.metadata, dir.resolve("game.json"), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            Files.copy(config.metadata, dir.resolve("boot.json"), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            Files.write(dir.resolve("client.jar"), new byte[]{1});
+            Files.writeString(dir.resolve("install.json"), "{\"schema\":1,\"id\":\"" + id + "\",\"minecraft\":\""
+                    + version.id() + "\",\"loader\":\"" + loader.name() + "\",\"loaderVersion\":\"" + loaderVersion
+                    + "\",\"mainClass\":\"x.Main\",\"assetIndex\":\"1\",\"versionType\":\"release\","
+                    + "\"jvm\":[\"-Dlog4j.configurationFile=/x\"],\"provides\":{\"minecraft\":\"" + version.id() + "\"}}");
+            installs++;
+            return config.versions.installed(dir.resolve("game.json"));
+        }
         @Override void presentNow() {}
         @Override void closeWindow() { closes++; }
         /** No system dialog on the host: editing stays inline. */
@@ -146,6 +177,20 @@ public final class LauncherLogicTest {
         @Override int relaunch(String intent) {
             relaunches++;
             InstanceStore.Instance instance = config.selectedInstance();
+            VersionStore.Installed version = config.installed(instance);
+            if (version != null) {
+                try {
+                    String conf = Files.readString(config.runnerRoot.resolve("runner.conf"));
+                    String options = Files.readString(config.runnerRoot.resolve("jvm-options.txt"));
+                    check(conf.contains("jar=" + version.clientJar() + "\n"), "prepared jar is the version's client");
+                    check(conf.contains("version_metadata=" + version.bootProfile() + "\n"), "prepared boot profile");
+                    check(options.contains("-Dlog4j.configurationFile=/x\n"), "prepared version JVM options");
+                    String addMods = version.loader() == VersionStore.Loader.QUILT ? "-Dloader.addMods=" : "-Dfabric.addMods=";
+                    check(options.contains(addMods) == (version.loader() != VersionStore.Loader.VANILLA),
+                            "compatibility mod for Fabric and Quilt only");
+                    if (version.loader() != VersionStore.Loader.VANILLA) compatLaunches++;
+                } catch (IOException failure) { throw new AssertionError(failure); }
+            }
             try {
                 LaunchRequest request = new LaunchPreparation(config).consume(intent);
                 check(request != null && request.instanceId().equals(instance.id()), "request names the instance");
@@ -185,7 +230,7 @@ public final class LauncherLogicTest {
                 "0123456789abcdef0123456789abcdef", "Tester", "00000000-0000-0000-0000-000000000000", "refresh");
         FakeModrinth modrinth = new FakeModrinth(random);
         TestScreen screen = new TestScreen(config, new HeadlessRenderer(), modrinth,
-                new FakeInstaller(modrinth, game, random));
+                new FakeInstaller(modrinth, game, random), random);
 
         // Play directly once: focus the actions, Play is the first.
         String conf = Files.readString(runner.resolve("runner.conf")), options = Files.readString(runner.resolve("jvm-options.txt"));
@@ -220,12 +265,17 @@ public final class LauncherLogicTest {
                 }
                 screen.frame(1920, 1080);
                 screen.frame(1280, 720);
+                // Every Play here ends in a failed restart: the runner files must be back as they were.
+                check(conf.equals(Files.readString(runner.resolve("runner.conf"))), "runner.conf restored");
+                check(options.equals(Files.readString(runner.resolve("jvm-options.txt"))), "jvm-options restored");
             } catch (Throwable failure) {
                 System.err.println("seed " + seed + " step " + step + "; last inputs: " + recent);
                 throw failure;
             }
         }
-        System.out.println("seed " + seed + ": " + steps + " steps, " + screen.relaunches + " Play ("
+        System.out.println("seed " + seed + ": " + steps + " steps, " + screen.installs + " version installs, "
+                + screen.compatLaunches + " loader launches, "
+                + config.instances.list().size() + " instances, " + screen.relaunches + " Play ("
                 + screen.consumed + " consumed), "
                 + screen.closes + " Quit, mods now " + listCount(game));
     }

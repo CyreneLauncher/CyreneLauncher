@@ -1,0 +1,560 @@
+package orbis.launcher;
+
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.HttpURLConnection;
+import java.net.URI;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.LinkOption;
+import java.nio.file.Path;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.ArrayList;
+import java.util.HexFormat;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.regex.Pattern;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
+
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
+
+/**
+ * Downloads Minecraft releases 1.14 to 1.20.4, with Fabric, Quilt or no loader, into the shared
+ * libraries and assets the installed 1.18.2 already uses. Each version gets
+ * launcher/versions/&lt;id&gt;/ holding its client JAR, a flattened profile the runner accepts
+ * (game.json), the same profile booting the launcher (boot.json), and install.json, written last.
+ *
+ * <p>Every profile runs on the audited LWJGL 3.2.2 Java artifacts and the Orbis GLFW adapter:
+ * a client audit found no LWJGL member any of these releases uses beyond them except GLFW 3.4's
+ * glfwGetPlatform, which the adapter provides. LWJGL and an older gson (the launcher boots on
+ * each version's class path and needs 2.8.6+) are replaced by the installed 1.18.2 entries.
+ */
+final class VersionStore {
+    enum Loader {
+        FABRIC("Fabric"), QUILT("Quilt"), VANILLA("Vanilla");
+        final String title;
+        Loader(String title) { this.title = title; }
+    }
+
+    record GameVersion(String id, String url, String sha1) { }
+
+    record Installed(String id, String minecraft, Loader loader, String loaderVersion, Path gameProfile,
+                     Path bootProfile, Path clientJar, String mainClass, String assetIndex, String versionType,
+                     List<String> jvmOptions, Map<String, String> provides) {
+        String title() {
+            return "Minecraft " + minecraft + (loader == Loader.VANILLA ? "" : "  " + loader.title + " " + loaderVersion);
+        }
+    }
+
+    static final String MANIFEST_URL = "https://piston-meta.mojang.com/mc/game/version_manifest_v2.json";
+    static final String ASSETS_URL = "https://resources.download.minecraft.net/";
+    static final String LAUNCHER_MAIN = "orbis.launcher.Launcher";
+    static final String FABRIC_MAIN = "net.fabricmc.loader.impl.launch.knot.KnotClient";
+    static final String QUILT_MAIN = "org.quiltmc.loader.impl.launch.knot.KnotClient";
+    static final String VANILLA_MAIN = "net.minecraft.client.main.Main";
+    /** The runner's own JAR stays a system library: the GLFW adapter reaches runner.gpu.NativeInput in it. */
+    static final String SYSTEM_LIBRARIES = "/app0/app.jar";
+    private static final int[] OLDEST = {1, 14}, NEWEST = {1, 20, 4};
+    private static final int SCHEMA = 1;
+    private static final long MAX_JSON = 16L << 20, MAX_FILE = 64L << 20;
+    private static final int DOWNLOAD_THREADS = 6;
+    private static final String USER_AGENT = "orbis-launcher (PlayStation 4 Minecraft launcher)";
+    private static final Pattern VERSION_ID = Pattern.compile("1\\.\\d+(\\.\\d+)?");
+    private static final Pattern PROFILE_ID = Pattern.compile("[A-Za-z0-9._+-]{1,96}");
+    private static final Pattern HASH = Pattern.compile("[0-9a-f]{40}");
+
+    private final Path versionsRoot, libraries, assets, builtInProfile;
+
+    VersionStore(Path launcherHome, Path libraries, Path assets, Path builtInProfile) {
+        this.versionsRoot = launcherHome.toAbsolutePath().normalize().resolve("versions");
+        this.libraries = libraries.toAbsolutePath().normalize();
+        this.assets = assets.toAbsolutePath().normalize();
+        this.builtInProfile = builtInProfile.toAbsolutePath().normalize();
+    }
+
+    Path versionsRoot() { return versionsRoot; }
+
+    // ------------------------------------------------------------------ catalog
+
+    /** Releases 1.14 to 1.20.4 the loader supports, newest first. */
+    List<GameVersion> catalog(Loader loader) throws IOException {
+        JsonObject manifest = json(fetch(MANIFEST_URL, MAX_JSON));
+        Set<String> supported = switch (loader) {
+            case FABRIC -> ids(fetch("https://meta.fabricmc.net/v2/versions/game", MAX_JSON), "version");
+            case QUILT -> ids(fetch("https://meta.quiltmc.org/v3/versions/game", MAX_JSON), "version");
+            case VANILLA -> null;
+        };
+        List<GameVersion> out = new ArrayList<>();
+        for (JsonElement element : manifest.getAsJsonArray("versions")) {
+            JsonObject v = element.getAsJsonObject();
+            String id = v.get("id").getAsString();
+            if (!"release".equals(v.get("type").getAsString()) || !inRange(id)) continue;
+            if (supported != null && !supported.contains(id)) continue;
+            out.add(new GameVersion(id, v.get("url").getAsString(), v.get("sha1").getAsString()));
+        }
+        return out;
+    }
+
+    /** The newest stable loader for a release (Quilt's list is unordered and marks pre-releases with a hyphen). */
+    String latestLoader(Loader loader, String minecraft) throws IOException {
+        if (loader == Loader.VANILLA) return "";
+        String url = loader == Loader.FABRIC ? "https://meta.fabricmc.net/v2/versions/loader/" + minecraft
+                : "https://meta.quiltmc.org/v3/versions/loader/" + minecraft;
+        String best = null;
+        for (JsonElement element : JsonParser.parseString(utf8(fetch(url, MAX_JSON))).getAsJsonArray()) {
+            JsonObject entry = element.getAsJsonObject().getAsJsonObject("loader");
+            String version = entry.get("version").getAsString();
+            boolean stable = !version.contains("-") && (loader == Loader.QUILT || entry.get("stable").getAsBoolean());
+            if (stable && version.matches("[0-9.]+") && (best == null || compare(parts(version), parts(best)) > 0))
+                best = version;
+        }
+        if (best == null) throw new IOException("No stable " + loader.title + " loader supports Minecraft " + minecraft);
+        return best;
+    }
+
+    static boolean inRange(String id) {
+        if (!VERSION_ID.matcher(id).matches()) return false;
+        int[] v = parts(id);
+        return compare(v, OLDEST) >= 0 && compare(v, NEWEST) <= 0;
+    }
+
+    // ------------------------------------------------------------------ installed versions
+
+    static String profileId(String minecraft, Loader loader, String loaderVersion) {
+        return minecraft + (loader == Loader.VANILLA ? "-vanilla" : "-" + loader.name().toLowerCase(Locale.ROOT)
+                + "-" + loaderVersion);
+    }
+
+    /** The installed version a game profile belongs to, or null if it is not a complete install here. */
+    Installed installed(Path gameProfile) {
+        Path profile = gameProfile.toAbsolutePath().normalize();
+        if (!profile.getParent().getParent().equals(versionsRoot) || !profile.getFileName().toString().equals("game.json"))
+            return null;
+        try { return read(profile.getParent()); }
+        catch (IOException | RuntimeException invalid) { return null; }
+    }
+
+    /** Complete installs, newest Minecraft first. */
+    List<Installed> list() {
+        List<Installed> out = new ArrayList<>();
+        try (var dirs = Files.newDirectoryStream(versionsRoot)) {
+            for (Path dir : dirs) {
+                try { out.add(read(dir)); } catch (IOException | RuntimeException incomplete) { /* Not installed. */ }
+            }
+        } catch (IOException missing) { return out; }
+        out.sort((a, b) -> compare(parts(b.minecraft()), parts(a.minecraft())));
+        return out;
+    }
+
+    private Installed read(Path dir) throws IOException {
+        LauncherFiles.rejectSymlinks(dir);
+        JsonObject o = json(LauncherFiles.read(dir.resolve("install.json"), MAX_JSON));
+        if (o.get("schema").getAsInt() != SCHEMA) throw new IOException("Unsupported install record");
+        String id = o.get("id").getAsString();
+        if (!PROFILE_ID.matcher(id).matches() || !dir.getFileName().toString().equals(id))
+            throw new IOException("Invalid install record");
+        List<String> jvm = new ArrayList<>();
+        for (JsonElement e : o.getAsJsonArray("jvm")) jvm.add(e.getAsString());
+        Map<String, String> provides = new LinkedHashMap<>();
+        for (Map.Entry<String, JsonElement> e : o.getAsJsonObject("provides").entrySet())
+            provides.put(e.getKey(), e.getValue().getAsString());
+        Installed value = new Installed(id, o.get("minecraft").getAsString(), Loader.valueOf(o.get("loader").getAsString()),
+                o.get("loaderVersion").getAsString(), dir.resolve("game.json"), dir.resolve("boot.json"),
+                dir.resolve("client.jar"), o.get("mainClass").getAsString(), o.get("assetIndex").getAsString(),
+                o.get("versionType").getAsString(), List.copyOf(jvm), Map.copyOf(provides));
+        for (Path file : List.of(value.gameProfile(), value.bootProfile(), value.clientJar()))
+            if (!Files.isRegularFile(file, LinkOption.NOFOLLOW_LINKS)) throw new IOException("Incomplete install");
+        return value;
+    }
+
+    // ------------------------------------------------------------------ install
+
+    Installed install(GameVersion version, Loader loader, InstanceStore.Operation op) throws IOException {
+        return install(version, loader, op, true);
+    }
+
+    /** Host checks skip the assets (hundreds of MiB); the console always downloads them. */
+    Installed install(GameVersion version, Loader loader, InstanceStore.Operation op, boolean withAssets)
+            throws IOException {
+        op.progress("Reading Minecraft " + version.id() + "...");
+        JsonObject vanilla = json(verified(version.url(), version.sha1(), -1, MAX_JSON));
+        String loaderVersion = latestLoader(loader, version.id());
+        String id = profileId(version.id(), loader, loaderVersion);
+        if (!PROFILE_ID.matcher(id).matches()) throw new IOException("Unexpected version name " + id);
+        Path dir = versionsRoot.resolve(id);
+        LauncherFiles.rejectSymlinks(dir);
+        Files.createDirectories(dir);
+
+        JsonObject loaderProfile = null;
+        if (loader == Loader.FABRIC) loaderProfile = json(fetch("https://meta.fabricmc.net/v2/versions/loader/"
+                + version.id() + "/" + loaderVersion + "/profile/json", MAX_JSON));
+        else if (loader == Loader.QUILT) loaderProfile = json(fetch("https://meta.quiltmc.org/v3/versions/loader/"
+                + version.id() + "/" + loaderVersion + "/profile/json", MAX_JSON));
+
+        op.progress("Downloading Minecraft " + version.id() + "...");
+        JsonObject client = vanilla.getAsJsonObject("downloads").getAsJsonObject("client");
+        Path clientJar = dir.resolve("client.jar");
+        ensure(clientJar, client.get("url").getAsString(), client.get("sha1").getAsString(), client.get("size").getAsLong());
+
+        List<String> jvm = new ArrayList<>();
+        if (loader == Loader.FABRIC) {
+            jvm.add("-DFabricMcEmu=" + VANILLA_MAIN);
+            jvm.add("-Dfabric.systemLibraries=" + SYSTEM_LIBRARIES);
+        } else if (loader == Loader.QUILT) jvm.add("-Dloader.systemLibraries=" + SYSTEM_LIBRARIES);
+        JsonObject logging = vanilla.has("logging") ? vanilla.getAsJsonObject("logging").getAsJsonObject("client") : null;
+        if (logging != null) {
+            // 1.14 to 1.16 ship log4j 2.8.1; Mojang's current configuration disables message lookups.
+            JsonObject file = logging.getAsJsonObject("file");
+            String name = file.get("id").getAsString();
+            if (!PROFILE_ID.matcher(name).matches()) throw new IOException("Unexpected logging configuration name");
+            Path config = assets.resolve("log_configs").resolve(name);
+            ensure(config, file.get("url").getAsString(), file.get("sha1").getAsString(), file.get("size").getAsLong());
+            jvm.add("-Dlog4j.configurationFile=" + config);
+        }
+
+        JsonArray merged = new JsonArray();
+        Set<String> seen = new LinkedHashSet<>();
+        Map<String, String> provides = new LinkedHashMap<>();
+        provides.put("minecraft", version.id());
+        provides.put("java", "17");
+        if (loaderProfile != null) {
+            JsonArray loaderLibraries = loaderProfile.getAsJsonArray("libraries");
+            int index = 0;
+            for (JsonElement element : loaderLibraries) {
+                JsonObject library = element.getAsJsonObject();
+                String name = library.get("name").getAsString();
+                op.progress("Downloading " + loader.title + " libraries (" + ++index + "/" + loaderLibraries.size() + ")");
+                if (!seen.add(key(name))) continue;
+                JsonObject entry = mavenLibrary(library);
+                merged.add(entry);
+                if (name.startsWith("net.fabricmc:fabric-loader:")) provides.put("fabricloader", loaderVersion);
+                if (name.startsWith("org.quiltmc:quilt-loader:")) {
+                    provides.put("quilt_loader", loaderVersion);
+                    String fabric = providedFabricLoader(libraries.resolve(path(entry)));
+                    if (fabric != null) provides.put("fabricloader", fabric);
+                }
+            }
+        }
+
+        JsonObject builtIn = json(LauncherFiles.read(builtInProfile, MAX_JSON));
+        List<JsonObject> lwjgl = new ArrayList<>();
+        JsonObject builtInGson = null;
+        for (JsonElement element : builtIn.getAsJsonArray("libraries")) {
+            JsonObject library = element.getAsJsonObject();
+            String name = library.get("name").getAsString();
+            if (name.startsWith("org.lwjgl:")) lwjgl.add(library);
+            else if (name.startsWith("com.google.code.gson:gson:")) builtInGson = library;
+        }
+        if (lwjgl.isEmpty() || builtInGson == null) throw new IOException("The installed 1.18.2 profile lacks LWJGL or gson");
+
+        JsonArray vanillaLibraries = vanilla.getAsJsonArray("libraries");
+        int index = 0;
+        boolean lwjglAdded = false;
+        for (JsonElement element : vanillaLibraries) {
+            JsonObject library = element.getAsJsonObject();
+            String name = library.get("name").getAsString();
+            op.progress("Downloading Minecraft libraries (" + ++index + "/" + vanillaLibraries.size() + ")");
+            if (name.startsWith("org.lwjgl:")) {
+                if (!lwjglAdded) {
+                    for (JsonObject entry : lwjgl) { requirePresent(entry); merged.add(entry); }
+                    lwjglAdded = true;
+                }
+                continue;
+            }
+            if (name.startsWith("com.google.code.gson:gson:")
+                    && compare(parts(name.split(":")[2]), parts("2.8.9")) < 0) {
+                if (seen.add(key(name))) { requirePresent(builtInGson); merged.add(builtInGson); }
+                continue;
+            }
+            if (!allowed(library.get("rules"))) continue;
+            if (!seen.add(key(name))) continue;
+            JsonObject downloads = library.getAsJsonObject("downloads");
+            if (downloads != null && downloads.has("artifact")) {
+                JsonObject artifact = downloads.getAsJsonObject("artifact");
+                ensure(libraries.resolve(confined(artifact.get("path").getAsString())), artifact.get("url").getAsString(),
+                        artifact.get("sha1").getAsString(), artifact.get("size").getAsLong());
+            }
+            merged.add(library);
+        }
+        if (!lwjglAdded) throw new IOException("Minecraft " + version.id() + " declares no LWJGL");
+
+        JsonObject index2 = vanilla.getAsJsonObject("assetIndex");
+        String assetIndex = index2.get("id").getAsString();
+        if (!PROFILE_ID.matcher(assetIndex).matches()) throw new IOException("Unexpected asset index name");
+        Path indexFile = assets.resolve("indexes").resolve(assetIndex + ".json");
+        ensure(indexFile, index2.get("url").getAsString(), index2.get("sha1").getAsString(), index2.get("size").getAsLong());
+        if (withAssets) downloadAssets(json(LauncherFiles.read(indexFile, MAX_JSON)), op);
+
+        op.progress("Finishing Minecraft " + version.id() + "...");
+        String mainClass = loader == Loader.FABRIC ? FABRIC_MAIN : loader == Loader.QUILT ? QUILT_MAIN : VANILLA_MAIN;
+        if (loaderProfile != null && !loaderProfile.get("mainClass").getAsString().equals(mainClass))
+            throw new IOException(loader.title + " now starts through " + loaderProfile.get("mainClass").getAsString());
+        JsonObject game = vanilla.deepCopy();
+        game.remove("inheritsFrom");
+        game.addProperty("id", id);
+        game.addProperty("mainClass", mainClass);
+        game.add("libraries", merged);
+        JsonObject boot = game.deepCopy();
+        boot.addProperty("mainClass", LAUNCHER_MAIN);
+        LauncherFiles.write(dir.resolve("game.json"), bytes(game), false);
+        LauncherFiles.write(dir.resolve("boot.json"), bytes(boot), false);
+
+        JsonObject record = new JsonObject();
+        record.addProperty("schema", SCHEMA);
+        record.addProperty("id", id);
+        record.addProperty("minecraft", version.id());
+        record.addProperty("loader", loader.name());
+        record.addProperty("loaderVersion", loaderVersion);
+        record.addProperty("mainClass", mainClass);
+        record.addProperty("assetIndex", assetIndex);
+        record.addProperty("versionType", vanilla.get("type").getAsString());
+        JsonArray options = new JsonArray();
+        jvm.forEach(options::add);
+        record.add("jvm", options);
+        JsonObject provided = new JsonObject();
+        provides.forEach(provided::addProperty);
+        record.add("provides", provided);
+        LauncherFiles.write(dir.resolve("install.json"), bytes(record), false);
+        return read(dir);
+    }
+
+    private void downloadAssets(JsonObject index, InstanceStore.Operation op) throws IOException {
+        Map<String, Long> objects = new LinkedHashMap<>();
+        for (Map.Entry<String, JsonElement> e : index.getAsJsonObject("objects").entrySet()) {
+            JsonObject object = e.getValue().getAsJsonObject();
+            String hash = object.get("hash").getAsString();
+            if (!HASH.matcher(hash).matches()) throw new IOException("Invalid asset hash");
+            objects.put(hash, object.get("size").getAsLong());
+        }
+        List<Map.Entry<String, Long>> missing = new ArrayList<>();
+        for (Map.Entry<String, Long> object : objects.entrySet()) {
+            Path file = assetPath(object.getKey());
+            if (!Files.isRegularFile(file, LinkOption.NOFOLLOW_LINKS) || Files.size(file) != object.getValue())
+                missing.add(object);
+        }
+        long total = missing.stream().mapToLong(Map.Entry::getValue).sum();
+        AtomicInteger done = new AtomicInteger();
+        AtomicLong bytes = new AtomicLong();
+        op.progress("Downloading assets: " + missing.size() + " of " + objects.size() + " needed (" + (total >> 20) + " MiB)");
+        ExecutorService pool = Executors.newFixedThreadPool(DOWNLOAD_THREADS, task -> {
+            Thread t = new Thread(task, "asset download");
+            t.setDaemon(true);
+            return t;
+        });
+        try {
+            List<Future<?>> work = new ArrayList<>();
+            for (Map.Entry<String, Long> object : missing) {
+                work.add(pool.submit(() -> {
+                    op.check();
+                    String hash = object.getKey();
+                    ensure(assetPath(hash), ASSETS_URL + hash.substring(0, 2) + "/" + hash, hash, object.getValue());
+                    int n = done.incrementAndGet();
+                    long b = bytes.addAndGet(object.getValue());
+                    op.progress("Downloading assets: " + n + "/" + missing.size() + " (" + (b >> 20) + " of "
+                            + (total >> 20) + " MiB)");
+                    return null;
+                }));
+            }
+            for (Future<?> future : work) {
+                try { future.get(); }
+                catch (InterruptedException interrupted) {
+                    Thread.currentThread().interrupt();
+                    throw new IOException("Asset download interrupted");
+                } catch (java.util.concurrent.ExecutionException failure) {
+                    Throwable cause = failure.getCause();
+                    if (cause instanceof IOException io) throw io;
+                    if (cause instanceof RuntimeException runtime) throw runtime;
+                    throw new IOException("Asset download failed", cause);
+                }
+            }
+        } finally { pool.shutdownNow(); }
+    }
+
+    private Path assetPath(String hash) { return assets.resolve("objects").resolve(hash.substring(0, 2)).resolve(hash); }
+
+    /** A Maven library from a loader profile, downloaded and pinned to its SHA-1 (Fabric gives it; Quilt has .sha1 files). */
+    private JsonObject mavenLibrary(JsonObject library) throws IOException {
+        String name = library.get("name").getAsString();
+        String repository = library.get("url").getAsString();
+        if (!repository.startsWith("https://")) throw new IOException("Insecure library repository for " + name);
+        if (!repository.endsWith("/")) repository += "/";
+        String path = mavenPath(name);
+        String url = repository + path;
+        String sha1 = library.has("sha1") ? library.get("sha1").getAsString()
+                : utf8(fetch(url + ".sha1", 1024)).trim().split("\\s+")[0].toLowerCase(Locale.ROOT);
+        if (!HASH.matcher(sha1).matches()) throw new IOException("No valid SHA-1 for " + name);
+        long size = library.has("size") ? library.get("size").getAsLong() : -1;
+        Path file = libraries.resolve(confined(path));
+        ensure(file, url, sha1, size);
+        JsonObject artifact = new JsonObject();
+        artifact.addProperty("path", path);
+        artifact.addProperty("sha1", sha1);
+        artifact.addProperty("size", Files.size(file));
+        artifact.addProperty("url", url);
+        JsonObject downloads = new JsonObject();
+        downloads.add("artifact", artifact);
+        JsonObject entry = new JsonObject();
+        entry.addProperty("name", name);
+        entry.add("downloads", downloads);
+        return entry;
+    }
+
+    /** Quilt's loader declares the Fabric Loader version it stands in for, which Fabric mods require. */
+    private static String providedFabricLoader(Path jar) {
+        try (ZipInputStream zip = new ZipInputStream(Files.newInputStream(jar))) {
+            for (ZipEntry entry; (entry = zip.getNextEntry()) != null; ) {
+                if (!entry.getName().equals("quilt.mod.json")) continue;
+                JsonObject mod = json(zip.readNBytes(1 << 20)).getAsJsonObject("quilt_loader");
+                for (JsonElement p : mod.getAsJsonArray("provides")) {
+                    if (!p.isJsonObject()) continue;
+                    JsonObject provided = p.getAsJsonObject();
+                    if ("fabricloader".equals(provided.get("id").getAsString())) return provided.get("version").getAsString();
+                }
+            }
+        } catch (IOException | RuntimeException unreadable) {
+            System.err.println("launcher: could not read Quilt's Fabric compatibility version: " + unreadable);
+        }
+        return null;
+    }
+
+    private void requirePresent(JsonObject library) throws IOException {
+        if (!allowed(library.get("rules")) || !library.getAsJsonObject("downloads").has("artifact")) return;
+        Path file = libraries.resolve(confined(path(library)));
+        if (!Files.isRegularFile(file, LinkOption.NOFOLLOW_LINKS))
+            throw new IOException("Shared library missing: " + library.get("name").getAsString());
+    }
+
+    private static String path(JsonObject library) {
+        return library.getAsJsonObject("downloads").getAsJsonObject("artifact").get("path").getAsString();
+    }
+
+    /** Downloads unless the file is already there with the right size and SHA-1. */
+    private static void ensure(Path file, String url, String sha1, long size) throws IOException {
+        if (Files.isRegularFile(file, LinkOption.NOFOLLOW_LINKS) && (size < 0 || Files.size(file) == size)
+                && sha1(Files.readAllBytes(file)).equals(sha1)) return;
+        byte[] data = verified(url, sha1, size, MAX_FILE);
+        Files.createDirectories(file.getParent());
+        LauncherFiles.write(file, data, false);
+    }
+
+    private static byte[] verified(String url, String sha1, long size, long max) throws IOException {
+        byte[] data = fetch(url, max);
+        if (size >= 0 && data.length != size) throw new IOException(url + ": " + data.length + " bytes, expected " + size);
+        if (!sha1(data).equals(sha1)) throw new IOException(url + ": SHA-1 does not match");
+        return data;
+    }
+
+    // ------------------------------------------------------------------ helpers
+
+    /** Mojang semantics for library rules on a Linux-like x86_64 system: last matching rule wins. */
+    static boolean allowed(JsonElement rules) {
+        if (rules == null || rules.isJsonNull()) return true;
+        boolean allow = false;
+        for (JsonElement element : rules.getAsJsonArray()) {
+            JsonObject rule = element.getAsJsonObject();
+            boolean matches = true;
+            if (rule.has("os")) {
+                JsonObject os = rule.getAsJsonObject("os");
+                if (os.has("name")) matches = "linux".equals(os.get("name").getAsString());
+                if (os.has("arch")) matches &= "x86_64".equals(os.get("arch").getAsString());
+                if (os.has("version")) matches = false;
+            }
+            if (rule.has("features")) matches = false;
+            if (matches) allow = "allow".equals(rule.get("action").getAsString());
+        }
+        return allow;
+    }
+
+    private static String key(String name) {
+        String[] p = name.split(":");
+        return p.length > 3 ? p[0] + ":" + p[1] + ":" + p[3] : p[0] + ":" + p[1];
+    }
+
+    static String mavenPath(String name) throws IOException {
+        String[] p = name.split(":");
+        if (p.length < 3 || p.length > 4) throw new IOException("Unsupported library name " + name);
+        for (String part : p)
+            if (!part.matches("[A-Za-z0-9._+-]+") || part.equals("..")) throw new IOException("Unsupported library name " + name);
+        String file = p[1] + "-" + p[2] + (p.length == 4 ? "-" + p[3] : "") + ".jar";
+        return p[0].replace('.', '/') + "/" + p[1] + "/" + p[2] + "/" + file;
+    }
+
+    private static Path confined(String relative) throws IOException {
+        Path path = Path.of(relative).normalize();
+        if (path.isAbsolute() || path.startsWith("..") || relative.contains("\\")) throw new IOException("Unsafe path " + relative);
+        return path;
+    }
+
+    private static Set<String> ids(byte[] data, String field) {
+        Set<String> out = new LinkedHashSet<>();
+        for (JsonElement element : JsonParser.parseString(utf8(data)).getAsJsonArray())
+            out.add(element.getAsJsonObject().get(field).getAsString());
+        return out;
+    }
+
+    static int[] parts(String version) {
+        String core = version.split("[-+]")[0];
+        String[] p = core.split("\\.");
+        int[] out = new int[p.length];
+        for (int i = 0; i < p.length; i++) {
+            try { out[i] = Integer.parseInt(p[i]); } catch (NumberFormatException other) { out[i] = 0; }
+        }
+        return out;
+    }
+
+    static int compare(int[] a, int[] b) {
+        for (int i = 0; i < Math.max(a.length, b.length); i++) {
+            int x = i < a.length ? a[i] : 0, y = i < b.length ? b[i] : 0;
+            if (x != y) return Integer.compare(x, y);
+        }
+        return 0;
+    }
+
+    static byte[] fetch(String url, long max) throws IOException {
+        URI uri = URI.create(url);
+        if (!"https".equals(uri.getScheme())) throw new IOException("Refusing non-HTTPS download " + url);
+        HttpURLConnection connection = (HttpURLConnection) uri.toURL().openConnection();
+        try {
+            connection.setRequestProperty("User-Agent", USER_AGENT);
+            connection.setConnectTimeout(15_000);
+            connection.setReadTimeout(60_000);
+            int status = connection.getResponseCode();
+            if (status != 200) throw new IOException("HTTP " + status + " from " + uri.getHost());
+            long declared = connection.getContentLengthLong();
+            if (declared > max) throw new IOException("Download from " + uri.getHost() + " is too large");
+            try (InputStream in = connection.getInputStream()) {
+                ByteArrayOutputStream out = new ByteArrayOutputStream(declared > 0 ? (int) declared : 65536);
+                byte[] buffer = new byte[65536];
+                for (int n; (n = in.read(buffer)) > 0; ) {
+                    if (out.size() + n > max) throw new IOException("Download from " + uri.getHost() + " is too large");
+                    out.write(buffer, 0, n);
+                }
+                return out.toByteArray();
+            }
+        } finally { connection.disconnect(); }
+    }
+
+    static String sha1(byte[] data) {
+        try { return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-1").digest(data)); }
+        catch (NoSuchAlgorithmException impossible) { throw new IllegalStateException(impossible); }
+    }
+
+    private static JsonObject json(byte[] data) { return JsonParser.parseString(utf8(data)).getAsJsonObject(); }
+    private static String utf8(byte[] data) { return new String(data, StandardCharsets.UTF_8); }
+    private static byte[] bytes(JsonObject o) { return (o.toString() + "\n").getBytes(StandardCharsets.UTF_8); }
+}

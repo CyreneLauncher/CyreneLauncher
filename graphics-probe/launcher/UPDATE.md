@@ -55,6 +55,26 @@ restores runner files, refreshes authentication, and constructs game arguments i
 Failed or unrelated starts discard the request and return to the launcher. Exiting Minecraft
 closes the application; reopening it normally shows the launcher.
 
+## Minecraft versions
+
+Instances → Create instance opens the version list. Left/Right picks the loader (Fabric, Quilt
+or Vanilla); Cross on a release names the new instance, then downloads what it needs with
+progress (Circle cancels; a later attempt resumes and re-checks what was already downloaded).
+Releases 1.14 to 1.20.4 are offered: everything that runs on Java 17. The built-in 1.18.2 with
+Fabric needs no download.
+
+Libraries and assets are shared with the built-in installation (`/data/orbis-jdk/libraries`,
+`/data/orbis-jdk/assets`), so files common to several versions download once. Each version
+keeps its client JAR and profiles in `launcher/versions/<version>-<loader>-<loader version>/`.
+Every version runs on the audited LWJGL 3.2.2 and the Orbis GLFW adapter (a client audit found
+nothing else these releases need besides `glfwGetPlatform`, which the adapter now provides).
+Play boots the chosen version's own JAR and profile once, then the runner settings are restored.
+
+Quilt instances use Fabric mods from Modrinth (Quilt runs them; Quilt-only mods are not offered).
+Vanilla instances have no mod browser. 1.14 to 1.16 render with older OpenGL through the driver's
+compatibility profile and are less tested; 1.14 to 1.16 also use Mojang's current log4j
+configuration, which disables the Log4Shell lookup.
+
 ## Microsoft sign-in
 
 Copy `microsoft-auth.properties.example` to

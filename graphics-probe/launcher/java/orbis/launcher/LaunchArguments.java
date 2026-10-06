@@ -9,17 +9,24 @@ import java.util.Set;
 final class LaunchArguments {
     private static final Set<String> MANAGED = Set.of("--username", "--uuid", "--accessToken", "--userType",
             "--xuid", "--clientId", "--gameDir", "--userProperties");
+    /** Replaced only for a downloaded version; the built-in runtime keeps the configured values. */
+    private static final Set<String> VERSION = Set.of("--version", "--assetIndex", "--versionType");
 
     private LaunchArguments() {}
 
     static String[] build(String[] existing, InstanceStore.Instance instance, AccountStore.Session session)
             throws IOException {
+        return build(existing, instance, session, null);
+    }
+
+    static String[] build(String[] existing, InstanceStore.Instance instance, AccountStore.Session session,
+                          VersionStore.Installed version) throws IOException {
         List<String> args = new ArrayList<>();
         for (int i = 0; i < existing.length; i++) {
             String value = existing[i];
             int equal = value.indexOf('=');
             String key = equal < 0 ? value : value.substring(0, equal);
-            if (MANAGED.contains(key)) {
+            if (MANAGED.contains(key) || (version != null && VERSION.contains(key))) {
                 if (equal < 0) {
                     if (++i >= existing.length || existing[i].startsWith("--"))
                         throw new IOException("A configured identity argument is missing its value");
@@ -34,6 +41,11 @@ final class LaunchArguments {
         add(args, "--gameDir", instance.gameDir().toString());
         if (!session.xuid().isEmpty()) add(args, "--xuid", session.xuid());
         if (!session.clientId().isEmpty()) add(args, "--clientId", session.clientId());
+        if (version != null) {
+            add(args, "--version", version.id());
+            add(args, "--assetIndex", version.assetIndex());
+            add(args, "--versionType", version.versionType());
+        }
         return args.toArray(String[]::new);
     }
 

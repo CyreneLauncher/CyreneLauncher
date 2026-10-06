@@ -5,6 +5,8 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -24,6 +26,8 @@ final class LauncherConfig {
     Path gameDir;
     final Path metadata;
     final InstanceStore instances;
+    /** Downloaded Minecraft versions; the built-in runtime (metadata) is the installed 1.18.2. */
+    final VersionStore versions;
     final String versionId;
     final String gameMainClass;
     final String loaderVersion;
@@ -62,7 +66,15 @@ final class LauncherConfig {
                 System.err.println("launcher: ignoring invalid global settings: " + invalid.getMessage());
             }
         }
-        instances = new InstanceStore(home, gameDir, metadata, heapMib, arenaMib);
+        Path libraries = runnerRoot.getParent().resolve("libraries"), assets = runnerRoot.getParent().resolve("assets");
+        for (String line : Files.readAllLines(runnerConf(), StandardCharsets.UTF_8))
+            if (line.trim().startsWith("libraries=")) libraries = Path.of(line.trim().substring("libraries=".length()));
+        List<String> arguments = Files.exists(runnerRoot.resolve("app-args.txt"))
+                ? Files.readAllLines(runnerRoot.resolve("app-args.txt"), StandardCharsets.UTF_8) : List.of();
+        for (int i = 0; i + 1 < arguments.size(); i++)
+            if (arguments.get(i).trim().equals("--assetsDir")) assets = Path.of(arguments.get(i + 1).trim());
+        versions = new VersionStore(home, libraries, assets, metadata);
+        instances = new InstanceStore(home, gameDir, metadata, versions.versionsRoot(), heapMib, arenaMib);
         instances.load();
         use(instances.selected());
     }
@@ -93,17 +105,46 @@ final class LauncherConfig {
         arenaMib = instance.arenaMib();
     }
 
-    /** Versions of the ids no mod JAR provides, for checking mods' requirements. */
-    java.util.Map<String, String> builtInVersions() {
-        java.util.Map<String, String> v = new java.util.HashMap<>();
-        v.put("minecraft", gameVersion());
-        if (!loaderVersion.isEmpty()) v.put("fabricloader", loaderVersion);
+    /** The downloaded version an instance runs, or null for the built-in 1.18.2 runtime. */
+    VersionStore.Installed installed(InstanceStore.Instance instance) {
+        return instance.runtimeProfile().equals(metadata.toAbsolutePath().normalize()) ? null
+                : versions.installed(instance.runtimeProfile());
+    }
+
+    /** Versions of the ids no mod JAR provides, for checking the selected instance's mods. */
+    Map<String, String> builtInVersions() {
+        VersionStore.Installed version = installed(selectedInstance());
+        Map<String, String> v = new java.util.HashMap<>();
+        if (version != null) v.putAll(version.provides());
+        else {
+            v.put("minecraft", builtInGameVersion());
+            if (!loaderVersion.isEmpty()) v.put("fabricloader", loaderVersion);
+        }
         v.put("java", System.getProperty("java.specification.version", "17"));
         return v;
     }
 
-    /** The Minecraft version: the end of a loader profile id such as fabric-loader-0.14.9-1.18.2. */
+    /** The selected instance's Minecraft version. */
     String gameVersion() {
+        VersionStore.Installed version = installed(selectedInstance());
+        return version != null ? version.minecraft() : builtInGameVersion();
+    }
+
+    /** The selected instance's loader. */
+    VersionStore.Loader loader() {
+        VersionStore.Installed version = installed(selectedInstance());
+        return version != null ? version.loader() : VersionStore.Loader.FABRIC;
+    }
+
+    /** What an instance runs, for display. */
+    String describe(InstanceStore.Instance instance) {
+        VersionStore.Installed version = installed(instance);
+        return version != null ? version.title()
+                : "Minecraft " + builtInGameVersion() + (loaderVersion.isEmpty() ? "" : "  Fabric " + loaderVersion);
+    }
+
+    /** The built-in runtime's Minecraft version: the end of a loader profile id such as fabric-loader-0.14.9-1.18.2. */
+    String builtInGameVersion() {
         Matcher m = Pattern.compile("(\\d+\\.\\d+(?:\\.\\d+)?)$").matcher(versionId);
         return m.find() ? m.group(1) : versionId;
     }

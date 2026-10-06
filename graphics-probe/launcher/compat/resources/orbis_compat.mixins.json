@@ -1,0 +1,8 @@
+{
+  "required": false,
+  "minVersion": "0.8",
+  "package": "orbis.compat.mixin",
+  "compatibilityLevel": "JAVA_8",
+  "mixins": ["UtilMixin"],
+  "injectors": { "defaultRequire": 0 }
+}

@@ -39,11 +39,12 @@ final class LaunchPreparation {
     LaunchRequest prepare(InstanceStore.Instance instance, String accountId) throws IOException {
         rollback(); // A previous interrupted transaction cannot contaminate this one.
         validateInstance(instance);
+        VersionStore.Installed version = config.installed(instance);
         LaunchRequest request = LaunchRequest.create(instance.id(), accountId);
         byte[] originalOptions = LauncherFiles.read(optionsFile, MAX_FILE_BYTES);
         byte[] originalConf = LauncherFiles.read(confFile, MAX_FILE_BYTES);
-        byte[] preparedOptions = options(originalOptions, instance);
-        byte[] preparedConf = configuration(originalConf, instance.gameDir(), config.debugLog);
+        byte[] preparedOptions = options(originalOptions, instance, version, compatibilityMod(version));
+        byte[] preparedConf = configuration(originalConf, instance.gameDir(), config.debugLog, version);
         if (preparedOptions.length > MAX_FILE_BYTES || preparedConf.length > MAX_FILE_BYTES)
             throw new IOException("Prepared runner settings are too large");
         JsonObject saved = new JsonObject();
@@ -167,7 +168,8 @@ final class LaunchPreparation {
         LauncherFiles.rejectSymlinks(instance.gameDir());
         if (!Files.isDirectory(instance.gameDir(), LinkOption.NOFOLLOW_LINKS)
                 || !Files.isRegularFile(instance.runtimeProfile(), LinkOption.NOFOLLOW_LINKS)
-                || !instance.runtimeProfile().equals(config.metadata.toAbsolutePath().normalize()))
+                || (!instance.runtimeProfile().equals(config.metadata.toAbsolutePath().normalize())
+                    && config.installed(instance) == null))
             throw new IOException("The instance's installed runtime or game directory is missing");
         if (instance.heapMib() < LauncherConfig.MIN_HEAP_MIB || instance.heapMib() > LauncherConfig.MAX_HEAP_MIB
                 || instance.arenaMib() < LauncherConfig.MIN_ARENA_MIB || instance.arenaMib() > LauncherConfig.MAX_ARENA_MIB
@@ -176,11 +178,37 @@ final class LaunchPreparation {
             throw new IOException("The instance's memory settings are invalid");
     }
 
-    private static byte[] options(byte[] original, InstanceStore.Instance instance) {
+    /** Options a downloaded version replaces with its own (install.json jvm). */
+    private static final List<String> VERSION_OPTIONS = List.of("-DFabricMcEmu=", "-Dfabric.systemLibraries=",
+            "-Dloader.systemLibraries=", "-Dlog4j.configurationFile=", "-Dfabric.addMods=", "-Dloader.addMods=");
+
+    /**
+     * The launcher's compatibility mod (launcher/compat, embedded in this JAR), extracted for Fabric and
+     * Quilt versions and added through the loader's addMods property, never into the instance's mods.
+     */
+    private List<String> compatibilityMod(VersionStore.Installed version) throws IOException {
+        if (version == null || version.loader() == VersionStore.Loader.VANILLA) return List.of();
+        byte[] jar;
+        try (java.io.InputStream in = LaunchPreparation.class.getResourceAsStream("orbis-compat.jar")) {
+            if (in == null) throw new IOException("The launcher's compatibility mod is missing");
+            jar = in.readAllBytes();
+        }
+        Path target = config.home.resolve("compat").resolve("orbis-compat.jar");
+        if (!Files.isRegularFile(target, LinkOption.NOFOLLOW_LINKS)
+                || !MessageDigest.isEqual(LauncherFiles.read(target, MAX_FILE_BYTES), jar)) {
+            Files.createDirectories(target.getParent());
+            LauncherFiles.write(target, jar, false);
+        }
+        return List.of((version.loader() == VersionStore.Loader.QUILT ? "-Dloader.addMods=" : "-Dfabric.addMods=") + target);
+    }
+
+    private static byte[] options(byte[] original, InstanceStore.Instance instance, VersionStore.Installed version,
+                                  List<String> extra) {
         List<String> result = new ArrayList<>();
         boolean min = false, max = false, arena = false;
         for (String line : new String(original, StandardCharsets.UTF_8).split("\\R")) {
             String value = line.trim();
+            if (version != null && VERSION_OPTIONS.stream().anyMatch(value::startsWith)) continue;
             if (value.startsWith("-Xms")) { result.add("-Xms" + instance.heapMib() + "m"); min = true; }
             else if (value.startsWith("-Xmx")) { result.add("-Xmx" + instance.heapMib() + "m"); max = true; }
             else if (value.startsWith("-Dorbis.graphics.arenaMib=")) {
@@ -190,24 +218,33 @@ final class LaunchPreparation {
         if (!min) result.add("-Xms" + instance.heapMib() + "m");
         if (!max) result.add("-Xmx" + instance.heapMib() + "m");
         if (!arena) result.add("-Dorbis.graphics.arenaMib=" + instance.arenaMib());
+        if (version != null) result.addAll(version.jvmOptions());
+        result.addAll(extra);
         return String.join("\n", result).concat("\n").getBytes(StandardCharsets.UTF_8);
     }
 
-    private static byte[] configuration(byte[] original, Path gameDir, boolean debugLog) throws IOException {
-        String directory = gameDir.toString();
-        if (!gameDir.isAbsolute() || directory.indexOf('\n') >= 0 || directory.indexOf('\r') >= 0)
-            throw new IOException("Invalid instance working directory");
-        List<String> result = new ArrayList<>();
-        boolean found = false, debugFound = false;
-        for (String line : new String(original, StandardCharsets.UTF_8).split("\\R")) {
-            if (configurationKey(line).equals("working_directory")) {
-                result.add("working_directory=" + directory); found = true;
-            } else if (configurationKey(line).equals("debug")) {
-                result.add("debug=" + debugLog); debugFound = true;
-            } else result.add(line);
+    private static byte[] configuration(byte[] original, Path gameDir, boolean debugLog, VersionStore.Installed version)
+            throws IOException {
+        java.util.Map<String, String> set = new java.util.LinkedHashMap<>();
+        set.put("working_directory", gameDir.toString());
+        set.put("debug", String.valueOf(debugLog));
+        // A downloaded version boots on its own client JAR and profile, which starts the launcher first.
+        if (version != null) {
+            set.put("jar", version.clientJar().toString());
+            set.put("version_metadata", version.bootProfile().toString());
         }
-        if (!found) result.add("working_directory=" + directory);
-        if (!debugFound) result.add("debug=" + debugLog);
+        for (String value : set.values())
+            if (value.indexOf('\n') >= 0 || value.indexOf('\r') >= 0) throw new IOException("Invalid runner setting");
+        if (!gameDir.isAbsolute()) throw new IOException("Invalid instance working directory");
+        List<String> result = new ArrayList<>();
+        java.util.Set<String> found = new java.util.HashSet<>();
+        for (String line : new String(original, StandardCharsets.UTF_8).split("\\R")) {
+            String key = configurationKey(line);
+            if (set.containsKey(key)) { result.add(key + "=" + set.get(key)); found.add(key); }
+            else result.add(line);
+        }
+        for (java.util.Map.Entry<String, String> entry : set.entrySet())
+            if (!found.contains(entry.getKey())) result.add(entry.getKey() + "=" + entry.getValue());
         byte[] prepared = String.join("\n", result).concat("\n").getBytes(StandardCharsets.UTF_8);
         validateConfiguration(prepared);
         return prepared;
@@ -219,6 +256,9 @@ final class LaunchPreparation {
         return equal < 0 || value.startsWith("#") ? "" : value.substring(0, equal).trim();
     }
 
+    private static final java.util.Set<String> PREPARED_KEYS =
+            java.util.Set.of("working_directory", "debug", "jar", "version_metadata");
+
     /** Restore only our configuration edits when another writer changed unrelated settings. */
     private static byte[] mergeConfigurationRecovery(byte[] original, byte[] prepared, byte[] current)
             throws IOException {
@@ -227,7 +267,7 @@ final class LaunchPreparation {
         List<String> lines = new ArrayList<>();
         for (String line : new String(current, StandardCharsets.UTF_8).split("\n")) {
             String key = configurationKey(line);
-            if ((key.equals("working_directory") || key.equals("debug"))
+            if (PREPARED_KEYS.contains(key)
                     && !java.util.Objects.equals(before.get(key), applied.get(key))
                     && line.substring(line.indexOf('=') + 1).trim().equals(applied.get(key))) {
                 if (before.containsKey(key)) lines.add(key + "=" + before.get(key));
