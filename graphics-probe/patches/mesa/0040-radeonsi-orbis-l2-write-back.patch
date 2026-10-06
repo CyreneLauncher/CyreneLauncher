@@ -1,0 +1,116 @@
+diff --git a/src/amd/common/ac_cmdbuf_cp.c b/src/amd/common/ac_cmdbuf_cp.c
+index ba4cbf1..981e6d5 100644
+--- a/src/amd/common/ac_cmdbuf_cp.c
++++ b/src/amd/common/ac_cmdbuf_cp.c
+@@ -554,8 +554,20 @@ ac_emit_cp_acquire_mem(struct ac_cmdbuf *cs, enum amd_gfx_level gfx_level,
+       ac_cmdbuf_emit(gcr_cntl);      /* GCR_CNTL */
+    } else {
+       const bool is_mec = gfx_level >= GFX7 && ip_type == AMD_IP_COMPUTE;
++#ifdef HAVE_ORBIS_PLATFORM
++      /* Sony's Gnm flushes caches on the graphics ring with ACQUIRE_MEM in this layout, never SURFACE_SYNC.
++       * ORBIS_ACQUIRE_MEM=1 does the same; opt-in, as it did not cure the CMASK case in si_barrier.c alone. */
++      static int orbis_acquire_mem = -1;
++      if (orbis_acquire_mem < 0) {
++         const char *env = getenv("ORBIS_ACQUIRE_MEM");
++         orbis_acquire_mem = env && env[0] == '1' && env[1] == '\0';
++      }
++      const bool use_acquire_mem = gfx_level == GFX9 || is_mec || (gfx_level == GFX7 && orbis_acquire_mem);
++#else
++      const bool use_acquire_mem = gfx_level == GFX9 || is_mec;
++#endif
+ 
+-      if (gfx_level == GFX9 || is_mec) {
++      if (use_acquire_mem) {
+          /* Flush caches and wait for the caches to assert idle. */
+          ac_cmdbuf_emit(PKT3(PKT3_ACQUIRE_MEM, 5, 0) | PKT3_SHADER_TYPE_S(is_mec));
+          ac_cmdbuf_emit(gcr_cntl);      /* CP_COHER_CNTL */
+diff --git a/src/gallium/drivers/radeonsi/si_barrier.c b/src/gallium/drivers/radeonsi/si_barrier.c
+index d247697..84523ef 100644
+--- a/src/gallium/drivers/radeonsi/si_barrier.c
++++ b/src/gallium/drivers/radeonsi/si_barrier.c
+@@ -307,6 +307,34 @@ static void gfx10_emit_barrier(struct si_context *ctx, struct radeon_cmdbuf *cs)
+       ctx->task_wait_count++;
+ }
+ 
++#ifdef HAVE_ORBIS_PLATFORM
++/* ORBIS_L2_WRITEBACK=1 adds TC_WB_ACTION_ENA to L2 flushes, as Gnm does. Opt-in: it did not cure the CMASK
++ * case below on its own, and stock GFX7 behaviour is what the game has been validated with. */
++static bool orbis_l2_write_back(void)
++{
++   static int enabled = -1;
++   if (enabled < 0) {
++      const char *env = getenv("ORBIS_L2_WRITEBACK");
++      enabled = env && env[0] == '1' && env[1] == '\0';
++   }
++   return enabled;
++}
++
++/* ORBIS_EOP_L2_FLUSH=1 flushes L2 at the end of the pipe and waits for its fence. OFF by default: on the console
++ * the wait never returned (the end-of-pipe fence write did not arrive) and the first barrier hung the GPU. */
++static bool orbis_eop_l2_flush(void)
++{
++   static int enabled = -1;
++   if (enabled < 0) {
++      const char *env = getenv("ORBIS_EOP_L2_FLUSH");
++      enabled = env && env[0] == '1' && env[1] == '\0';
++   }
++   return enabled;
++}
++#else
++static bool orbis_l2_write_back(void) { return false; }
++#endif
++
+ static void gfx6_emit_barrier(struct si_context *sctx, struct radeon_cmdbuf *cs)
+ {
+    assert(sctx->gfx_level <= GFX9);
+@@ -382,6 +410,27 @@ static void gfx6_emit_barrier(struct si_context *sctx, struct radeon_cmdbuf *cs)
+ 
+    radeon_end();
+ 
++#ifdef HAVE_ORBIS_PLATFORM
++   /* The PS4: flush L2 at the END OF THE PIPE, as Sony's Gnm does (EVENT_WRITE_EOP with cache action bits
++    * 15-17), and wait for it. CS_PARTIAL_FLUSH says the waves finished, not that their stores reached L2:
++    * an immediate SURFACE_SYNC/ACQUIRE_MEM flush left compute's later-landing stores dirty in half the L2
++    * channels (an address-interleave pattern), and their late write-back overwrote the colour block's CMASK
++    * updates after a compute fast clear. Opt-in (ORBIS_EOP_L2_FLUSH=1): its fence wait hung on the console. */
++   if (sctx->gfx_level == GFX7 && orbis_eop_l2_flush() &&
++       (flags & (SI_BARRIER_WB_L2 | SI_BARRIER_INV_L2))) {
++      struct si_resource *scratch = si_get_wait_mem_scratch_bo(sctx, cs, sctx->ws->cs_is_secure(cs));
++      uint64_t va = scratch->gpu_address;
++
++      sctx->wait_mem_number++;
++      si_cp_release_mem(sctx, cs, V_028A90_BOTTOM_OF_PIPE_TS,
++                        EVENT_TC_ACTION_ENA | EVENT_TC_WB_ACTION_ENA | EVENT_TCL1_ACTION_ENA,
++                        EOP_DST_SEL_MEM, EOP_INT_SEL_SEND_DATA_AFTER_WR_CONFIRM, EOP_DATA_SEL_VALUE_32BIT,
++                        scratch, va, sctx->wait_mem_number, SI_NOT_QUERY);
++      si_cp_wait_mem(sctx, cs, va, sctx->wait_mem_number, 0xffffffff, WAIT_REG_MEM_EQUAL);
++      flags &= ~(SI_BARRIER_WB_L2 | SI_BARRIER_INV_L2);
++   }
++#endif
++
+    /* GFX9: Wait for idle if we're flushing CB or DB. ACQUIRE_MEM doesn't
+     * wait for idle on GFX9. We have to use a TS event.
+     */
+@@ -456,7 +505,11 @@ static void gfx6_emit_barrier(struct si_context *sctx, struct radeon_cmdbuf *cs)
+     *
+     * cp_coher_cntl should contain everything except TC flags at this point.
+     *
+-    * GFX6-GFX7 don't support L2 write-back.
++    * GFX6-GFX7 don't support L2 write-back - except the PS4's GPUs: Liverpool and Gladius take GFX8's
++    * TC_WB_ACTION_ENA (CP_COHER_CNTL bit 18), and Sony's Gnm sets it in every L2 flush (its "write back and
++    * invalidate L1 and L2" cache action is bits 23, 22 and 18). Without it a flush left some of compute's
++    * dirty L2 lines unwritten: the colour block, which reads CMASK from memory, missed half of a compute
++    * fast clear and kept marking drawn tiles as cleared (Minecraft's Mojang logo).
+     */
+    unsigned engine = flags & SI_BARRIER_PFP_SYNC_ME ? V_581A_PREFETCH_PARSER : V_581A_MICRO_ENGINE;
+ 
+@@ -464,7 +517,8 @@ static void gfx6_emit_barrier(struct si_context *sctx, struct radeon_cmdbuf *cs)
+       /* Invalidate L1 & L2. WB must be set on GFX8+ when TC_ACTION is set. */
+       si_cp_acquire_mem(sctx, cs,
+                         cp_coher_cntl | S_0085F0_TC_ACTION_ENA(1) | S_0085F0_TCL1_ACTION_ENA(1) |
+-                        S_0301F0_TC_WB_ACTION_ENA(sctx->gfx_level >= GFX8), engine);
++                        S_0301F0_TC_WB_ACTION_ENA(sctx->gfx_level >= GFX8 || orbis_l2_write_back()),
++                        engine);
+    } else {
+       /* L1 invalidation and L2 writeback must be done separately, because both operations can't
+        * be done together.

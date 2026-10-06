@@ -53,6 +53,7 @@ public final class ComputeProbe {
                 image(run);
                 internal(run);
                 bufferOps(run);
+                colorBlock(run);
             }
             say("summary failures=%d %s", failures, failures == 0 ? "result=clean" : "result=LOSS");
             glClearColor(failures == 0 ? 0.05f : 0.6f, failures == 0 ? 0.4f : 0.05f, 0.05f, 1);
@@ -479,6 +480,148 @@ public final class ComputeProbe {
         MemoryUtil.memFree(got);
 
         glDeleteBuffers(new int[]{src, dst, moved});
+    }
+
+    // ------------------------------------------------------------------ the colour block reading GPU-written data
+
+    private static final String QUAD_VS = "#version 430 core\nuniform vec4 rect; void main(){ vec2 c = vec2((gl_VertexID & 1), (gl_VertexID >> 1) & 1);"
+            + " gl_Position = vec4(mix(rect.xy, rect.zw, c), 0.0, 1.0); }\n";
+    private static final String COLOR_FS = "#version 430 core\nuniform vec4 color; out vec4 o; void main(){ o = color; }\n";
+
+    private static int colorProgram;
+
+    private static int program(String vs, String fs) {
+        int v = glCreateShader(GL_VERTEX_SHADER), f = glCreateShader(GL_FRAGMENT_SHADER);
+        glShaderSource(v, vs); glShaderSource(f, fs);
+        glCompileShader(v); glCompileShader(f);
+        int p = glCreateProgram();
+        glAttachShader(p, v); glAttachShader(p, f); glLinkProgram(p);
+        glDeleteShader(v); glDeleteShader(f);
+        if (glGetProgrami(p, GL_LINK_STATUS) == GL_FALSE) throw new IllegalStateException(glGetProgramInfoLog(p));
+        return p;
+    }
+
+    /** A quad in normalised device coordinates. */
+    private static void quad(float x0, float y0, float x1, float y1, int rgba) {
+        if (colorProgram == 0) colorProgram = program(QUAD_VS, COLOR_FS);
+        glUseProgram(colorProgram);
+        glUniform4f(glGetUniformLocation(colorProgram, "rect"), x0, y0, x1, y1);
+        glUniform4f(glGetUniformLocation(colorProgram, "color"), (rgba & 255) / 255f, ((rgba >>> 8) & 255) / 255f,
+                ((rgba >>> 16) & 255) / 255f, ((rgba >>> 24) & 255) / 255f);
+        glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+    }
+
+    private static void colorBlock(int run) {
+        int vao = glGenVertexArrays();
+        glBindVertexArray(vao);
+        glViewport(0, 0, SIZE, SIZE);
+        int fbo = glGenFramebuffers();
+
+        // 1. Fast clear (CMASK cleared by the driver), then draw over the left half, as a loading screen does.
+        int target = texture();
+        glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, target, 0);
+        for (int frame = 0; frame < 4; frame++) {
+            int clear = frame % 2 == 0 ? 0xff2020e0 : 0xff20e020;
+            glClearColor((clear & 255) / 255f, ((clear >>> 8) & 255) / 255f, ((clear >>> 16) & 255) / 255f, 1);
+            glClear(GL_COLOR_BUFFER_BIT);
+            quad(-1, -1, 0, 1, 0xffffffff);
+        }
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+        glMemoryBarrier(GL_ALL_BARRIER_BITS);
+        int lastClear = 0xff20e020;
+        verifyHalves("fast clear then draw run=" + run, target, 0xffffffff, lastClear);
+
+        // 2. Compute writes a texture, then a draw blends onto it (the colour block reads compute's result).
+        int written = texture();
+        glBindImageTexture(0, written, 0, false, 0, GL_WRITE_ONLY, GL_RGBA8);
+        int fill = compute("""
+                #version 430 core
+                layout(local_size_x=8, local_size_y=8) in;
+                layout(rgba8, binding=0) uniform writeonly image2D img;
+                void main() { imageStore(img, ivec2(gl_GlobalInvocationID.xy), vec4(0.25, 0.5, 0.0, 1.0)); }
+                """);
+        glUseProgram(fill);
+        glDispatchCompute(SIZE / 8, SIZE / 8, 1);
+        glMemoryBarrier(GL_ALL_BARRIER_BITS);
+        glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, written, 0);
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_ONE, GL_ONE);
+        quad(-1, -1, 1, 1, 0xff400040);
+        glDisable(GL_BLEND);
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+        glMemoryBarrier(GL_ALL_BARRIER_BITS);
+        // 0.25+0.25=0.5 -> 128, 0.5+0 -> 128, 0+0.25 -> 64, alpha 1
+        int sum = 0xff000000 | (64 << 16) | (128 << 8) | 128;
+        verifyNear("compute then blend run=" + run, written, sum);
+
+        glDeleteProgram(fill);
+        glDeleteFramebuffers(fbo);
+        glDeleteTextures(new int[]{target, written});
+        glDeleteVertexArrays(vao);
+    }
+
+    private static IntBuffer fetch(int texture) {
+        if (fetchProgram == 0) fetchProgram = compute(FETCH_SHADER);
+        int out = buffer(0, (long) SIZE * SIZE * 4);
+        glUseProgram(fetchProgram);
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, texture);
+        glUniform1i(glGetUniformLocation(fetchProgram, "tex"), 0);
+        glDispatchCompute(SIZE / 8, SIZE / 8, 1);
+        glMemoryBarrier(GL_ALL_BARRIER_BITS);
+        IntBuffer px = read(out, SIZE * SIZE);
+        glDeleteBuffers(out);
+        return px;
+    }
+
+    /** Left half one colour, right half another; reports wrong pixels and 8x8 blocks. */
+    private static void verifyHalves(String name, int texture, int left, int right) {
+        IntBuffer px = fetch(texture);
+        int bad = 0, badBlocks = 0;
+        java.util.Set<Integer> blocks = new java.util.HashSet<>();
+        Map<String, Integer> values = new TreeMap<>();
+        for (int y = 0; y < SIZE; y++)
+            for (int x = 0; x < SIZE; x++) {
+                int want = x < SIZE / 2 ? left : right, got = px.get(y * SIZE + x);
+                if (got == want) continue;
+                bad++;
+                if (blocks.add((y / 8) * (SIZE / 8) + x / 8)) badBlocks++;
+                if (values.size() < 6) values.merge(Integer.toHexString(got), 1, Integer::sum);
+            }
+        if (bad != 0) failures++;
+        say("%s pixels_bad=%d blocks8_bad=%d values=%s %s", name, bad, badBlocks, values, bad == 0 ? "clean" : "LOSS");
+        if (bad != 0) {
+            // Where the bad 8x8 blocks are: rows 0..3 of blocks across the left half (1 = bad).
+            for (int by = 0; by < 4; by++) {
+                StringBuilder row = new StringBuilder();
+                for (int bx = 0; bx < SIZE / 16; bx++) row.append(blocks.contains(by * (SIZE / 8) + bx) ? '1' : '0');
+                say("%s block_row %d: %s", name, by, row);
+            }
+            StringBuilder col = new StringBuilder();
+            for (int by = 0; by < SIZE / 8; by += 8) col.append(blocks.contains(by * (SIZE / 8)) ? '1' : '0');
+            say("%s block_col0 every 8th row: %s", name, col);
+        }
+        MemoryUtil.memFree(px);
+    }
+
+    private static void verifyNear(String name, int texture, int want) {
+        IntBuffer px = fetch(texture);
+        int bad = 0;
+        Map<String, Integer> values = new TreeMap<>();
+        for (int i = 0; i < SIZE * SIZE; i++) {
+            int got = px.get(i);
+            boolean near = true;
+            for (int shift = 0; shift < 32; shift += 8)
+                if (Math.abs(((got >>> shift) & 255) - ((want >>> shift) & 255)) > 2) near = false;
+            if (near) continue;
+            bad++;
+            if (values.size() < 6) values.merge(Integer.toHexString(got), 1, Integer::sum);
+        }
+        if (bad != 0) failures++;
+        say("%s pixels_bad=%d/%d values=%s %s", name, bad, SIZE * SIZE, values, bad == 0 ? "clean" : "LOSS");
+        MemoryUtil.memFree(px);
     }
 
     private static int drawProgram() {
