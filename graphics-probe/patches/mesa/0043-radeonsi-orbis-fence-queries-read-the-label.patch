@@ -1,0 +1,69 @@
+diff --git a/src/amd/common/ac_linux_drm.h b/src/amd/common/ac_linux_drm.h
+index a1f6a6e..fc103a1 100644
+--- a/src/amd/common/ac_linux_drm.h
++++ b/src/amd/common/ac_linux_drm.h
+@@ -559,6 +559,11 @@ bool ac_orbis_wait_gpu_idle(uint64_t timeout_ns);
+ uint64_t ac_orbis_gpu_seq_now(void);
+ bool ac_orbis_wait_gpu_seq(uint64_t seq, uint64_t timeout_ns);
+ 
++/* Whether the GPU has reached submission `seq`: one read of the fence label, no wait and no log. This is
++ * the user fence radeonsi's winsys reads on amdgpu, where the kernel has the GPU write it; see
++ * amdgpu_fence_wait. */
++bool ac_orbis_gpu_seq_reached(uint64_t seq);
++
+ /* Whether a device address lies inside this arm's single arena. See the definition for why descriptor
+  * construction asks. */
+ bool ac_orbis_va_is_ours(uint64_t va, uint64_t size);
+diff --git a/src/amd/common/ac_orbis_drm.c b/src/amd/common/ac_orbis_drm.c
+index e4055c6..979a728 100644
+--- a/src/amd/common/ac_orbis_drm.c
++++ b/src/amd/common/ac_orbis_drm.c
+@@ -9156,6 +9156,12 @@ ac_orbis_wait_gpu_seq(uint64_t want, uint64_t timeout_ns)
+    return true;
+ }
+ 
++bool
++ac_orbis_gpu_seq_reached(uint64_t seq)
++{
++   return (int32_t)(*orbis_fence_label - (uint32_t)seq) >= 0;
++}
++
+ bool
+ ac_orbis_wait_gpu_idle(uint64_t timeout_ns)
+ {
+diff --git a/src/gallium/winsys/amdgpu/drm/amdgpu_cs.cpp b/src/gallium/winsys/amdgpu/drm/amdgpu_cs.cpp
+index d015dba..8ecf7b7 100644
+--- a/src/gallium/winsys/amdgpu/drm/amdgpu_cs.cpp
++++ b/src/gallium/winsys/amdgpu/drm/amdgpu_cs.cpp
+@@ -11,6 +11,9 @@
+ #include "util/log.h"
+ #include "amdgpu_winsys.h"
+ #include "util/os_time.h"
++#ifdef HAVE_ORBIS_PLATFORM
++#include "util/u_debug.h"
++#endif
+ #include <inttypes.h>
+ #include <stdio.h>
+ 
+@@ -221,6 +224,21 @@ bool amdgpu_fence_wait(struct pipe_fence_handle *fence, uint64_t timeout,
+ 
+    user_fence_cpu = afence->user_fence_cpu_address;
+    if (user_fence_cpu) {
++#ifdef HAVE_ORBIS_PLATFORM
++      /* ⚠ NO KERNEL WRITES THE USER FENCE HERE. On amdgpu the kernel has the GPU write seq_no into this
++       * word after each submission (CHUNK_ID_FENCE); the PS4 arm ignores that chunk, so the word stayed 0
++       * and every zero-timeout query answered "busy" for anything used in the last AMDGPU_FENCE_RING_SIZE
++       * submissions - buffers were reallocated or staged instead of reused, slabs reclaimed late. The arm's
++       * own fence label is written by the GPU at the end of every submission and seq_no is its ticket, so
++       * that is the answer (ORBIS_USER_FENCE=0 restores the old behaviour). */
++      static int use_label = -1;
++      if (use_label < 0)
++         use_label = debug_get_bool_option("ORBIS_USER_FENCE", true);
++      if (use_label && ac_orbis_gpu_seq_reached(afence->seq_no)) {
++         afence->signalled = true;
++         return true;
++      }
++#endif
+       if (*user_fence_cpu >= afence->seq_no) {
+          afence->signalled = true;
+          return true;
