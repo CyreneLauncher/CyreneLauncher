@@ -1,18 +1,17 @@
 diff --git a/src/gallium/drivers/radeonsi/si_buffer.c b/src/gallium/drivers/radeonsi/si_buffer.c
-index 60ccac6..f0d45f4 100644
+index 60ccac6..127f42f 100644
 --- a/src/gallium/drivers/radeonsi/si_buffer.c
 +++ b/src/gallium/drivers/radeonsi/si_buffer.c
-@@ -792,16 +792,127 @@ static bool si_resource_commit(struct pipe_context *pctx, struct pipe_resource *
+@@ -792,16 +792,126 @@ static bool si_resource_commit(struct pipe_context *pctx, struct pipe_resource *
        return si_texture_commit(ctx, res, level, box, commit);
  }
  
 +#ifdef HAVE_ORBIS_PLATFORM
-+/* Buffer copies and clears by CP DMA rather than compute. Added when compute output seemed to lose parts:
-+ * a black box Sodium drew at the camera on chunk unloads was blamed on garbled compute copies, but it was
-+ * Flywheel's instancing bug, and compute blits have since tested clean. With compute buffer operations a
-+ * compute probe stays clean, yet Minecraft's Mojang loading logo renders garbled.
-+ * ORBIS_COMPUTE_BUFFER_OPS=1 gives copies and clears back to radeonsi's own choice, =copy or =clear only one
-+ * kind; ORBIS_TRACE_BUFFER_OPS=1 logs the first 600 operations with their route and caller. */
++/* Buffer copies and clears go where radeonsi chooses (compute where it is faster). They were forced onto CP DMA
++ * while compute output seemed to lose parts; that loss was the PS4 Pro's CMASK fast clears (patch 0041), and
++ * with those off, compute copies and clears are clean in the probe and in Minecraft (Mojang logo included).
++ * ORBIS_COMPUTE_BUFFER_OPS=0 forces CP DMA again (=copy or =clear keeps compute for one kind only);
++ * ORBIS_TRACE_BUFFER_OPS=1 logs the first 600 operations with their route and caller. */
 +#define ORBIS_COMPUTE_COPY  1u
 +#define ORBIS_COMPUTE_CLEAR 2u
 +
@@ -21,7 +20,7 @@ index 60ccac6..f0d45f4 100644
 +   static int ops = -1;
 +   if (ops < 0) {
 +      const char *env = getenv("ORBIS_COMPUTE_BUFFER_OPS");
-+      ops = !env ? 0 : !strcmp(env, "1") ? (ORBIS_COMPUTE_COPY | ORBIS_COMPUTE_CLEAR)
++      ops = !env || !strcmp(env, "1") ? (ORBIS_COMPUTE_COPY | ORBIS_COMPUTE_CLEAR)
 +          : !strcmp(env, "copy") ? ORBIS_COMPUTE_COPY : !strcmp(env, "clear") ? ORBIS_COMPUTE_CLEAR : 0;
 +   }
 +   return ops;
@@ -131,7 +130,7 @@ index 60ccac6..f0d45f4 100644
     si_cp_dma_copy_buffer(sctx, dst, src, dst_offset, src_offset, size);
  }
  
-@@ -825,10 +936,33 @@ void si_clear_buffer(struct si_context *sctx, struct pipe_resource *dst,
+@@ -825,10 +935,33 @@ void si_clear_buffer(struct si_context *sctx, struct pipe_resource *dst,
     if (util_lower_clearsize_to_dword(clear_value, (int*)&clear_value_size, &clamped))
        clear_value = &clamped;
  
