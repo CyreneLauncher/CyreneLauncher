@@ -1,30 +1,52 @@
 diff --git a/src/gallium/drivers/radeonsi/si_buffer.c b/src/gallium/drivers/radeonsi/si_buffer.c
-index 60ccac6..268a465 100644
+index 60ccac6..ef5f0e0 100644
 --- a/src/gallium/drivers/radeonsi/si_buffer.c
 +++ b/src/gallium/drivers/radeonsi/si_buffer.c
-@@ -798,6 +798,14 @@ void si_copy_buffer(struct si_context *sctx, struct pipe_resource *dst, struct p
+@@ -792,12 +792,36 @@ static bool si_resource_commit(struct pipe_context *pctx, struct pipe_resource *
+       return si_texture_commit(ctx, res, level, box, commit);
+ }
+ 
++#ifdef HAVE_ORBIS_PLATFORM
++/* Buffer copies and clears by CP DMA rather than compute. Added when compute output seemed to lose parts:
++ * a black box Sodium drew at the camera on chunk unloads was blamed on garbled compute copies, but it was
++ * Flywheel's instancing bug, and compute blits have since tested clean. ORBIS_COMPUTE_BUFFER_OPS=1 gives
++ * these back to radeonsi's own choice (compute where it is faster) to test that path. */
++static bool orbis_cp_dma_buffer_ops(void)
++{
++   static int cp_dma = -1;
++   if (cp_dma < 0) {
++      const char *env = getenv("ORBIS_COMPUTE_BUFFER_OPS");
++      cp_dma = !(env && env[0] == '1' && env[1] == '\0');
++   }
++   return cp_dma;
++}
++
++#endif
++
+ void si_copy_buffer(struct si_context *sctx, struct pipe_resource *dst, struct pipe_resource *src,
+                     uint64_t dst_offset, uint64_t src_offset, unsigned size)
+ {
     if (!size)
        return;
  
 +#ifdef HAVE_ORBIS_PLATFORM
-+   /* CP DMA, never compute: compute writes on this console lose parts of their output (see the blit
-+    * default in si_pipe.c). Sodium moves chunk geometry with buffer copies, and a garbled copy drew a black
-+    * box at the camera whenever a chunk unloaded. */
-+   si_cp_dma_copy_buffer(sctx, dst, src, dst_offset, src_offset, size);
-+   return;
++   if (orbis_cp_dma_buffer_ops()) {
++      si_cp_dma_copy_buffer(sctx, dst, src, dst_offset, src_offset, size);
++      return;
++   }
 +#endif
 +
     if (si_compute_clear_copy_buffer(sctx, dst, dst_offset, src, src_offset, size, NULL, 0, 0,
                                      false, true))
        return;
-@@ -825,6 +833,15 @@ void si_clear_buffer(struct si_context *sctx, struct pipe_resource *dst,
+@@ -825,6 +849,15 @@ void si_clear_buffer(struct si_context *sctx, struct pipe_resource *dst,
     if (util_lower_clearsize_to_dword(clear_value, (int*)&clear_value_size, &clamped))
        clear_value = &clamped;
  
 +#ifdef HAVE_ORBIS_PLATFORM
-+   /* CP DMA whenever it can do the clear - see si_copy_buffer. Only unaligned clears and conditional ones
-+    * still need compute. */
-+   if (offset % 4 == 0 && size % 4 == 0 && clear_value_size == 4 && !render_condition_enable) {
++   /* CP DMA whenever it can do the clear - see orbis_cp_dma_buffer_ops. Only unaligned clears and
++    * conditional ones still need compute. */
++   if (orbis_cp_dma_buffer_ops() && offset % 4 == 0 && size % 4 == 0 && clear_value_size == 4 && !render_condition_enable) {
 +      si_cp_dma_clear_buffer(sctx, &sctx->gfx_cs, dst, offset, size, *clear_value);
 +      return;
 +   }
