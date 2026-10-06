@@ -66,6 +66,25 @@ REQUIRED = {
     'glfwGetInputMode (JI)I', 'glfwGetWindowAttrib (JI)I',
     'glfwSetCharCallback (JLorg/lwjgl/glfw/GLFWCharCallbackI;)Lorg/lwjgl/glfw/GLFWCharCallback;',
 }
+# GLFW 3.4 calls newer Minecraft makes while running on these LWJGL 3.2.2 classes (1.20.2+ asks
+# glfwGetPlatform before setting the window icon). The only exported members beyond 3.2.2's GLFW;
+# each must be implemented by OrbisGLFW.
+ADDITIONS = {('glfwGetPlatform', '()I')}
+REQUIRED |= {f'{name} {descriptor}' for name, descriptor in ADDITIONS}
+# LWJGL 3.3 members Minecraft 1.19.3+ calls on other GLFW classes. Those classes are rebuilt from the
+# pinned 3.2.2 sources with each member inserted before its anchor; nothing else in them changes.
+SOURCE_ADDITIONS = {
+    'org/lwjgl/glfw/GLFWImage': (
+        '    public static class Buffer extends StructBuffer<GLFWImage, Buffer> implements NativeResource {',
+        '    /** LWJGL 3.3\'s name for {@link #mallocStack(int, MemoryStack)} (Minecraft 1.19.3+ window icons). */\n'
+        '    public static GLFWImage.Buffer malloc(int capacity, MemoryStack stack) { return mallocStack(capacity, stack); }\n\n',
+        {('method', 'malloc', '(ILorg/lwjgl/system/MemoryStack;)Lorg/lwjgl/glfw/GLFWImage$Buffer;', True)}),
+    'org/lwjgl/glfw/GLFWNativeGLX': (
+        None,
+        '    /** LWJGL 3.3: where GLFW finds libGL for GLX (Minecraft 1.20.2+). Orbis contexts come from EGL: no effect. */\n'
+        '    public static void setPath(FunctionProvider sharedLibrary) { }\n',
+        {('method', 'setPath', '(Lorg/lwjgl/system/FunctionProvider;)V', True)}),
+}
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--boot-jdk', default='/usr/lib/jvm/java-17-openjdk-amd64')
@@ -101,6 +120,25 @@ if platform_source.count(anchor) != 1:
 platform = out / 'generated/org/lwjgl/system/Platform.java'
 platform.parent.mkdir(parents=True)
 platform.write_text(platform_source.replace(anchor, 'osName.startsWith("Orbis") || ' + anchor))
+
+glfw_sources = lwjgl_sources.archive('lwjgl-glfw-sources', arguments.downloads, arguments.fetch)
+patched_sources = []
+with zipfile.ZipFile(glfw_sources) as archive:
+    for name, (before, member, _) in SOURCE_ADDITIONS.items():
+        text = archive.read(name + '.java').decode()
+        if before is None:
+            end = text.rstrip().rfind('}')
+            text = text[:end] + '\n' + member + text[end:]
+        else:
+            if text.count(before) != 1:
+                raise SystemExit(f'unexpected {name}.java; inspect the insertion anchor')
+            text = text.replace(before, member + before)
+        # JSR-305 @Nullable is documentation only (no effect on members or linkage); it is not on this class path.
+        text = text.replace('import javax.annotation.*;\n', '').replace('@Nullable ', '').replace('@Nullable\n', '\n')
+        target = out / 'generated' / (name + '.java')
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(text)
+        patched_sources.append(target)
 
 
 def literal(member):
@@ -149,6 +187,16 @@ def generate(implemented):
         else:
             body = f'throw unsupported("{method.name}{method.descriptor}");'
         lines.append(f'    public static {classfile.java_type(returned)} {method.name}({signature}) {{ {body} }}')
+    for name, descriptor in sorted(ADDITIONS):
+        parameters, returned = classfile.split_method(descriptor)
+        names = [f'p{i}' for i in range(len(parameters))]
+        signature = ', '.join(f'{classfile.java_type(t)} {n}' for t, n in zip(parameters, names))
+        call = f'OrbisGLFW.{name}({", ".join(names)});'
+        if (name, descriptor) not in implemented:
+            call = f'throw unsupported("{name}{descriptor}");'
+        elif returned != 'V':
+            call = 'return ' + call
+        lines.append(f'    public static {classfile.java_type(returned)} {name}({signature}) {{ {call} }}')
     lines.append('}')
     target = out / 'generated/org/lwjgl/glfw/GLFW.java'
     target.parent.mkdir(parents=True, exist_ok=True)
@@ -160,7 +208,9 @@ def generate(implemented):
 runner_classes = out / 'runner-classes'
 subprocess.run([str(javac), '--release', '17', '-d', str(runner_classes),
                 str(RUNNER / 'src/runner/gpu/NativeInput.java')], check=True)
-REPLACED = {'org/lwjgl/glfw/GLFW.class', 'org/lwjgl/glfw/GLFW$Functions.class', 'org/lwjgl/glfw/Callbacks.class'}
+REPLACED = {'org/lwjgl/glfw/GLFW.class', 'org/lwjgl/glfw/GLFW$Functions.class', 'org/lwjgl/glfw/Callbacks.class',
+            'org/lwjgl/glfw/GLFWImage.class', 'org/lwjgl/glfw/GLFWImage$Buffer.class',
+            'org/lwjgl/glfw/GLFWNativeGLX.class', 'org/lwjgl/glfw/GLFWNativeGLX$Functions.class'}
 own = sorted(FACADE.rglob('*.java')) + [ROOT / 'lwjgl/java/orbis/graphics/NativePlatform.java']
 # The official GLFW jar supplies the unchanged classes; the generated GLFW source overrides its GLFW.
 classpath = ':'.join(map(str, (core_jar, opengl_jar, glfw_jar, runner_classes)))
@@ -168,7 +218,7 @@ classpath = ':'.join(map(str, (core_jar, opengl_jar, glfw_jar, runner_classes)))
 
 def compile_into(directory, glfw_java):
     subprocess.run([str(javac), '--release', '17', '-nowarn', '-encoding', 'UTF-8', '-cp', classpath,
-                    '-d', str(directory), str(glfw_java), str(platform), *map(str, own)],
+                    '-d', str(directory), str(glfw_java), str(platform), *map(str, patched_sources), *map(str, own)],
                    check=True)
 
 
@@ -192,6 +242,15 @@ with zipfile.ZipFile(jar, 'w', zipfile.ZIP_DEFLATED) as archive, zipfile.ZipFile
         archive.write(path, name)
 
 # Binary contract.
+def expected_extra(name):
+    if name == 'org/lwjgl/glfw/GLFW.class':
+        return {('method', n, d, True) for n, d in ADDITIONS}
+    for source, (_, _, members) in SOURCE_ADDITIONS.items():
+        if name == source + '.class':
+            return members
+    return set()
+
+
 with zipfile.ZipFile(jar) as archive:
     built = {name: classfile.parse(archive.read(name)) for name in archive.namelist()}
 problems = []
@@ -202,9 +261,9 @@ for name, cls in official.items():
     elif (mine.access & 0x0611) != (cls.access & 0x0611) or mine.super_name != cls.super_name \
             or set(mine.interfaces) != set(cls.interfaces):
         problems.append(f'{name}: class flags, superclass or interfaces differ')
-    elif mine.exported_members() != cls.exported_members():
+    elif mine.exported_members() - expected_extra(name) != cls.exported_members():
         missing = sorted(cls.exported_members() - mine.exported_members())[:5]
-        extra = sorted(mine.exported_members() - cls.exported_members())[:5]
+        extra = sorted(mine.exported_members() - cls.exported_members() - expected_extra(name))[:5]
         problems.append(f'{name}: exported members differ; missing {missing} extra {extra}')
 for field in glfw.fields:
     mine = next((f for f in built['org/lwjgl/glfw/GLFW.class'].fields if f.name == field.name), None)
@@ -219,6 +278,7 @@ allowed = set(official) | {'org/lwjgl/system/Platform.class', 'orbis/graphics/Na
 allowed |= {n for n in built if n.startswith('org/lwjgl/system/Platform$')}
 problems += [f'unexpected class {name}' for name in sorted(set(built) - allowed)]
 exported = {f'{m.name} {m.descriptor}' for m in glfw.methods if m.exported and m.name != '<init>'}
+exported |= {f'{name} {descriptor}' for name, descriptor in ADDITIONS}
 required_missing = sorted(REQUIRED - exported)
 problems += [f'required method absent from official GLFW: {m}' for m in required_missing]
 not_implemented = sorted(m for m in REQUIRED & exported if tuple(m.split(' ')) not in implemented)

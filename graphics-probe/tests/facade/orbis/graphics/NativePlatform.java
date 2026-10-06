@@ -50,4 +50,11 @@ public final class NativePlatform {
 
     public static int relaunches;
     public static int nRelaunch() { relaunches++; return -1; }
+    public static int nRelaunchWithIntent(String preparationId) { relaunches++; return -1; }
+
+    // System keyboard: never opens on the host.
+    public static int nImeBegin(String initial, String title, int maxLength) { return -1; }
+    public static int nImePoll() { return 0; }
+    public static String nImeResult() { return ""; }
+    public static int nImeCancel() { return 0; }
 }

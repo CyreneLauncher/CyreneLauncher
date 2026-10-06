@@ -29,5 +29,14 @@
     "sha256": "796f4b89134c4e57270b7f0d755f0fa3435b90da437b745160a49bd41c845b21",
     "license": "LGPL-2.1-or-later (COPYING in the archive)",
     "selection": "Last C++14 release line; builds with the Orbis SDK's libc++ 11. Provides the libopenal LWJGL loads, with an Orbis AudioOut backend added at build time."
+  },
+  "lwjgl-glfw-sources": {
+    "version": "3.2.2",
+    "url": "https://repo1.maven.org/maven2/org/lwjgl/lwjgl-glfw/3.2.2/lwjgl-glfw-3.2.2-sources.jar",
+    "filename": "lwjgl-glfw-3.2.2-sources.jar",
+    "sha256": "e0cfd301da791f60866af9f88dcf12861f65265e0951387408c75460773ddcc5",
+    "sha1": "3e402df983933dec9d9123e494fa3130b3900ab8",
+    "license": "BSD-3-Clause",
+    "selection": "Generated GLFW sources; GLFWImage and GLFWNativeGLX are rebuilt from them with the LWJGL 3.3 members newer Minecraft calls"
   }
 }

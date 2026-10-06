@@ -262,8 +262,10 @@ final class OrbisGLFW {
                 if (value != GLFW_NATIVE_CONTEXT_API)
                     error(GLFW_INVALID_VALUE, "Only the native EGL-backed context is available");
                 break;
+            // A no-error context only skips error checks; a normal context behaves correctly for any caller,
+            // as desktop GLFW gives where the driver cannot honour it (Sodium 0.5 asks for one).
+            case GLFW_CONTEXT_NO_ERROR: break;
             case GLFW_OPENGL_DEBUG_CONTEXT:
-            case GLFW_CONTEXT_NO_ERROR:
             case GLFW_STEREO:
             case GLFW_SRGB_CAPABLE:
                 if (value != GLFW_FALSE)
@@ -613,6 +615,16 @@ final class OrbisGLFW {
 
     static long nglfwGetProcAddress(long procname) {
         return glfwGetProcAddress(memASCII(procname));
+    }
+
+    // ---------------------------------------------------------------- GLFW 3.4 additions
+
+    /**
+     * GLFW_PLATFORM_NULL: no desktop windowing system. Minecraft 1.20.2+ asks before setting
+     * the window icon and skips it for this platform, as it does for Wayland.
+     */
+    static int glfwGetPlatform() {
+        return 0x00060005;
     }
 
     // ---------------------------------------------------------------- time

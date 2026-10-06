@@ -59,6 +59,9 @@ public final class FacadeBehaviorTest {
         check(glfwGetError(null) == GLFW_INVALID_VALUE, "debug context request rejected");
         glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, GLFW_FALSE);
         check(glfwGetError(null) == GLFW_NO_ERROR, "default non-debug context accepted");
+        glfwWindowHint(GLFW_CONTEXT_NO_ERROR, GLFW_TRUE);
+        check(glfwGetError(null) == GLFW_NO_ERROR, "no-error context request accepted as a normal context");
+        glfwWindowHint(GLFW_CONTEXT_NO_ERROR, GLFW_FALSE);
         glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_ES_API);
         check(glfwGetError(null) == GLFW_INVALID_VALUE, "unsupported ES API hint rejected");
         glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
