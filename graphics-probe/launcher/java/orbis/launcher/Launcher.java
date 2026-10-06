@@ -9,28 +9,61 @@ import java.nio.file.Path;
  * Entry point named by the launcher's version metadata. The runner starts it with the game's
  * arguments on a class path that already holds the game and its libraries.
  *
- * <p>A one-shot {@code next-start} file, written by Play just before the application restarts
- * itself, holds the game's main class: the launcher deletes it and runs the game in this process,
- * with JVM options that took effect at this start. Without it the launcher's own screen runs, so a
- * cold start from the system menu always lands here.
+ * <p>Play publishes a credential-free request and relaunches with a matching invocation ID.
+ * Runner settings are restored before authentication and game startup. An unrelated cold start
+ * discards stale requests and opens the launcher.
  */
 public final class Launcher {
     private Launcher() {}
 
     public static void main(String[] args) throws Throwable {
-        LauncherConfig config = LauncherConfig.load();
-        Path next = config.nextStart();
-        if (Files.isRegularFile(next)) {
-            String mainClass = Files.readString(next, StandardCharsets.UTF_8).trim();
-            Files.delete(next);
-            System.out.println("launcher: starting " + mainClass);
-            // Quitting the game ends the process (Minecraft's exit skips shutdown hooks), so the
-            // application closes; the next start from the system menu shows the launcher again.
-            startGame(mainClass, args);
-            return;
+        LauncherConfig config;
+        try { config = LauncherConfig.load(); }
+        catch (java.io.IOException | RuntimeException failure) {
+            try {
+                LaunchPreparation.recoverAfterConfigFailure(
+                        Path.of(System.getProperty("orbis.launcher.home", "/data/orbis-jdk/launcher")),
+                        Path.of(System.getProperty("orbis.runner.root", "/data/orbis-jdk/runner")));
+            } catch (java.io.IOException recovery) { failure.addSuppressed(recovery); }
+            throw failure;
         }
         keepLog(config.home.resolve("launcher.log"));
-        new LauncherScreen(config).run();
+        String notice = null;
+        try {
+            String intent = null;
+            java.util.List<String> base = new java.util.ArrayList<>();
+            for (String arg : args) {
+                if (arg.startsWith("--orbis-launch-intent=")) {
+                    if (intent != null) throw new java.io.IOException("Duplicate launch invocation");
+                    String value = arg.substring("--orbis-launch-intent=".length());
+                    if (!java.util.UUID.fromString(value).toString().equals(value))
+                        throw new java.io.IOException("Invalid launch invocation");
+                    intent = value;
+                } else base.add(arg);
+            }
+            LaunchRequest request = new LaunchPreparation(config).consume(intent);
+            if (request != null) {
+                InstanceStore.Instance instance = config.instances.get(request.instanceId());
+                AccountStore accounts = new AccountStore(config.home, config.runnerRoot);
+                AccountStore.Account account = accounts.get(request.accountId());
+                if (account == null) throw new java.io.IOException("The requested account no longer exists");
+                AccountStore.Session session = new MicrosoftAuthClient(accounts, config.home).refresh(account.id());
+                String[] gameArgs = LaunchArguments.build(base.toArray(String[]::new), instance, session);
+                config.recordPlay(instance);
+                System.out.println("launcher: starting instance " + instance.id());
+                startGame(config.gameMainClass, gameArgs);
+                return;
+            }
+        } catch (java.io.IOException | RuntimeException failed) {
+            try { new LaunchPreparation(config).rollback(); }
+            catch (java.io.IOException recovery) { System.err.println("launcher: runner settings need recovery"); }
+            // Authentication errors are sanitized by its backend. Never print arguments or tokens.
+            notice = "Cannot start: " + failed.getMessage();
+            System.err.println("launcher: launch preparation failed");
+        }
+        LauncherScreen screen = new LauncherScreen(config);
+        if (notice != null) screen.showLaunchError(notice);
+        screen.run();
     }
 
     /**

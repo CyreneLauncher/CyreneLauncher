@@ -3,6 +3,7 @@ package orbis.launcher;
 import java.io.IOException;
 import java.io.Reader;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
@@ -110,14 +111,34 @@ class ModInstaller {
     }
 
     /** Writes the plan's files into the mods folder. */
+    /**
+     * Writes every file of the plan to a staging folder first, so a failed write leaves no partial
+     * JAR among the mods; only complete files are then moved in.
+     */
     void install(Plan plan) throws IOException {
         Files.createDirectories(modsDir);
-        for (Entry e : plan.entries()) {
-            Path target = modsDir.resolve(e.version().file().filename());
-            Path temporary = modsDir.resolve(e.version().file().filename() + ".part");
-            Files.write(temporary, e.data());
-            Files.move(temporary, target, StandardCopyOption.REPLACE_EXISTING);
-            if (e.replaces() != null && !e.replaces().equals(target)) Files.deleteIfExists(e.replaces());
+        Path staging = Files.createTempDirectory(modsDir, ".staging-");
+        try {
+            List<Path> staged = new ArrayList<>();
+            for (Entry e : plan.entries()) {
+                String name = e.version().file().filename();
+                if (!name.endsWith(".jar") || name.contains("/") || name.contains("\\") || name.startsWith("."))
+                    throw new IOException("Unexpected mod file name: " + name);
+                Path file = staging.resolve(name);
+                Files.write(file, e.data());
+                staged.add(file);
+            }
+            for (int i = 0; i < staged.size(); i++) {
+                Entry e = plan.entries().get(i);
+                Path target = modsDir.resolve(staged.get(i).getFileName());
+                Files.move(staged.get(i), target, StandardCopyOption.REPLACE_EXISTING);
+                if (e.replaces() != null && !e.replaces().equals(target)) Files.deleteIfExists(e.replaces());
+            }
+        } finally {
+            try (DirectoryStream<Path> left = Files.newDirectoryStream(staging)) {
+                for (Path p : left) Files.deleteIfExists(p);
+            }
+            Files.deleteIfExists(staging);
         }
     }
 

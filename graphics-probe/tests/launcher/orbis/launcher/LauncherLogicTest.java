@@ -13,20 +13,21 @@ import java.util.Random;
 import java.util.Set;
 
 /**
- * The launcher's input and page logic on the host: the on-screen keyboard over every reachable key
- * and action, and the real LauncherScreen driven by random input against a temporary instance,
- * with a renderer that skips GL and a Modrinth client and installer that answer instantly.
+ * The launcher's input and page logic on the host: text entry under random editing, and the real
+ * LauncherScreen driven by random input against a temporary instance, with a renderer that skips
+ * GL and a Modrinth client and installer that answer instantly. Each Play is checked by consuming
+ * its prepared launch the way the next application start would.
  */
 public final class LauncherLogicTest {
     private static final Input.Action[] ACTIONS = Input.Action.values();
 
     public static void main(String[] args) throws Exception {
         versionPredicates();
-        keyboard();
+        textEntry();
         long seeds = args.length > 0 ? Long.parseLong(args[0]) : 8;
         int steps = args.length > 1 ? Integer.parseInt(args[1]) : 6000;
         for (long seed = 1; seed <= seeds; seed++) screen(seed, steps);
-        System.out.println("launcher logic passed: keyboard exhaustive, " + seeds + " x " + steps + " random screen steps");
+        System.out.println("launcher logic passed: text entry, " + seeds + " x " + steps + " random screen steps");
     }
 
     // ------------------------------------------------------------------ versions
@@ -49,72 +50,32 @@ public final class LauncherLogicTest {
         check(VersionPredicate.matches("weird", "a.b.c"), "unparseable never blocks");
     }
 
-    // ------------------------------------------------------------------ keyboard
+    // ------------------------------------------------------------------ text entry
 
-    private static void keyboard() {
-        // Every reachable (row, col) under every action, from every reachable state.
-        Deque<int[]> todo = new ArrayDeque<>();
-        Set<String> seen = new HashSet<>();
-        todo.add(new int[0]);
-        int states = 0;
-        while (!todo.isEmpty()) {
-            int[] path = todo.poll();
-            OnScreenKeyboard k = replay(path);
-            if (!seen.add(k.row() + "," + k.col())) continue;
-            states++;
-            for (Input.Action a : ACTIONS) {
-                OnScreenKeyboard copy = replay(path);
-                StringBuilder q = new StringBuilder("ab");
-                copy.apply(a, q);
-                check(copy.row() >= 0 && copy.row() <= OnScreenKeyboard.SPECIAL_ROW, "row in range");
-                int len = copy.row() == OnScreenKeyboard.SPECIAL_ROW ? OnScreenKeyboard.SPECIAL.length
-                        : OnScreenKeyboard.ROWS[copy.row()].length();
-                check(copy.col() >= 0 && copy.col() < len, "col in range");
-                int[] next = java.util.Arrays.copyOf(path, path.length + 1);
-                next[path.length] = a.ordinal();
-                todo.add(next);
+    /** Random editing keeps the caret on a code point boundary; cancel restores, accept keeps. */
+    private static void textEntry() {
+        Random random = new Random(7);
+        String[] pieces = {"a", "Z", " ", "\u00e9", "\ud83d\ude00", "\u0007", "\n", "\u7a7a"};
+        Input.Action[] edits = {Input.Action.LEFT, Input.Action.RIGHT, Input.Action.HOME, Input.Action.END,
+                Input.Action.DELETE, Input.Action.FORWARD_DELETE};
+        for (int round = 0; round < 2000; round++) {
+            TextEntry entry = new TextEntry();
+            String initial = round % 3 == 0 ? "" : "Sodium \ud83d\ude00";
+            entry.begin(initial);
+            for (int i = 0; i < 40; i++) {
+                if (random.nextBoolean()) entry.insert(pieces[random.nextInt(pieces.length)]);
+                else entry.edit(edits[random.nextInt(edits.length)]);
+                String v = entry.value();
+                int c = entry.caret();
+                check(c >= 0 && c <= v.length(), "caret in range");
+                check(c == 0 || c == v.length() || !Character.isLowSurrogate(v.charAt(c)), "caret on a code point");
+                check(v.codePoints().noneMatch(cp -> cp < 32 || cp == 127), "no control characters");
             }
+            String edited = entry.value();
+            if (random.nextBoolean()) check(entry.accept().equals(edited), "accept keeps the edit");
+            else check(entry.cancel().equals(initial) && entry.value().equals(initial), "cancel restores");
+            check(!entry.active(), "inactive after finishing");
         }
-        int expected = 0;
-        for (String row : OnScreenKeyboard.ROWS) expected += row.length();
-        expected += OnScreenKeyboard.SPECIAL.length;
-        check(states == expected, "every key reachable (" + states + " of " + expected + ")");
-
-        // Typing a word by moving to each letter.
-        OnScreenKeyboard k = new OnScreenKeyboard();
-        StringBuilder q = new StringBuilder();
-        for (char c : "sodium extra".toCharArray()) moveTo(k, c, q);
-        check(q.toString().equals("sodium extra"), "typed by moving: '" + q + "'");
-        // Delete and Search on the special row; Back closes.
-        while (k.row() != OnScreenKeyboard.SPECIAL_ROW) k.apply(Input.Action.DOWN, q);
-        while (k.col() > 1) k.apply(Input.Action.LEFT, q);
-        while (k.col() < 1) k.apply(Input.Action.RIGHT, q);
-        k.apply(Input.Action.CONFIRM, q);
-        check(q.toString().equals("sodium extr"), "special Delete");
-        k.apply(Input.Action.RIGHT, q);
-        check(k.apply(Input.Action.CONFIRM, q) == OnScreenKeyboard.Result.SEARCH, "special Search");
-        check(k.apply(Input.Action.BACK, q) == OnScreenKeyboard.Result.CLOSE, "back closes");
-        StringBuilder empty = new StringBuilder();
-        k.apply(Input.Action.DELETE, empty);
-        check(empty.length() == 0, "delete on empty");
-    }
-
-    private static OnScreenKeyboard replay(int[] path) {
-        OnScreenKeyboard k = new OnScreenKeyboard();
-        StringBuilder q = new StringBuilder();
-        for (int a : path) k.apply(ACTIONS[a], q);
-        return k;
-    }
-
-    private static void moveTo(OnScreenKeyboard k, char c, StringBuilder q) {
-        int row = -1, col = -1;
-        for (int r = 0; r < OnScreenKeyboard.ROWS.length; r++)
-            if (OnScreenKeyboard.ROWS[r].indexOf(c) >= 0) { row = r; col = OnScreenKeyboard.ROWS[r].indexOf(c); }
-        check(row >= 0, "character on the keyboard: " + c);
-        while (k.row() != row) k.apply(Input.Action.DOWN, q);
-        while (k.col() > col) k.apply(Input.Action.LEFT, q);
-        while (k.col() < col) k.apply(Input.Action.RIGHT, q);
-        k.apply(Input.Action.CONFIRM, q);
     }
 
     // ------------------------------------------------------------------ screen
@@ -173,11 +134,28 @@ public final class LauncherLogicTest {
     }
 
     static final class TestScreen extends LauncherScreen {
-        int relaunches, closes;
-        TestScreen(LauncherConfig c, Renderer r, ModrinthClient m, ModInstaller i) { super(c, r, m, i); }
+        final LauncherConfig config;
+        int relaunches, consumed, closes;
+        TestScreen(LauncherConfig c, Renderer r, ModrinthClient m, ModInstaller i) { super(c, r, m, i); config = c; }
         @Override void presentNow() {}
-        @Override int relaunch() { relaunches++; return -1; }
         @Override void closeWindow() { closes++; }
+        /** No system dialog on the host: editing stays inline. */
+        @Override protected boolean beginSystemKeyboard(String title, int maxLength) { return false; }
+
+        /** The next start consumes the request; only the imported instance's directory is the host's cwd. */
+        @Override int relaunch(String intent) {
+            relaunches++;
+            InstanceStore.Instance instance = config.selectedInstance();
+            try {
+                LaunchRequest request = new LaunchPreparation(config).consume(intent);
+                check(request != null && request.instanceId().equals(instance.id()), "request names the instance");
+                check(instance.imported(), "consumed only where the working directory matches");
+                consumed++;
+            } catch (IOException failure) {
+                check(!instance.imported(), "imported instance launch rejected: " + failure.getMessage());
+            }
+            return -1;
+        }
     }
 
     private static void screen(long seed, int steps) throws Exception {
@@ -187,7 +165,12 @@ public final class LauncherLogicTest {
         Path game = Files.createDirectories(root.resolve("game/mods"));
         Files.writeString(runner.resolve("jvm-options.txt"), "-Xms1024m\n-Xmx1024m\n-XX:+UseParallelGC\n"
                 + "-Dorbis.graphics.arenaMib=1792\n", StandardCharsets.UTF_8);
-        Files.writeString(runner.resolve("runner.conf"), "jar=x\ndebug=true\n", StandardCharsets.UTF_8);
+        // Shaped like the console's runner.conf, so Play's preparation accepts it.
+        Files.writeString(runner.resolve("runner.conf"), "java_home=" + root.resolve("jdk") + "\njar=" + root.resolve("target.jar")
+                + "\nworking_directory=" + root.resolve("game") + "\noutput_log=" + root.resolve("out.log")
+                + "\ntemporary_directory=" + runner.resolve("tmp") + "\ndebug=true\ndisplay=gpu\ngraphics_bundle="
+                + root.resolve("bundle") + "\nversion_metadata=" + root.resolve("version.json") + "\nlibraries="
+                + root.resolve("libraries") + "\n", StandardCharsets.UTF_8);
         Path metadata = Files.writeString(root.resolve("version.json"),
                 "{\"id\": \"fabric-loader-0.14.9.5-1.18.2\", \"mainClass\": \"net.fabricmc.loader.impl.launch.knot.KnotClient\"}");
         for (int i = 0; i < random.nextInt(30); i++)
@@ -197,9 +180,23 @@ public final class LauncherLogicTest {
         System.setProperty("orbis.launcher.gameMetadata", metadata.toString());
         System.setProperty("user.dir", root.resolve("game").toString());
         LauncherConfig config = LauncherConfig.load();
+        // A saved Microsoft account; without a client configuration its refresh fails safely.
+        if (seed % 2 == 0) new AccountStore(config.home, config.runnerRoot).putMicrosoft(
+                "0123456789abcdef0123456789abcdef", "Tester", "00000000-0000-0000-0000-000000000000", "refresh");
         FakeModrinth modrinth = new FakeModrinth(random);
         TestScreen screen = new TestScreen(config, new HeadlessRenderer(), modrinth,
                 new FakeInstaller(modrinth, game, random));
+
+        // Play directly once: focus the actions, Play is the first.
+        String conf = Files.readString(runner.resolve("runner.conf")), options = Files.readString(runner.resolve("jvm-options.txt"));
+        screen.apply("", List.of(Input.Action.FOCUS, Input.Action.CONFIRM));
+        for (long deadline = System.nanoTime() + 5_000_000_000L; screen.applyResults(); Thread.sleep(1))
+            if (System.nanoTime() > deadline) throw new AssertionError("Play did not finish");
+        check(screen.relaunches == 1, "direct Play reaches the restart");
+        check(conf.equals(Files.readString(runner.resolve("runner.conf"))), "failed restart restores runner.conf");
+        check(options.equals(Files.readString(runner.resolve("jvm-options.txt"))), "failed restart restores jvm-options");
+        check(!Files.exists(config.home.resolve("next-start")), "failed restart leaves no pending launch");
+        screen.apply("", List.of(Input.Action.FOCUS));
 
         Deque<String> recent = new ArrayDeque<>();
         for (int step = 0; step < steps; step++) {
@@ -228,7 +225,8 @@ public final class LauncherLogicTest {
                 throw failure;
             }
         }
-        System.out.println("seed " + seed + ": " + steps + " steps, " + screen.relaunches + " Play, "
+        System.out.println("seed " + seed + ": " + steps + " steps, " + screen.relaunches + " Play ("
+                + screen.consumed + " consumed), "
                 + screen.closes + " Quit, mods now " + listCount(game));
     }
 

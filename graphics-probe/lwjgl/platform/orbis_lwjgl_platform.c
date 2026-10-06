@@ -32,6 +32,7 @@ static EGLSurface surface = EGL_NO_SURFACE;
 static EGLContext context = EGL_NO_CONTEXT;
 static EGLint surface_width, surface_height;
 static char last_error[512] = "none";
+static int ime_cancel_locked(void);
 
 static void record(const char *format, ...) {
     va_list arguments;
@@ -735,6 +736,7 @@ JNIEXPORT void JNICALL Java_orbis_graphics_NativePlatform_nDestroyWindow(
 JNIEXPORT void JNICALL Java_orbis_graphics_NativePlatform_nTerminate(JNIEnv *env, jclass klass) {
     (void)env; (void)klass;
     pthread_mutex_lock(&platform_lock);
+    ime_cancel_locked();
     release_window_locked();
     if (display != EGL_NO_DISPLAY) eglReleaseThread();
     pthread_mutex_unlock(&platform_lock);
@@ -808,7 +810,204 @@ JNIEXPORT jint JNICALL Java_orbis_graphics_NativePlatform_nRelaunch(JNIEnv *env,
     return (jint)sceSystemServiceLoadExec("/app0/eboot.bin", args);
 }
 
+/* A marker file alone cannot distinguish LoadExec from an unrelated cold start.
+ * Supply the credential-free preparation ID in this invocation's argv as well. */
+JNIEXPORT jint JNICALL Java_orbis_graphics_NativePlatform_nRelaunchWithIntent(JNIEnv *env, jclass klass,
+        jstring intent) {
+    (void)klass;
+    if (!intent || (*env)->GetStringLength(env, intent) != 36) return -1;
+    const char *value = (*env)->GetStringUTFChars(env, intent, NULL);
+    if (!value) return -1;
+    char argument[80];
+    int valid = 1;
+    for (int i = 0; i < 36; i++)
+        if (!((value[i] >= '0' && value[i] <= '9') || (value[i] >= 'a' && value[i] <= 'f') || value[i] == '-')) valid = 0;
+    snprintf(argument, sizeof(argument), "--orbis-launch-intent=%s", value);
+    (*env)->ReleaseStringUTFChars(env, intent, value);
+    if (!valid) return -1;
+    const char *args[] = {argument, NULL};
+    return (jint)sceSystemServiceLoadExec("/app0/eboot.bin", args);
+}
+
 JNIEXPORT jstring JNICALL Java_orbis_graphics_NativePlatform_nLastError(JNIEnv *env, jclass klass) {
     (void)klass;
     return (*env)->NewStringUTF(env, last_error);
+}
+
+/* PS4 IME is a system dialog (drawn by SceCdlgApp), not an application-rendered
+ * keyboard. The SDK declarations fix the parameter ABI; text is UTF-16 even
+ * when the compiler's wchar_t is 32 bits. Static buffers survive failed Term. */
+#include <stddef.h>
+#include <wchar.h>
+#include <orbis/ImeDialog.h>
+#include <orbis/CommonDialog.h>
+#include <orbis/Sysmodule.h>
+
+_Static_assert(sizeof(OrbisImeDialogSetting) == 96, "IME parameter ABI");
+_Static_assert(offsetof(OrbisImeDialogSetting, inputTextBuffer) == 40, "IME input offset");
+_Static_assert(offsetof(OrbisImeDialogSetting, title) == 72, "IME title offset");
+_Static_assert(sizeof(OrbisDialogResult) == 16, "IME result ABI");
+#define IME_CAPACITY 1024
+static uint16_t ime_text[IME_CAPACITY + 1];
+static uint16_t ime_title[129];
+static OrbisImeDialogSetting ime_parameter;
+static int ime_active;
+static int ime_terminal;
+static int ime_modules_ready;
+static int ime_closing;
+static uint64_t ime_none_since;
+static uint64_t ime_term_retry_at;
+
+static uint64_t ime_now(void) {
+    struct timespec t;
+    clock_gettime(CLOCK_MONOTONIC, &t);
+    return (uint64_t)t.tv_sec * 1000000000u + (uint64_t)t.tv_nsec;
+}
+
+static int ime_finish_locked(void) {
+    int32_t rc = sceImeDialogTerm();
+    if (rc >= 0) {
+        ime_active = 0;
+        ime_closing = 0;
+        return 0;
+    }
+    record("IME closing; termination returned 0x%08x", (unsigned)rc);
+    ime_closing = 1;
+    ime_term_retry_at = ime_now() + 250000000u;
+    return 1;
+}
+
+int32_t ime_internal_loaded(uint32_t module) __asm__("sceSysmoduleIsLoadedInternal");
+
+static int ime_modules(void) {
+    if (ime_modules_ready) return 0;
+    int32_t rc = 0;
+    if (ime_internal_loaded(ORBIS_SYSMODULE_INTERNAL_COMMON_DIALOG) != 0) {
+        rc = (int32_t)sceSysmoduleLoadModuleInternal(ORBIS_SYSMODULE_INTERNAL_COMMON_DIALOG);
+        if (rc < 0) { record("Common dialog module load failed (0x%08x)", (unsigned)rc); return rc; }
+    }
+    if (sceSysmoduleIsLoaded(ORBIS_SYSMODULE_LIBIME) != 0) {
+        rc = sceSysmoduleLoadModule(ORBIS_SYSMODULE_LIBIME);
+        if (rc < 0) { record("IME module load failed (0x%08x)", (unsigned)rc); return rc; }
+    }
+    if (sceSysmoduleIsLoaded(ORBIS_SYSMODULE_IME_DIALOG) != 0) {
+        rc = sceSysmoduleLoadModule(ORBIS_SYSMODULE_IME_DIALOG);
+        if (rc < 0) { record("IME dialog load failed (0x%08x)", (unsigned)rc); return rc; }
+    }
+    rc = sceCommonDialogInitialize();
+    if (rc < 0 && (uint32_t)rc != 0x80b80002u) {
+        record("Common dialog initialization failed (0x%08x)", (unsigned)rc);
+        return rc;
+    }
+    ime_modules_ready = 1;
+    return 0;
+}
+
+static int ime_cancel_locked(void) {
+    if (!ime_active) { ime_terminal = 3; return 0; }
+    ime_terminal = 3;
+    if (!ime_closing) sceImeDialogForceClose();
+    ime_closing = 1;
+    return ime_finish_locked();
+}
+
+JNIEXPORT jint JNICALL Java_orbis_graphics_NativePlatform_nImeBegin(JNIEnv *env, jclass klass,
+        jstring initial, jstring title, jint max_length) {
+    (void)klass;
+    pthread_mutex_lock(&platform_lock);
+    int32_t rc = -1;
+    if (ime_active) { record("IME dialog already active"); goto done; }
+    if (!initial || !title || max_length < 1 || max_length > IME_CAPACITY) {
+        record("Invalid IME text parameters"); goto done;
+    }
+    jsize length = (*env)->GetStringLength(env, initial);
+    jsize title_length = (*env)->GetStringLength(env, title);
+    if (length > max_length || title_length > 128) {
+        record("IME text exceeds field limit"); goto done;
+    }
+    rc = ime_modules();
+    if (rc < 0) goto done;
+    int32_t user = -1;
+    rc = sceUserServiceGetInitialUser(&user);
+    if (rc < 0) { record("IME initial user failed (0x%08x)", (unsigned)rc); goto done; }
+    memset(ime_text, 0, sizeof(ime_text));
+    memset(ime_title, 0, sizeof(ime_title));
+    (*env)->GetStringRegion(env, initial, 0, length, (jchar *)ime_text);
+    (*env)->GetStringRegion(env, title, 0, title_length, (jchar *)ime_title);
+    if ((*env)->ExceptionCheck(env)) { rc = -1; goto done; }
+    memset(&ime_parameter, 0, sizeof(ime_parameter));
+    ime_parameter.userId = (uint32_t)user;
+    ime_parameter.type = ORBIS_TYPE_DEFAULT;
+    ime_parameter.enterLabel = ORBIS_BUTTON_LABEL_DEFAULT;
+    ime_parameter.maxTextLength = (uint32_t)max_length;
+    ime_parameter.inputTextBuffer = (wchar_t *)(void *)ime_text;
+    ime_parameter.title = (const wchar_t *)(const void *)ime_title;
+    rc = sceImeDialogInit(&ime_parameter, NULL);
+    if (rc < 0) record("IME dialog initialization failed (0x%08x)", (unsigned)rc);
+    else { ime_active = 1; ime_terminal = 1; ime_closing = 0; ime_none_since = ime_now(); }
+done:
+    pthread_mutex_unlock(&platform_lock);
+    return rc;
+}
+
+/* 0 idle, 1 running, 2 accepted, 3 cancelled, negative error. */
+JNIEXPORT jint JNICALL Java_orbis_graphics_NativePlatform_nImePoll(JNIEnv *env, jclass klass) {
+    (void)env; (void)klass;
+    pthread_mutex_lock(&platform_lock);
+    int32_t rc = ime_terminal;
+    if (ime_active) {
+        uint64_t now = ime_now();
+        if (ime_closing) {
+            if (now >= ime_term_retry_at) ime_finish_locked();
+            rc = ime_active ? 1 : ime_terminal;
+        } else {
+            OrbisDialogStatus status = sceImeDialogGetStatus();
+            if (status == ORBIS_DIALOG_STATUS_RUNNING) {
+                ime_none_since = 0;
+                rc = 1;
+            } else if (status == ORBIS_DIALOG_STATUS_NONE) {
+                /* Measured on console: NONE is both startup pending and disappeared.
+                 * Bound consecutive NONE by elapsed time, independent of frame rate. */
+                if (!ime_none_since) ime_none_since = now;
+                if (now - ime_none_since < 6000000000ull) rc = 1;
+                else { ime_cancel_locked(); rc = ime_active ? 1 : ime_terminal; }
+            } else if (status == ORBIS_DIALOG_STATUS_STOPPED) {
+                OrbisDialogResult result;
+                memset(&result, 0, sizeof(result));
+                int32_t get = sceImeDialogGetResult(&result);
+                ime_terminal = get < 0 ? -1 : result.endstatus == ORBIS_DIALOG_OK ? 2 : 3;
+                if (get < 0) record("IME result failed (0x%08x)", (unsigned)get);
+                ime_closing = 1;
+                ime_finish_locked();
+                rc = ime_active ? 1 : ime_terminal;
+            } else {
+                record("IME returned an unknown status");
+                ime_terminal = -1;
+                sceImeDialogForceClose();
+                ime_closing = 1;
+                ime_finish_locked();
+                rc = ime_active ? 1 : -1;
+            }
+        }
+    }
+    pthread_mutex_unlock(&platform_lock);
+    return rc;
+}
+
+JNIEXPORT jstring JNICALL Java_orbis_graphics_NativePlatform_nImeResult(JNIEnv *env, jclass klass) {
+    (void)klass;
+    pthread_mutex_lock(&platform_lock);
+    size_t length = 0;
+    if (ime_terminal == 2) while (length < IME_CAPACITY && ime_text[length]) length++;
+    jstring result = (*env)->NewString(env, (const jchar *)ime_text, (jsize)length);
+    pthread_mutex_unlock(&platform_lock);
+    return result;
+}
+
+JNIEXPORT jint JNICALL Java_orbis_graphics_NativePlatform_nImeCancel(JNIEnv *env, jclass klass) {
+    (void)env; (void)klass;
+    pthread_mutex_lock(&platform_lock);
+    int result = ime_cancel_locked();
+    pthread_mutex_unlock(&platform_lock);
+    return result;
 }

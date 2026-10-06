@@ -5,17 +5,13 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-/**
- * The single instance the runner is set up for, and the settings the launcher edits: heap and
- * graphics arena in the runner's jvm-options.txt, and its debug log in runner.conf. Only those
- * lines are rewritten; everything else in both files is kept as it is.
- */
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
+
+/** Shared runtime metadata plus the currently selected instance's game files and settings. */
 final class LauncherConfig {
     static final int MIN_HEAP_MIB = 768, MAX_HEAP_MIB = 1536;
     static final int MIN_ARENA_MIB = 1024, MAX_ARENA_MIB = 2048;
@@ -25,8 +21,9 @@ final class LauncherConfig {
 
     final Path home;
     final Path runnerRoot;
-    final Path gameDir;
+    Path gameDir;
     final Path metadata;
+    final InstanceStore instances;
     final String versionId;
     final String gameMainClass;
     final String loaderVersion;
@@ -54,6 +51,20 @@ final class LauncherConfig {
         }
         for (String line : Files.readAllLines(runnerConf(), StandardCharsets.UTF_8))
             if (line.trim().startsWith("debug=")) debugLog = line.trim().endsWith("=true");
+        Path settings = home.resolve("launcher-settings.json");
+        if (Files.exists(settings)) {
+            try {
+                JsonObject saved = JsonParser.parseString(new String(LauncherFiles.read(settings, 4096),
+                        StandardCharsets.UTF_8)).getAsJsonObject();
+                if (saved.get("schema").getAsInt() == 1) debugLog = saved.get("debugLog").getAsBoolean();
+                else System.err.println("launcher: unsupported global settings schema");
+            } catch (IOException | RuntimeException invalid) {
+                System.err.println("launcher: ignoring invalid global settings: " + invalid.getMessage());
+            }
+        }
+        instances = new InstanceStore(home, gameDir, metadata, heapMib, arenaMib);
+        instances.load();
+        use(instances.selected());
     }
 
     static LauncherConfig load() throws IOException {
@@ -68,6 +79,19 @@ final class LauncherConfig {
 
     Path nextStart() { return home.resolve("next-start"); }
     Path modsDir() { return gameDir.resolve("mods"); }
+
+    /** Selects an instance and updates every instance-scoped path and editable setting. */
+    void selectInstance(String id) throws IOException { use(instances.select(id)); }
+
+    InstanceStore.Instance selectedInstance() { return instances.selected(); }
+
+    void refreshSelected() { use(instances.selected()); }
+
+    private void use(InstanceStore.Instance instance) {
+        gameDir = instance.gameDir();
+        heapMib = instance.heapMib();
+        arenaMib = instance.arenaMib();
+    }
 
     /** Versions of the ids no mod JAR provides, for checking mods' requirements. */
     java.util.Map<String, String> builtInVersions() {
@@ -98,51 +122,45 @@ final class LauncherConfig {
         return count;
     }
 
-    /** Writes the settings; they take effect at the next start of the application. */
+    /** Saves selected instance memory and the global runner debug preference. */
     void save() throws IOException {
-        List<String> options = new ArrayList<>();
-        for (String line : Files.readAllLines(jvmOptions(), StandardCharsets.UTF_8)) {
-            String option = line.trim();
-            if (option.startsWith("-Xms")) options.add("-Xms" + heapMib + "m");
-            else if (option.startsWith("-Xmx")) options.add("-Xmx" + heapMib + "m");
-            else if (option.startsWith("-Dorbis.graphics.arenaMib=")) options.add("-Dorbis.graphics.arenaMib=" + arenaMib);
-            else options.add(line);
-        }
-        replace(jvmOptions(), options);
-        List<String> conf = new ArrayList<>();
-        boolean sawDebug = false;
-        for (String line : Files.readAllLines(runnerConf(), StandardCharsets.UTF_8)) {
-            if (line.trim().startsWith("debug=")) {
-                conf.add("debug=" + debugLog);
-                sawDebug = true;
-            } else {
-                conf.add(line);
-            }
-        }
-        if (!sawDebug) conf.add("debug=" + debugLog);
-        replace(runnerConf(), conf);
+        instances.saveSettings(instances.selected().id(), heapMib, arenaMib, instances.selected().accountId());
+        JsonObject global = new JsonObject();
+        global.addProperty("schema", 1);
+        global.addProperty("debugLog", debugLog);
+        LauncherFiles.write(home.resolve("launcher-settings.json"),
+                (global.toString() + "\n").getBytes(StandardCharsets.UTF_8), false);
     }
 
-    void writeNextStart() throws IOException {
-        replace(lastPlay(), List.of(Long.toString(System.currentTimeMillis())));
-        replace(nextStart(), List.of(gameMainClass));
+    /** Saves the selected instance's account override ("" follows the default); unsaved memory edits stay pending. */
+    void setInstanceAccount(String accountId) throws IOException {
+        InstanceStore.Instance current = instances.selected();
+        instances.saveSettings(current.id(), current.heapMib(), current.arenaMib(), accountId);
+    }
+
+    void recordPlay(InstanceStore.Instance instance) throws IOException {
+        JsonObject saved = new JsonObject();
+        saved.addProperty("schema", 1);
+        saved.addProperty("instance_id", instance.id());
+        saved.addProperty("started_at", System.currentTimeMillis());
+        LauncherFiles.write(lastPlay(), saved.toString().getBytes(StandardCharsets.UTF_8), false);
     }
 
     /** Why the session started by the last Play ended, if it left a crash behind; else null. */
     CrashAnalyzer.Report lastSession() {
-        long since;
         try {
-            since = Long.parseLong(Files.readString(lastPlay(), StandardCharsets.UTF_8).trim());
-        } catch (IOException | NumberFormatException never) {
-            return null;
-        }
-        return CrashAnalyzer.analyze(gameDir, jvmErrorDir(), since);
-    }
-
-    private static void replace(Path file, List<String> lines) throws IOException {
-        Path temporary = file.resolveSibling(file.getFileName() + ".new");
-        Files.write(temporary, lines, StandardCharsets.UTF_8);
-        Files.move(temporary, file, StandardCopyOption.REPLACE_EXISTING);
+            String text = new String(LauncherFiles.read(lastPlay(), 4096), StandardCharsets.UTF_8).trim();
+            long since;
+            InstanceStore.Instance instance;
+            if (text.startsWith("{")) {
+                JsonObject saved = JsonParser.parseString(text).getAsJsonObject();
+                if (saved.get("schema").getAsInt() != 1) return null;
+                since = saved.get("started_at").getAsLong();
+                instance = instances.get(saved.get("instance_id").getAsString());
+                if (instance == null) return null;
+            } else { since = Long.parseLong(text); instance = selectedInstance(); }
+            return CrashAnalyzer.analyze(instance.gameDir(), jvmErrorDir(), since);
+        } catch (IOException | RuntimeException never) { return null; }
     }
 
     private static String field(String json, String name, String fallback) {

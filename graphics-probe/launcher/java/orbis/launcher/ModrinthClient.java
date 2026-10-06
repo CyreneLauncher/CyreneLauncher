@@ -119,6 +119,9 @@ class ModrinthClient {
         return JsonParser.parseString(new String(fetch(url), StandardCharsets.UTF_8));
     }
 
+    /** No mod or API reply comes near this; it keeps a bad reply from exhausting the heap. */
+    private static final int MAX_DOWNLOAD = 64 << 20;
+
     private static byte[] fetch(String url) throws IOException {
         HttpURLConnection connection = (HttpURLConnection) URI.create(url).toURL().openConnection();
         connection.setRequestProperty("User-Agent", USER_AGENT);
@@ -129,7 +132,11 @@ class ModrinthClient {
         if (code != 200) throw new IOException("HTTP " + code + " from " + url);
         try (InputStream in = connection.getInputStream()) {
             ByteArrayOutputStream out = new ByteArrayOutputStream();
-            in.transferTo(out);
+            byte[] buffer = new byte[65536];
+            for (int n; (n = in.read(buffer)) > 0; ) {
+                if (out.size() + n > MAX_DOWNLOAD) throw new IOException("Download from " + url + " is too large");
+                out.write(buffer, 0, n);
+            }
             return out.toByteArray();
         } finally {
             connection.disconnect();

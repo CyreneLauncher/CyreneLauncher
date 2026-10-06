@@ -6,6 +6,8 @@ compiled against the official LWJGL 3.2.2 JARs and orbis.graphics.NativePlatform
 adapter JAR provides at run time, so neither is packaged here.
 """
 import argparse
+import hashlib
+import json
 import subprocess
 import sys
 import zipfile
@@ -33,6 +35,11 @@ classes.mkdir(parents=True)
 
 classpath = ':'.join(str(lwjgl_sources.java_artifact(arguments.jars, name)) for name in
                      ('lwjgl-3.2.2.jar', 'lwjgl-opengl-3.2.2.jar', 'lwjgl-glfw-3.2.2.jar')) + ':' + arguments.gson
+qr_lock = json.loads((ROOT / 'launcher/qr-sources.lock.json').read_text())
+for name, pinned in qr_lock['files'].items():
+    path = SOURCES / 'orbis/launcher/qr' / name
+    if hashlib.sha256(path.read_bytes()).hexdigest() != pinned['vendored_sha256']:
+        raise SystemExit(f'vendored QR source differs from its lock: {name}')
 own = sorted(SOURCES.rglob('*.java'))
 subprocess.run([str(Path(arguments.boot_jdk) / 'bin/javac'), '--release', '17', '-encoding', 'UTF-8',
                 '-Xlint:all', '-Werror', '-cp', classpath, '-sourcepath', str(ROOT / 'lwjgl/java'),
@@ -44,4 +51,6 @@ with zipfile.ZipFile(jar, 'w', zipfile.ZIP_DEFLATED) as archive:
         if not name.startswith('orbis/launcher/'):
             raise SystemExit(f'unexpected class in the launcher: {name}')
         archive.write(path, name)
+    archive.write(ROOT / 'launcher/legal/nayuki-qr-LICENSE.txt', 'META-INF/licenses/nayuki-qr-LICENSE.txt')
+    archive.write(ROOT / 'launcher/qr-sources.lock.json', 'META-INF/qr-sources.lock.json')
 print(f'launcher: {jar.name}, {sum(1 for _ in classes.rglob("*.class"))} classes')

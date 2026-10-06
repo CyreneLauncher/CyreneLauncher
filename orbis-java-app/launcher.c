@@ -1534,14 +1534,17 @@ int main(int argc, char **argv) {
         return 1;
     }
     debug_text("orbis-java: before NewObjectArray\n");
+    // LoadExec may deliver its first supplied option as argv[0]. Preserve option-first
+    // invocations while skipping the conventional executable-name argv[0].
+    int argument_start = argc > 0 && argv[0] && argv[0][0] == '-' ? 0 : 1;
     int java_argc = 0;
-    for (int i = 1; i < argc; ++i)
+    for (int i = argument_start; i < argc; ++i)
         if (!is_control_argument(argv[i])) ++java_argc;
     jobjectArray java_args = env->NewObjectArray(java_argc, string_class, NULL);
     debug_text("orbis-java: after NewObjectArray\n");
 
     int java_arg_index = 0;
-    for (int i = 1; i < argc; i++) {
+    for (int i = argument_start; i < argc; i++) {
         if (is_control_argument(argv[i])) continue;
         runner_debug("ENTER JNI NewStringUTF argument=%d", i);
         jstring value = env->NewStringUTF(argv[i]);

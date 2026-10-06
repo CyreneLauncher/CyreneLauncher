@@ -52,4 +52,14 @@ public final class NativePlatform {
     /** Restarts the application in a fresh process (LoadExec of /app0/eboot.bin). Returns only on
      *  failure, with libSceSystemService's error. */
     public static native int nRelaunch();
+
+    /** Restart with a credential-free invocation marker; cold starts have no such marker. */
+    public static native int nRelaunchWithIntent(String preparationId);
+    /** Nonblocking system keyboard. 0 means successful begin; negative means failure. */
+    public static native int nImeBegin(String initial, String title, int maxLength);
+    /** 0 idle, 1 running, 2 accepted, 3 cancelled; negative means failure. */
+    public static native int nImePoll();
+    public static native String nImeResult();
+    /** 0 closed, 1 closing (keep polling before reopening). */
+    public static native int nImeCancel();
 }

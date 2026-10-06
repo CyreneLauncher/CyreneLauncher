@@ -1,0 +1,27 @@
+{
+  "revision": "3c6d0b3cefb4e049dc337e82237c9644399716a8",
+  "license": "MIT",
+  "modification": "Java package relocated to orbis.launcher.qr; DataTooLongException serialVersionUID for strict Java17 compilation",
+  "files": {
+    "QrCode.java": {
+      "url": "https://raw.githubusercontent.com/nayuki/QR-Code-generator/3c6d0b3cefb4e049dc337e82237c9644399716a8/java/src/main/java/io/nayuki/qrcodegen/QrCode.java",
+      "upstream_sha256": "01715baeb383ec26f7c38138299a2b6e5bbfa36fa607441c79dc9cc76b107c6b",
+      "vendored_sha256": "8361311efecb89559ea8844f08bafa4e926f66d5f413907ef52836dd468402f1"
+    },
+    "QrSegment.java": {
+      "url": "https://raw.githubusercontent.com/nayuki/QR-Code-generator/3c6d0b3cefb4e049dc337e82237c9644399716a8/java/src/main/java/io/nayuki/qrcodegen/QrSegment.java",
+      "upstream_sha256": "70f10e518d3a8f1a1862e598a249abaac036a9c6fae4e5892c4b6d24995bb8d7",
+      "vendored_sha256": "940560e6c8d27ef2f8a67ef620b42ad1d34eac24a57488ee21feace9bc5f83a8"
+    },
+    "BitBuffer.java": {
+      "url": "https://raw.githubusercontent.com/nayuki/QR-Code-generator/3c6d0b3cefb4e049dc337e82237c9644399716a8/java/src/main/java/io/nayuki/qrcodegen/BitBuffer.java",
+      "upstream_sha256": "d5496452b435423beead30aa356e10a7c0ba4790b7da37ee4a1b80b4df136447",
+      "vendored_sha256": "289bcdbf01747418a2dfef6fbb0167e38031d3269425c2318640712d958d5b8b"
+    },
+    "DataTooLongException.java": {
+      "url": "https://raw.githubusercontent.com/nayuki/QR-Code-generator/3c6d0b3cefb4e049dc337e82237c9644399716a8/java/src/main/java/io/nayuki/qrcodegen/DataTooLongException.java",
+      "upstream_sha256": "7661186dde4b27334fd94f4950f58522eaab256274388152e5cb8e35ef463e1a",
+      "vendored_sha256": "b8c2d0851f5dd034933c6efdf75f3d5721f5df35ad23fc83001c26b7d4e05732"
+    }
+  }
+}

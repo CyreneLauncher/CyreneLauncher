@@ -30,11 +30,11 @@ public final class Main {
 
     private Main() {}
 
-    public static void main(String[] ignored) throws Throwable {
+    public static void main(String[] invocationArguments) throws Throwable {
         DebugLog debug = new DebugLog();
         Class<?> desktopRuntime = null;
         debug.write("bootstrap ENTER root=" + ROOT + " target=" + TARGET
-                + " output=" + OUTPUT_LOG + " launcherArguments=" + (ignored == null ? 0 : ignored.length));
+                + " output=" + OUTPUT_LOG + " launcherArguments=" + (invocationArguments == null ? 0 : invocationArguments.length));
         try {
             boundary(debug, "bootstrap directories path=" + ROOT.resolve("logs"), () -> {
                 Files.createDirectories(ROOT.resolve("logs"));
@@ -70,6 +70,9 @@ public final class Main {
                     ? boundary(debug, "gpu launch preparation", runner.gpu.GpuLaunch::prepare) : null;
             String mainClass = readMainClass(debug, metadataMain);
             List<String> args = readArguments(debug);
+            // Arguments supplied to this process supplement the configured argument file.
+            // Forward them generically: the application decides what they mean.
+            if (invocationArguments != null) java.util.Collections.addAll(args, invocationArguments);
             System.out.println("runner: main-class=" + mainClass + " arguments=" + args.size());
 
             URL jarUrl = boundary(debug, "JAR URL path=" + TARGET,

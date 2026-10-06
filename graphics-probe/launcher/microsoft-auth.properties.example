@@ -1,0 +1,6 @@
+# Copy to /data/orbis-jdk/launcher/microsoft-auth.properties on the console.
+# Register your own Microsoft public application that is approved for Minecraft/Xbox access.
+# Configure it for personal Microsoft accounts and enable public client/device code flows.
+# The launcher uses the consumers tenant and requests XboxLive.signin offline_access.
+# Device code sign-in uses no client secret. Leave this example blank until configured.
+client_id=

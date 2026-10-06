@@ -154,3 +154,11 @@ select `/data/orbis-jdk/jdk/release`; compare that path with the installed JDK
 before launch. A title-screen result requires rendered text and textures,
 mouse and keyboard input, normal exit and three clean relaunches. Silent audio
 is expected. No gameplay, audible audio or Neo-mode result is established.
+
+### Launcher controls, instances and Microsoft sign-in
+
+The launcher adds source-aware controller/keyboard navigation, explicit editing with the PS4
+system keyboard, installed-runtime instances, and Microsoft device sign-in with a QR code.
+See [launcher/UPDATE.md](launcher/UPDATE.md) for controls, client-ID setup, storage behavior,
+and the matching runner 0.45 PKG/full graphics-bundle update. The JDK is shared and unchanged.
+New workflows require console validation; production compilation is not hardware validation.
