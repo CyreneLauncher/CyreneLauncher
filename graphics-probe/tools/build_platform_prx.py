@@ -7,6 +7,7 @@ members, hence --allow-multiple-definition and the kit's wchar extraction audit.
 """
 import argparse
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -50,18 +51,63 @@ if len(libc16) != 5 or not compat_archive.is_file():
     raise SystemExit('pinned orbis-compat build with five libc16 objects is required')
 
 script, runtime = orbis_prx.runtime_objects(tools, out)
+# ORBIS_HEAP_CHECK=1: a guarded heap for this module (lwjgl/platform/orbis_heapcheck.c) - a diagnostic build.
+heap_check = os.environ.get('ORBIS_HEAP_CHECK') in ('1', '2')  # 2: guards without the quarantine
+# ORBIS_HEAP_CHECK=trace: musl's heap unchanged, every call recorded and its bins checked (orbis_heaptrace.c).
+heap_trace = os.environ.get('ORBIS_HEAP_CHECK') == 'trace'
 bridge = tools.compile(ROOT / f'lwjgl/platform/{NAME}.c', out / f'{NAME}.o',
                        '-fdata-sections', '-O2', '-Wall', '-Werror', '-D__ORBIS__', '-DPS4', '-D_BSD_SOURCE=1',
                        '-isystem', compat / 'include', '-I', sources / 'mesa/include',
-                       '-I', arguments.jni_headers, '-I', Path(arguments.jni_headers) / arguments.jni_platform)
+                       '-I', arguments.jni_headers, '-I', Path(arguments.jni_headers) / arguments.jni_platform,
+                       *(['-DORBIS_HEAP_CHECK'] if heap_check else []),
+                       *(['-DORBIS_HEAP_TRACE'] if heap_trace else []))
+# realloc goes to the bridge's fix for musl's (see __wrap_realloc), or to a diagnostic heap's own.
+heap_objects, heap_wraps = [], ('--wrap=realloc',)
+if heap_check:
+    heap_objects = [tools.compile(ROOT / 'lwjgl/platform/orbis_heapcheck.c', out / 'orbis_heapcheck.o',
+                                  '-O2', '-Wall', '-Werror', '-D__ORBIS__', '-DPS4', '-D_BSD_SOURCE=1',
+                                  '-isystem', compat / 'include',
+                                  *(['-DHEAPCHECK_NO_QUARANTINE'] if os.environ['ORBIS_HEAP_CHECK'] == '2' else []))]
+    heap_wraps = tuple(f'--wrap={name}' for name in
+                       ('malloc', 'free', 'calloc', 'realloc', 'memalign', 'posix_memalign'))
+    print('platform PRX: ORBIS_HEAP_CHECK=1 - guarded heap linked in (diagnostic build)')
+if heap_trace:
+    heap_objects = [tools.compile(ROOT / 'lwjgl/platform/orbis_heaptrace.c', out / 'orbis_heaptrace.o',
+                                  '-O2', '-Wall', '-Werror', '-D__ORBIS__', '-DPS4', '-D_BSD_SOURCE=1',
+                                  '-isystem', compat / 'include')]
+    heap_wraps = tuple(f'--wrap={name}' for name in ('malloc', 'free', 'calloc', 'realloc'))
+    print('platform PRX: ORBIS_HEAP_CHECK=trace - heap tracer linked in (diagnostic build)')
 elf = out / f'lib{NAME}.so'
 why = out / 'why-extract.txt'
-orbis_prx.link(tools, script, runtime, elf,
-               [bridge, '--start-group', egl, gallium, '--whole-archive', radv, '--no-whole-archive', zlib,
-                '--end-group', '--whole-archive', compat_archive, '--no-whole-archive', *libc16],
-               system_libraries=('SceGnmDriver', 'SceVideoOut', 'ScePad', 'SceUserService', 'SceSystemService', 'SceSysmodule', 'SceImeDialog', 'SceCommonDialog'),
-               # Mesa's thread creation passes through the bridge's diagnostic wrapper.
-               extra=('--allow-multiple-definition', '--wrap=pthread_create'), why_extract=why)
+
+
+def link_platform(mal_offset=0):
+    # The tracer reads musl's static `mal`; its address is known only after a link, and --defsym relative to
+    # __text_start moves nothing, so the second link gives the same layout with the symbol filled in.
+    defsym = (f'--defsym=orbis_musl_mal=__text_start+{mal_offset:#x}',) if heap_trace else ()
+    orbis_prx.link(tools, script, runtime, elf,
+                   [bridge, *heap_objects, '--start-group', egl, gallium, '--whole-archive', radv, '--no-whole-archive', zlib,
+                    '--end-group', '--whole-archive', compat_archive, '--no-whole-archive', *libc16],
+                   system_libraries=('SceGnmDriver', 'SceVideoOut', 'ScePad', 'SceUserService', 'SceSystemService', 'SceSysmodule', 'SceImeDialog', 'SceCommonDialog'),
+                   # Mesa's thread creation passes through the bridge's diagnostic wrapper.
+                   extra=('--allow-multiple-definition', '--wrap=pthread_create', *heap_wraps, *defsym), why_extract=why)
+
+
+def symbol(name):
+    for line in orbis_prx.run('llvm-nm', elf, stdout=subprocess.PIPE).stdout.splitlines():
+        fields = line.split()
+        if len(fields) == 3 and fields[2] == name:
+            return int(fields[0], 16)
+    raise SystemExit(f'{elf.name}: no symbol {name}')
+
+
+link_platform()
+if heap_trace:
+    mal = symbol('mal') - symbol('__text_start')
+    link_platform(mal)
+    if symbol('orbis_musl_mal') != symbol('mal'):
+        raise SystemExit('heap tracer: orbis_musl_mal does not land on musl\'s mal after the second link')
+    print(f'platform PRX: heap tracer reads musl mal at text+{mal:#x}')
 wchar = orbis_prx.run('sh', kit / 'scripts/ps4/check-wchar-link.sh', why, stdout=subprocess.PIPE).stdout
 (out / 'wchar-audit.log').write_text(wchar)
 

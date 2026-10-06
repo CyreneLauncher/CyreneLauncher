@@ -288,6 +288,37 @@ int __wrap_pthread_create(pthread_t *thread, const pthread_attr_t *attr,
     return rc;
 }
 
+#if !defined(ORBIS_HEAP_CHECK) && !defined(ORBIS_HEAP_TRACE)
+/* ⚠ musl's (old) realloc writes past the block it returns when a LARGE block shrinks. Blocks above its mmap
+ * threshold (~224 KiB) are their own mappings, and realloc resizes them with __mremap; Orbis has none (the
+ * runtime's stub fails), so musl falls back to malloc + memcpy + free - and copies the OLD size, n0, even
+ * when the new block is smaller. Measured with the heap tracer: Mesa's blob grew to 262144 bytes, then
+ * blob_finish_get_buffer shrank it to 168740, and the copy ran ~92 KiB past the new block, zeroing the
+ * heap chunk after it. A later malloc walked into that chunk's next == NULL: SIGSEGV at 0x10 in malloc,
+ * every run of Iris with Complementary, whose shaders serialise to blobs that large.
+ *
+ * So a shrinking mapped block is moved here, copying the new size; everything else is musl's. A mapped
+ * chunk is the one whose size word lacks musl's in-use bit; its usable size is that word minus the
+ * 16-byte header. */
+void *__real_realloc(void *p, size_t n);
+
+void *__wrap_realloc(void *p, size_t n) {
+    if (p) {
+        const char *q = p;
+        __asm__("" : "+r"(q)); /* the header is before the block: hide that from clang's bounds reasoning */
+        const size_t csize = *(const size_t *)(q - sizeof(size_t));
+        if (!(csize & 1) && n < csize - 2 * sizeof(size_t)) {
+            void *r = malloc(n);
+            if (!r) return NULL;
+            memcpy(r, p, n);
+            free(p);
+            return r;
+        }
+    }
+    return __real_realloc(p, n);
+}
+#endif
+
 JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *vm, void *reserved) {
     (void)vm; (void)reserved;
     return JNI_VERSION_1_8;
