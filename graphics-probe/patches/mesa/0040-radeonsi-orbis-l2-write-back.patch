@@ -25,10 +25,10 @@ index ba4cbf1..981e6d5 100644
           ac_cmdbuf_emit(PKT3(PKT3_ACQUIRE_MEM, 5, 0) | PKT3_SHADER_TYPE_S(is_mec));
           ac_cmdbuf_emit(gcr_cntl);      /* CP_COHER_CNTL */
 diff --git a/src/gallium/drivers/radeonsi/si_barrier.c b/src/gallium/drivers/radeonsi/si_barrier.c
-index d247697..84523ef 100644
+index d247697..21f5dd0 100644
 --- a/src/gallium/drivers/radeonsi/si_barrier.c
 +++ b/src/gallium/drivers/radeonsi/si_barrier.c
-@@ -307,6 +307,34 @@ static void gfx10_emit_barrier(struct si_context *ctx, struct radeon_cmdbuf *cs)
+@@ -307,6 +307,48 @@ static void gfx10_emit_barrier(struct si_context *ctx, struct radeon_cmdbuf *cs)
        ctx->task_wait_count++;
  }
  
@@ -56,14 +56,28 @@ index d247697..84523ef 100644
 +   }
 +   return enabled;
 +}
++
++/* ORBIS_L2_VOLATILE: CP_COHER_CNTL bits 15 and 16 (TCL1_VOL_ACTION_ENA, TC_VOL_ACTION_ENA), Gnm's cache action
++ * 0x3B. =1 sets them on the L2 flush; =2 issues the ordinary flush and then the same flush on volatile lines.
++ * Opt-in experiment. */
++static int orbis_l2_volatile(void)
++{
++   static int mode = -1;
++   if (mode < 0) {
++      const char *env = getenv("ORBIS_L2_VOLATILE");
++      mode = env && (env[0] == '1' || env[0] == '2') && env[1] == '\0' ? env[0] - '0' : 0;
++   }
++   return mode;
++}
 +#else
 +static bool orbis_l2_write_back(void) { return false; }
++static int orbis_l2_volatile(void) { return 0; }
 +#endif
 +
  static void gfx6_emit_barrier(struct si_context *sctx, struct radeon_cmdbuf *cs)
  {
     assert(sctx->gfx_level <= GFX9);
-@@ -382,6 +410,27 @@ static void gfx6_emit_barrier(struct si_context *sctx, struct radeon_cmdbuf *cs)
+@@ -382,6 +424,27 @@ static void gfx6_emit_barrier(struct si_context *sctx, struct radeon_cmdbuf *cs)
  
     radeon_end();
  
@@ -91,7 +105,7 @@ index d247697..84523ef 100644
     /* GFX9: Wait for idle if we're flushing CB or DB. ACQUIRE_MEM doesn't
      * wait for idle on GFX9. We have to use a TS event.
      */
-@@ -456,7 +505,11 @@ static void gfx6_emit_barrier(struct si_context *sctx, struct radeon_cmdbuf *cs)
+@@ -456,15 +519,26 @@ static void gfx6_emit_barrier(struct si_context *sctx, struct radeon_cmdbuf *cs)
      *
      * cp_coher_cntl should contain everything except TC flags at this point.
      *
@@ -104,13 +118,20 @@ index d247697..84523ef 100644
      */
     unsigned engine = flags & SI_BARRIER_PFP_SYNC_ME ? V_581A_PREFETCH_PARSER : V_581A_MICRO_ENGINE;
  
-@@ -464,7 +517,8 @@ static void gfx6_emit_barrier(struct si_context *sctx, struct radeon_cmdbuf *cs)
+    if (flags & SI_BARRIER_INV_L2 || (sctx->gfx_level <= GFX7 && flags & SI_BARRIER_WB_L2)) {
        /* Invalidate L1 & L2. WB must be set on GFX8+ when TC_ACTION is set. */
++      const unsigned tc_actions = S_0085F0_TC_ACTION_ENA(1) | S_0085F0_TCL1_ACTION_ENA(1) |
++                                  S_0301F0_TC_WB_ACTION_ENA(sctx->gfx_level >= GFX8 || orbis_l2_write_back());
++      const unsigned volatile_lines = (1u << 15) | (1u << 16); /* TCL1_VOL_ACTION_ENA, TC_VOL_ACTION_ENA */
        si_cp_acquire_mem(sctx, cs,
-                         cp_coher_cntl | S_0085F0_TC_ACTION_ENA(1) | S_0085F0_TCL1_ACTION_ENA(1) |
+-                        cp_coher_cntl | S_0085F0_TC_ACTION_ENA(1) | S_0085F0_TCL1_ACTION_ENA(1) |
 -                        S_0301F0_TC_WB_ACTION_ENA(sctx->gfx_level >= GFX8), engine);
-+                        S_0301F0_TC_WB_ACTION_ENA(sctx->gfx_level >= GFX8 || orbis_l2_write_back()),
++                        cp_coher_cntl | tc_actions | (orbis_l2_volatile() == 1 ? volatile_lines : 0),
 +                        engine);
++      /* Mode 2: the volatile bits narrow an action to volatile lines (mode 1 left ordinary lines dirty), so
++       * follow the ordinary flush with the same action on volatile lines. */
++      if (orbis_l2_volatile() == 2)
++         si_cp_acquire_mem(sctx, cs, tc_actions | volatile_lines, engine);
     } else {
        /* L1 invalidation and L2 writeback must be done separately, because both operations can't
         * be done together.

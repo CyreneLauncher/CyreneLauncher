@@ -1,0 +1,29 @@
+diff --git a/src/gallium/drivers/radeonsi/si_clear.c b/src/gallium/drivers/radeonsi/si_clear.c
+index 73bb30b..fdfe0e9 100644
+--- a/src/gallium/drivers/radeonsi/si_clear.c
++++ b/src/gallium/drivers/radeonsi/si_clear.c
+@@ -507,6 +507,24 @@ static void si_fast_clear(struct si_context *sctx, unsigned *buffers,
+    if (sctx->screen->debug_flags & (DBG(FORCE_GFX_BLIT) | DBG(FORCE_COMPUTE_BLIT)))
+       return;
+ 
++#ifdef HAVE_ORBIS_PLATFORM
++   /* No CMASK fast clears on the PS4 Pro (Gladius), as no HTILE (NO_HYPERZ in si_pipe.c). After a fast clear
++    * and a draw over part of the target, exactly half of the drawn 8x8 tiles came back as the clear colour, in
++    * an address-interleaved pattern, at every size from 1024 wide up - whether the CMASK was cleared by
++    * compute or CP DMA (Minecraft's Mojang loading logo). Sony runs the Pro's metadata with a different pipe
++    * configuration (18 for HTILE); CMASK's addressing presumably differs the same way. Until it is derived,
++    * colour clears write the pixels. ORBIS_FAST_CLEAR=1 allows fast clears again, to work on that. */
++   if (sctx->screen->info.family == CHIP_GLADIUS) {
++      static int allowed = -1;
++      if (allowed < 0) {
++         const char *env = getenv("ORBIS_FAST_CLEAR");
++         allowed = env && env[0] == '1' && env[1] == '\0';
++      }
++      if (!allowed)
++         return;
++   }
++#endif
++
+    /* Gather information about what to clear. */
+    unsigned color_buffer_mask = (*buffers & PIPE_CLEAR_COLOR) >> util_logbase2(PIPE_CLEAR_COLOR0);
+    while (color_buffer_mask) {

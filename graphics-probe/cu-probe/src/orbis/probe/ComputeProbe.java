@@ -517,20 +517,35 @@ public final class ComputeProbe {
         glViewport(0, 0, SIZE, SIZE);
         int fbo = glGenFramebuffers();
 
-        // 1. Fast clear (CMASK cleared by the driver), then draw over the left half, as a loading screen does.
-        int target = texture();
-        glBindFramebuffer(GL_FRAMEBUFFER, fbo);
-        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, target, 0);
-        for (int frame = 0; frame < 4; frame++) {
-            int clear = frame % 2 == 0 ? 0xff2020e0 : 0xff20e020;
-            glClearColor((clear & 255) / 255f, ((clear >>> 8) & 255) / 255f, ((clear >>> 16) & 255) / 255f, 1);
-            glClear(GL_COLOR_BUFFER_BIT);
-            quad(-1, -1, 0, 1, 0xffffffff);
-        }
-        glBindFramebuffer(GL_FRAMEBUFFER, 0);
-        glMemoryBarrier(GL_ALL_BARRIER_BITS);
+        // 1. Fast clear (CMASK cleared by the driver), then draw over the left half, as a loading screen does,
+        //    at several sizes: A = four frames in one batch, C = one clear and draw on a fresh texture.
         int lastClear = 0xff20e020;
-        verifyHalves("fast clear then draw run=" + run, target, 0xffffffff, lastClear);
+        int[][] sizes = {{1920, 1080}, {1280, 720}, {1024, 1024}, {512, 512}, {1024, 512}, {2048, 1024}};
+        for (int[] wh : sizes) {
+            for (int variant = 0; variant < 2; variant++) {
+                int w = wh[0], h = wh[1];
+                int target = glGenTextures();
+                glBindTexture(GL_TEXTURE_2D, target);
+                glTexStorage2D(GL_TEXTURE_2D, 1, GL_RGBA8, w, h);
+                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+                glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+                glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, target, 0);
+                glViewport(0, 0, w, h);
+                for (int frame = variant == 1 ? 3 : 0; frame < 4; frame++) {
+                    int clear = frame % 2 == 0 ? 0xff2020e0 : 0xff20e020;
+                    glClearColor((clear & 255) / 255f, ((clear >>> 8) & 255) / 255f, ((clear >>> 16) & 255) / 255f, 1);
+                    glClear(GL_COLOR_BUFFER_BIT);
+                    quad(-1, -1, 0, 1, 0xffffffff);
+                }
+                glBindFramebuffer(GL_FRAMEBUFFER, 0);
+                glMemoryBarrier(GL_ALL_BARRIER_BITS);
+                verifySized("fast clear " + w + "x" + h + (variant == 0 ? " A frames" : " C single") + " run=" + run,
+                        target, w, h, 0xffffffff, lastClear);
+                glDeleteTextures(target);
+            }
+        }
+        glViewport(0, 0, SIZE, SIZE);
 
         // 2. Compute writes a texture, then a draw blends onto it (the colour block reads compute's result).
         int written = texture();
@@ -558,8 +573,53 @@ public final class ComputeProbe {
 
         glDeleteProgram(fill);
         glDeleteFramebuffers(fbo);
-        glDeleteTextures(new int[]{target, written});
+        glDeleteTextures(written);
         glDeleteVertexArrays(vao);
+    }
+
+    private static final String SIZED_FETCH_SHADER = """
+            #version 430 core
+            layout(local_size_x=8, local_size_y=8) in;
+            layout(binding=0) uniform sampler2D tex;
+            layout(std430,binding=0) buffer Out { uint px[]; };
+            uniform ivec2 size;
+            void main() {
+                ivec2 p = ivec2(gl_GlobalInvocationID.xy);
+                if (p.x < size.x && p.y < size.y) px[p.y * size.x + p.x] = packUnorm4x8(texelFetch(tex, p, 0));
+            }
+            """;
+
+    private static int sizedFetchProgram;
+
+    /** Left half of a w x h texture one colour, right half another, read by an application compute shader. */
+    private static void verifySized(String name, int texture, int w, int h, int left, int right) {
+        if (sizedFetchProgram == 0) sizedFetchProgram = compute(SIZED_FETCH_SHADER);
+        int out = buffer(0, (long) w * h * 4);
+        glUseProgram(sizedFetchProgram);
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, texture);
+        glUniform1i(glGetUniformLocation(sizedFetchProgram, "tex"), 0);
+        glUniform2i(glGetUniformLocation(sizedFetchProgram, "size"), w, h);
+        glDispatchCompute((w + 7) / 8, (h + 7) / 8, 1);
+        glMemoryBarrier(GL_ALL_BARRIER_BITS);
+        IntBuffer px = read(out, w * h);
+        glDeleteBuffers(out);
+        int bad = 0, leftBad = 0, rightBad = 0;
+        java.util.Set<Integer> blocks = new java.util.HashSet<>();
+        Map<String, Integer> values = new TreeMap<>();
+        for (int y = 0; y < h; y++)
+            for (int x = 0; x < w; x++) {
+                int want = x < w / 2 ? left : right, got = px.get(y * w + x);
+                if (got == want) continue;
+                bad++;
+                if (x < w / 2) leftBad++; else rightBad++;
+                blocks.add((y / 8) * ((w + 7) / 8) + x / 8);
+                if (values.size() < 4) values.merge(Integer.toHexString(got), 1, Integer::sum);
+            }
+        if (bad != 0) failures++;
+        say("%s pixels_bad=%d (left %d, right %d) of %d blocks8_bad=%d values=%s %s", name, bad, leftBad, rightBad,
+                w * h, blocks.size(), values, bad == 0 ? "clean" : "LOSS");
+        MemoryUtil.memFree(px);
     }
 
     private static IntBuffer fetch(int texture) {

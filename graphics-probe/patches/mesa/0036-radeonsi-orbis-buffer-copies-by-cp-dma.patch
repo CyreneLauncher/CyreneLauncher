@@ -1,8 +1,8 @@
 diff --git a/src/gallium/drivers/radeonsi/si_buffer.c b/src/gallium/drivers/radeonsi/si_buffer.c
-index 60ccac6..6d528eb 100644
+index 60ccac6..f0d45f4 100644
 --- a/src/gallium/drivers/radeonsi/si_buffer.c
 +++ b/src/gallium/drivers/radeonsi/si_buffer.c
-@@ -792,16 +792,78 @@ static bool si_resource_commit(struct pipe_context *pctx, struct pipe_resource *
+@@ -792,16 +792,127 @@ static bool si_resource_commit(struct pipe_context *pctx, struct pipe_resource *
        return si_texture_commit(ctx, res, level, box, commit);
  }
  
@@ -50,6 +50,55 @@ index 60ccac6..6d528eb 100644
 +             s ? s->bind_history : 0, src ? src->usage : 0, caller);
 +}
 +
++/* ORBIS_CHECK_CLEARS=1: after each of the first six clears of 256 bytes or more, end the batch, wait for the
++ * GPU, and read the buffer from memory with the CPU (the winsys mapping, not a GPU copy, which would read L2):
++ * how many words do not hold the clear value, and which 256-byte chunks they are in. Slow; diagnostic only. */
++static void orbis_check_clear(struct si_context *sctx, struct pipe_resource *dst, uint64_t offset,
++                              uint64_t size, uint32_t value, const char *route)
++{
++   static int enabled = -1;
++   static unsigned count;
++   if (enabled < 0) {
++      const char *env = getenv("ORBIS_CHECK_CLEARS");
++      enabled = env && env[0] == '1';
++   }
++   if (!enabled || count >= 6 || size < 256)
++      return;
++   count++;
++
++   struct pipe_fence_handle *fence = NULL;
++   sctx->b.flush(&sctx->b, &fence, 0);
++   if (fence) {
++      sctx->b.screen->fence_finish(sctx->b.screen, NULL, fence, OS_TIMEOUT_INFINITE);
++      sctx->b.screen->fence_reference(sctx->b.screen, &fence, NULL);
++   }
++   struct si_resource *res = si_resource(dst);
++   const uint8_t *base = sctx->ws->buffer_map(sctx->ws, res->buf, NULL,
++                                              PIPE_MAP_READ | PIPE_MAP_UNSYNCHRONIZED);
++   if (!base) {
++      mesa_logi("orbis-check %u: %s clear of %" PRIu64 " bytes - the buffer could not be mapped", count, route, size);
++      return;
++   }
++   const uint32_t *words = (const uint32_t *)(base + offset);
++   unsigned bad = 0, chunks = size / 256;
++   char map[129] = {0};
++   for (unsigned c = 0; c < chunks; c++) {
++      bool chunk_bad = false;
++      for (unsigned i = 0; i < 64; i++) {
++         if (words[c * 64 + i] != value) {
++            bad++;
++            chunk_bad = true;
++         }
++      }
++      if (c < 128)
++         map[c] = chunk_bad ? '1' : '0';
++   }
++   mesa_logi("orbis-check %u: %s clear size=%" PRIu64 " (bo %" PRIu64 " dom 0x%x flags 0x%x) value=0x%08x "
++             "words_bad=%u/%" PRIu64 " first_word=0x%08x chunks256=%s", count, route, size, res->bo_size,
++             res->domains, res->flags, value, bad, size / 4, words[0], map);
++   sctx->ws->buffer_unmap(sctx->ws, res->buf);
++}
++
 +#endif
 +
  void si_copy_buffer(struct si_context *sctx, struct pipe_resource *dst, struct pipe_resource *src,
@@ -82,7 +131,7 @@ index 60ccac6..6d528eb 100644
     si_cp_dma_copy_buffer(sctx, dst, src, dst_offset, src_offset, size);
  }
  
-@@ -825,10 +887,30 @@ void si_clear_buffer(struct si_context *sctx, struct pipe_resource *dst,
+@@ -825,10 +936,33 @@ void si_clear_buffer(struct si_context *sctx, struct pipe_resource *dst,
     if (util_lower_clearsize_to_dword(clear_value, (int*)&clear_value_size, &clamped))
        clear_value = &clamped;
  
@@ -94,6 +143,7 @@ index 60ccac6..6d528eb 100644
 +       clear_value_size == 4 && !render_condition_enable) {
 +      orbis_trace_buffer_op("clear", "cpdma", dst, offset, NULL, 0, size, caller);
 +      si_cp_dma_clear_buffer(sctx, &sctx->gfx_cs, dst, offset, size, *clear_value);
++      orbis_check_clear(sctx, dst, offset, size, *clear_value, "cpdma");
 +      return;
 +   }
 +#endif
@@ -104,6 +154,8 @@ index 60ccac6..6d528eb 100644
 +                                    method == SI_AUTO_SELECT_CLEAR_METHOD)) {
 +#ifdef HAVE_ORBIS_PLATFORM
 +      orbis_trace_buffer_op("clear", "compute", dst, offset, NULL, 0, size, caller);
++      if (clear_value_size == 4 && offset % 4 == 0 && size % 4 == 0)
++         orbis_check_clear(sctx, dst, offset, size, *clear_value, "compute");
 +#endif
        return;
 +   }
