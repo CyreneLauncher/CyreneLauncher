@@ -1,8 +1,26 @@
 diff --git a/src/gallium/drivers/radeonsi/si_clear.c b/src/gallium/drivers/radeonsi/si_clear.c
-index 73bb30b..fdfe0e9 100644
+index 73bb30b..4537858 100644
 --- a/src/gallium/drivers/radeonsi/si_clear.c
 +++ b/src/gallium/drivers/radeonsi/si_clear.c
-@@ -507,6 +507,24 @@ static void si_fast_clear(struct si_context *sctx, unsigned *buffers,
+@@ -107,6 +107,17 @@ static bool si_alloc_separate_cmask(struct si_screen *sscreen, struct si_texture
+     */
+    tex->cmask_base_address_reg = tex->cmask_buffer->gpu_address >> 8;
+    tex->cb_color_info |= S_028C70_FAST_CLEAR(1);
++#ifdef HAVE_ORBIS_PLATFORM
++   /* ORBIS_CMASK_LINEAR=1 (with ORBIS_FAST_CLEAR=1): on Gladius, CB_COLOR_INFO.CMASK_IS_LINEAR (bit 19), so the
++    * colour block addresses CMASK as a plain array instead of interleaving it across pipes - the 8- versus
++    * 16-pipe question that loses half the tiles. A linear CMASK is no larger than the tiled one allocated here,
++    * and radeonsi only ever clears the whole buffer. An experiment. */
++   if (sscreen->info.family == CHIP_GLADIUS) {
++      const char *env = getenv("ORBIS_CMASK_LINEAR");
++      if (env && env[0] == '1' && env[1] == '\0')
++         tex->cb_color_info |= 1u << 19;
++   }
++#endif
+ 
+    p_atomic_inc(&sscreen->compressed_colortex_counter);
+    return true;
+@@ -507,6 +518,24 @@ static void si_fast_clear(struct si_context *sctx, unsigned *buffers,
     if (sctx->screen->debug_flags & (DBG(FORCE_GFX_BLIT) | DBG(FORCE_COMPUTE_BLIT)))
        return;
  
