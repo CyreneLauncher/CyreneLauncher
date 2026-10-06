@@ -1,0 +1,62 @@
+diff --git a/src/amd/common/ac_gpu_info.c b/src/amd/common/ac_gpu_info.c
+index 4aede69..d8ac96b 100644
+--- a/src/amd/common/ac_gpu_info.c
++++ b/src/amd/common/ac_gpu_info.c
+@@ -1613,6 +1613,18 @@ void ac_fill_tess_info(struct radeon_info *info)
+       if (wg > 0)
+          info->tess_factor_ring_size = typical_tess_factor_size_per_wg * wg;
+    }
++   /* ⚠ AND ON THE PRO THE OFFCHIP WRITES RUN PAST THE 256 BUFFERS TOO. radeonsi's first tessellated draw
++    * on Gladius faulted 12 MiB into a tess-ring BO whose offchip region is 8 MiB (256 x 32768) - "GPU
++    * Protection fault, client TC, access Write, Unmapped page access" (graphics-probe GeometryProbe). The
++    * 256 was measured on the two-engine path; nothing here says what four engines reach. As with the GS rings
++    * (radv_orbis_gs_ring_bytes, si_orbis_gs_ring_alloc) the hardware keeps the count it is told and the
++    * memory behind it grows: the region is ORBIS_TESS_OFFCHIP_PAD (default 4) times larger, and the factor
++    * ring, which follows it, moves past the padding so an overrun cannot land in it. */
++   if (info->family == CHIP_GLADIUS) {
++      const char *const pad_s = getenv("ORBIS_TESS_OFFCHIP_PAD");
++      const unsigned pad = pad_s != NULL && atoi(pad_s) > 0 ? (unsigned)atoi(pad_s) : 4;
++      info->tess_offchip_ring_size *= pad;
++   }
+    info->total_tess_ring_size = info->tess_offchip_ring_size + info->tess_factor_ring_size;
+ }
+ 
+diff --git a/src/gallium/drivers/radeonsi/gfx/si_nir_lower_abi.c b/src/gallium/drivers/radeonsi/gfx/si_nir_lower_abi.c
+index 75cf403..a8e2e32 100644
+--- a/src/gallium/drivers/radeonsi/gfx/si_nir_lower_abi.c
++++ b/src/gallium/drivers/radeonsi/gfx/si_nir_lower_abi.c
+@@ -11,6 +11,9 @@
+ #include "si_query.h"
+ #include "si_state.h"
+ #include "si_shader_internal.h"
++#ifdef HAVE_ORBIS_PLATFORM
++#include "ac_linux_drm.h"
++#endif
+ 
+ struct lower_abi_state {
+    struct si_shader *shader;
+@@ -557,6 +560,24 @@ static bool lower_intrinsic(nir_builder *b, nir_instr *instr, struct lower_abi_s
+       break;
+    }
+    case nir_intrinsic_load_ring_tess_factors_amd: {
++#ifdef HAVE_ORBIS_PLATFORM
++      /* ⚠ THE FACTORS MUST GO WHERE THE VGT READS THEM. ac_emit_cp_tess_rings points VGT_TF_MEMORY_BASE at
++       * Sony's factor ring (ORBIS_TF_SONY_BASE) whenever that is mapped, and RADV moves its HS descriptor there
++       * too (radv_fill_shader_rings) - this one stayed at offchip + size, so the TCS wrote factors into a ring
++       * nothing read. A constant descriptor over Sony's mapping, bounded by it. */
++      {
++         uint64_t sony_size = 0;
++         const uint64_t sony = ac_orbis_sony_tf_ring(&sony_size);
++         if (sony != 0) {
++            uint32_t desc[4];
++            ac_build_raw_buffer_descriptor(sel->screen->info.gfx_level,
++                                           sel->screen->info.compiler_info.has_desc_resource_level, sony,
++                                           (uint32_t)MIN2(sony_size, UINT32_MAX), desc);
++            replacement = nir_imm_ivec4(b, desc[0], desc[1], desc[2], desc[3]);
++            break;
++         }
++      }
++#endif
+       assert(s->tess_offchip_ring);
+       nir_def *addr = nir_channel(b, s->tess_offchip_ring, 0);
+       addr = nir_iadd_imm(b, addr, sel->screen->info.tess_offchip_ring_size);
