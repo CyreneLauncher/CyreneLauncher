@@ -10,6 +10,8 @@
 
 #include <pthread.h>
 #include <errno.h>
+#include <fcntl.h>
+#include <unistd.h>
 #include <stdio.h>
 #include <time.h>
 #include <string.h>
@@ -105,6 +107,66 @@ uint64_t now_us() {
     clock_gettime(CLOCK_MONOTONIC, &ts);
     return static_cast<uint64_t>(ts.tv_sec) * 1000000u +
            static_cast<uint64_t>(ts.tv_nsec / 1000);
+}
+
+/* Diagnostics (runner.conf input_diagnostics) go to the kernel log and, with a log path, to a file:
+ * lines collect in memory, stamped in ms, and the collector appends them outside the input lock. */
+pthread_mutex_t diag_lock = PTHREAD_MUTEX_INITIALIZER;
+char diag_path[256];
+char diag_buffer[128 * 1024];
+size_t diag_used;
+uint32_t diag_dropped;
+uint64_t diag_flushed_at;
+
+void diag_line(const char *line) {
+    sceKernelDebugOutText(0, line);
+    pthread_mutex_lock(&diag_lock);
+    if (diag_path[0]) {
+        char stamp[24];
+        int head = snprintf(stamp, sizeof(stamp), "%llu ", static_cast<unsigned long long>(now_us() / 1000));
+        size_t length = strlen(line);
+        if (head > 0 && diag_used + static_cast<size_t>(head) + length < sizeof(diag_buffer)) {
+            memcpy(diag_buffer + diag_used, stamp, static_cast<size_t>(head));
+            memcpy(diag_buffer + diag_used + head, line, length);
+            diag_used += static_cast<size_t>(head) + length;
+        } else {
+            ++diag_dropped;
+        }
+    }
+    pthread_mutex_unlock(&diag_lock);
+}
+
+/* Appends the collected lines; called by the collector, never with the input lock held. */
+void flush_diag(bool force) {
+    static char pending[sizeof(diag_buffer) + 64];
+    uint64_t now = now_us();
+    if (!force && now - diag_flushed_at < 500000) return;
+    diag_flushed_at = now;
+    pthread_mutex_lock(&diag_lock);
+    size_t length = diag_used;
+    memcpy(pending, diag_buffer, length);
+    diag_used = 0;
+    if (diag_dropped != 0) {
+        length += static_cast<size_t>(snprintf(pending + length, 64, "orbis-java-input: %u lines dropped\n", diag_dropped));
+        diag_dropped = 0;
+    }
+    char path[sizeof(diag_path)];
+    memcpy(path, diag_path, sizeof(path));
+    pthread_mutex_unlock(&diag_lock);
+    if (length == 0 || !path[0]) return;
+    int fd = open(path, O_WRONLY | O_CREAT | O_APPEND, 0666);
+    if (fd < 0) return;
+    for (size_t done = 0; done < length;) {
+        ssize_t n = write(fd, pending + done, length - done);
+        if (n <= 0) break;
+        done += static_cast<size_t>(n);
+    }
+    close(fd);
+}
+
+/* Bounded kernel-log dumps; a file takes a whole typing test. */
+uint32_t diag_cap(uint32_t uart) {
+    return diag_path[0] ? 20000 : uart;
 }
 
 bool key_down(uint16_t key, const uint16_t *keys, uint32_t count) {
@@ -249,9 +311,9 @@ void log_keyboard_read(int slot, const uint8_t *bytes, int32_t result) {
         snprintf(line, sizeof(line), "orbis-java-input: kbd slot %d read result=0x%08x wrote %u of %u bytes (sdk struct %u)\n",
                  slot, static_cast<unsigned>(result), static_cast<unsigned>(written),
                  static_cast<unsigned>(kKeyboardReadBytes), static_cast<unsigned>(sizeof(OrbisKeyboardData)));
-        sceKernelDebugOutText(0, line);
+        diag_line(line);
     }
-    if (keyboard_samples_logged >= 48 || memcmp(bytes, keyboard_last_dump[slot], kKeyboardReadBytes) == 0) return;
+    if (keyboard_samples_logged >= diag_cap(48) || memcmp(bytes, keyboard_last_dump[slot], kKeyboardReadBytes) == 0) return;
     memcpy(keyboard_last_dump[slot], bytes, kKeyboardReadBytes);
     ++keyboard_samples_logged;
     size_t shown = written < 160 ? written : 160;
@@ -261,12 +323,12 @@ void log_keyboard_read(int slot, const uint8_t *bytes, int32_t result) {
     for (size_t i = 0; i < shown && used < static_cast<int>(sizeof(line)) - 3; ++i)
         used += snprintf(line + used, sizeof(line) - used, "%02x", bytes[i]);
     snprintf(line + used, sizeof(line) - used, "\n");
-    sceKernelDebugOutText(0, line);
+    diag_line(line);
 }
 
 /* With diagnostics, checks the buffered read's record count against what it wrote. */
 void log_buffered_read(const uint8_t *batch, int32_t result) {
-    if (result >= 0 && result <= kKeyboardBatch && (result == 0 || buffered_reads_logged >= 8)) return;
+    if (result >= 0 && result <= kKeyboardBatch && (result == 0 || buffered_reads_logged >= diag_cap(8))) return;
     size_t written = kKeyboardBatch * kKeyboardRecordBytes + kKeyboardReadBytes;
     while (written > 0 && batch[written - 1] == kKeyboardCanary) --written;
     ++buffered_reads_logged;
@@ -275,16 +337,16 @@ void log_buffered_read(const uint8_t *batch, int32_t result) {
              static_cast<unsigned>(result), static_cast<unsigned>(written), result,
              static_cast<unsigned>(result > 0 ? result * kKeyboardRecordBytes : 0),
              result < 0 || result > kKeyboardBatch ? ", falling back to ReadState" : "");
-    sceKernelDebugOutText(0, line);
+    diag_line(line);
 }
 
 void transition_locked(uint32_t type, uint32_t raw_key, uint32_t scalar) {
-    if (diagnostics_enabled && keyboard_transitions_logged < 64 && type <= ORBIS_INPUT_EVENT_TEXT) {
+    if (diagnostics_enabled && keyboard_transitions_logged < diag_cap(64) && type <= ORBIS_INPUT_EVENT_TEXT) {
         ++keyboard_transitions_logged;
         char line[128];
         snprintf(line, sizeof(line), "orbis-java-input: kbd transition type=%u raw=%u scalar=%u focus=%u\n",
                  type, raw_key, scalar, static_cast<unsigned>(focus));
-        sceKernelDebugOutText(0, line);
+        diag_line(line);
     }
     orbis_input_event event{};
     snapshot_event(&event, type);
@@ -302,7 +364,7 @@ void open_extra_keyboards() {
             char line[96];
             snprintf(line, sizeof(line), "orbis-java-input: kbd slot %d open 0x%08x\n", i + 1,
                      static_cast<unsigned>(handle));
-            sceKernelDebugOutText(0, line);
+            diag_line(line);
         }
         if (handle >= 0) extra_keyboard_handles[i] = handle;
     }
@@ -319,7 +381,7 @@ void close_extra_keyboards() {
  * service believed it was: a stale "still down" state shows as a long service hold over a
  * short device hold. Reported when the hold repeated or the two disagree by >150 ms. */
 void report_hold(uint16_t key, uint32_t release_stamp, uint64_t read_tick) {
-    if (!diagnostics_enabled || hold_reports >= 64 || held_since[key] == 0) return;
+    if (!diagnostics_enabled || hold_reports >= diag_cap(64) || held_since[key] == 0) return;
     uint64_t service_ms = (read_tick - held_since[key]) / 1000;
     uint64_t device_ms = (uint32_t)(release_stamp - down_stamp[key]) / 1000;
     uint64_t gap = service_ms > device_ms ? service_ms - device_ms : device_ms - service_ms;
@@ -329,7 +391,7 @@ void report_hold(uint16_t key, uint32_t release_stamp, uint64_t read_tick) {
     snprintf(line, sizeof(line), "orbis-java-input: kbd hold key=%u device=%llu ms service=%llu ms repeated=%d longest read gap=%llu ms\n",
              key, (unsigned long long)device_ms, (unsigned long long)service_ms, repeated[key] ? 1 : 0,
              (unsigned long long)(longest_gap[key] / 1000));
-    sceKernelDebugOutText(0, line);
+    diag_line(line);
 }
 
 /* Opens mouse indexes 1-3 best effort; index 0 keeps the existing retry path. */
@@ -341,7 +403,7 @@ void open_extra_mice() {
             char line[96];
             snprintf(line, sizeof(line), "orbis-java-input: mouse slot %d open 0x%08x\n", i + 1,
                      static_cast<unsigned>(handle));
-            sceKernelDebugOutText(0, line);
+            diag_line(line);
         }
         if (handle >= 0) extra_mouse_handles[i] = handle;
     }
@@ -377,7 +439,7 @@ bool apply_mouse_samples_locked(int slot, const orbis_mouse_data_abi *samples, i
                 char line[96];
                 snprintf(line, sizeof(line), "orbis-java-input: mouse slot %d first motion %d,%d\n",
                          slot, sample.x_axis, sample.y_axis);
-                sceKernelDebugOutText(0, line);
+                diag_line(line);
             }
         }
         uint32_t buttons = 0;
@@ -569,6 +631,12 @@ void repeat_held_keys_locked(int32_t handle, uint64_t tick, uint32_t locks, uint
         OrbisKeyboardKey2Char translated{};
         if (sceKeyboardGetKey2Char(handle, false, locks, mods, key, &translated) == 0 &&
             translated.ok && translated.keycode >= 32 && translated.keycode <= 126) {
+            if (diagnostics_enabled && !repeated[key]) {
+                char line[128];
+                snprintf(line, sizeof(line), "orbis-java-input: kbd repeat starts key=%u held %llu ms\n", key,
+                         static_cast<unsigned long long>((tick - held_since[key]) / 1000));
+                diag_line(line);
+            }
             transition_locked(ORBIS_INPUT_EVENT_TEXT, key,
                               static_cast<uint32_t>(translated.keycode));
             repeat_due[key] = tick + 33000;
@@ -582,12 +650,12 @@ uint32_t slow_call_reports;
 
 /* With diagnostics, names any device call that blocked the collector for over 40 ms. */
 void note_slow(const char *what, uint64_t us) {
-    if (!diagnostics_enabled || us <= 40000 || slow_call_reports >= 48) return;
+    if (!diagnostics_enabled || us <= 40000 || slow_call_reports >= diag_cap(48)) return;
     ++slow_call_reports;
     char line[128];
     snprintf(line, sizeof(line), "orbis-java-input: slow %s %llu ms\n", what,
              (unsigned long long)(us / 1000));
-    sceKernelDebugOutText(0, line);
+    diag_line(line);
 }
 
 /* Above the game's default 700 so a busy render or loader thread cannot hold the collector
@@ -602,7 +670,7 @@ void *collect(void *) {
         char line[96];
         snprintf(line, sizeof(line), "orbis-java-input: collector priority %d: 0x%08x\n",
                  kCollectorPriority, static_cast<unsigned>(prio));
-        sceKernelDebugOutText(0, line);
+        diag_line(line);
     }
     while (true) {
         pthread_mutex_lock(&lock);
@@ -620,7 +688,7 @@ void *collect(void *) {
                 char message[128];
                 snprintf(message, sizeof(message), "orbis-java-input: keyboard open error 0x%08x\n",
                          static_cast<unsigned int>(open_result));
-                sceKernelDebugOutText(0, message);
+                diag_line(message);
                 last_keyboard_error = open_result;
                 ++keyboard_error_diagnostics;
             }
@@ -634,7 +702,7 @@ void *collect(void *) {
                 char message[128];
                 snprintf(message, sizeof(message), "orbis-java-input: mouse open error 0x%08x\n",
                          static_cast<unsigned int>(open_result));
-                sceKernelDebugOutText(0, message);
+                diag_line(message);
                 last_mouse_error = open_result;
                 ++mouse_error_diagnostics;
             }
@@ -683,7 +751,7 @@ void *collect(void *) {
                 snprintf(message, sizeof(message),
                          "orbis-java-input: keyboard read error 0x%08x\n",
                          static_cast<unsigned int>(result));
-                sceKernelDebugOutText(0, message);
+                diag_line(message);
                 last_keyboard_error = result;
                 ++keyboard_error_diagnostics;
             }
@@ -699,6 +767,18 @@ void *collect(void *) {
                 extras_due = extras_before < extras_active_until ? 0 : extras_before + kIdleExtraPollUs;
             }
             const OrbisKeyboardData extras = cached_extras;
+            if (diagnostics_enabled && records > 0) {
+                char line[160];
+                int used = snprintf(line, sizeof(line), "orbis-java-input: kbd read %d records call=%llu us stamps",
+                                    records, static_cast<unsigned long long>(call_us));
+                for (int32_t r = 0; r < records && used < static_cast<int>(sizeof(line)) - 24; ++r) {
+                    uint64_t stamp;
+                    memcpy(&stamp, batch + r * kKeyboardRecordBytes, sizeof(stamp));
+                    used += snprintf(line + used, sizeof(line) - used, " %llu", static_cast<unsigned long long>(stamp));
+                }
+                snprintf(line + used, sizeof(line) - used, "\n");
+                diag_line(line);
+            }
             uint64_t newest = 0;
             for (int32_t r = 0; r < records; ++r) {
                 uint64_t stamp;
@@ -730,9 +810,20 @@ void *collect(void *) {
                         if (!keys_present) continue;
                         buffered_reads = false;
                         if (diagnostics_enabled)
-                            sceKernelDebugOutText(0, "orbis-java-input: kbd buffered record without timestamp, falling back to ReadState\n");
+                            diag_line("orbis-java-input: kbd buffered record without timestamp, falling back to ReadState\n");
                     }
-                    if (buffered_reads && stamp <= last_keyboard_stamp && last_keyboard_stamp - stamp < 10000000u) continue;
+                    /* Each record is a whole snapshot, so one carrying the newest applied time again
+                     * is harmless; skipping it dropped every change that shared a timestamp - a lost
+                     * press, or a lost release that auto-repeat then turned into a burst. */
+                    if (buffered_reads && stamp < last_keyboard_stamp && last_keyboard_stamp - stamp < 10000000u) {
+                        if (diagnostics_enabled) {
+                            char line[128];
+                            snprintf(line, sizeof(line), "orbis-java-input: kbd skip older record stamp=%llu last=%llu\n",
+                                     static_cast<unsigned long long>(stamp), static_cast<unsigned long long>(last_keyboard_stamp));
+                            diag_line(line);
+                        }
+                        continue;
+                    }
                     if (buffered_reads) last_keyboard_stamp = stamp;
                 }
                 log_keyboard_read(0, record, 0);
@@ -801,7 +892,7 @@ void *collect(void *) {
                     snprintf(message, sizeof(message),
                              "orbis-java-input: mouse read error 0x%08x\n",
                              static_cast<unsigned int>(sample_count));
-                    sceKernelDebugOutText(0, message);
+                    diag_line(message);
                     last_mouse_error = sample_count;
                     ++mouse_error_diagnostics;
                 }
@@ -827,8 +918,10 @@ void *collect(void *) {
             pthread_mutex_unlock(&lock);
             orbis_display_set_cursor(cx, cy, visible);
         }
+        if (diagnostics_enabled) flush_diag(false);
         sceKernelUsleep(8000);
     }
+    flush_diag(true);
     return nullptr;
 }
 
@@ -837,7 +930,20 @@ void report_start_failure(const char *stage, int32_t code) {
     char line[128];
     snprintf(line, sizeof(line), "orbis-java-input: start failed at %s: 0x%08x\n", stage,
              static_cast<unsigned int>(code));
-    sceKernelDebugOutText(0, line);
+    diag_line(line);
+}
+
+/* With diagnostics, each key event as the application takes it, and how long it waited. */
+uint32_t deliveries_logged;
+void log_delivery_locked(const orbis_input_event &event) {
+    if (!diagnostics_enabled || deliveries_logged >= diag_cap(64) || event.type > ORBIS_INPUT_EVENT_TEXT ||
+        event.type == ORBIS_INPUT_EVENT_MODIFIERS) return;
+    ++deliveries_logged;
+    char line[128];
+    snprintf(line, sizeof(line), "orbis-java-input: deliver type=%u raw=%u scalar=%u waited=%llu ms queue=%u\n",
+             event.type, event.raw_key, event.unicode_scalar,
+             static_cast<unsigned long long>((now_us() - event.monotonic_us) / 1000), queue_size);
+    diag_line(line);
 }
 
 int32_t initialize_devices() {
@@ -861,7 +967,7 @@ int32_t initialize_devices() {
         snprintf(message, sizeof(message),
                  "orbis-java-input: keyboard unavailable 0x%08x\n",
                  static_cast<unsigned int>(keyboard_result));
-        sceKernelDebugOutText(0, message);
+        diag_line(message);
     }
     int32_t mouse_result = open_mouse();
     if (mouse_initialized) open_extra_mice();
@@ -870,7 +976,7 @@ int32_t initialize_devices() {
         snprintf(message, sizeof(message),
                  "orbis-java-input: mouse unavailable 0x%08x\n",
                  static_cast<unsigned int>(mouse_result));
-        sceKernelDebugOutText(0, message);
+        diag_line(message);
     }
     uint64_t retry = now_us() + 1000000;
     if (keyboard_handle < 0) keyboard_retry_after = retry;
@@ -1005,6 +1111,12 @@ extern "C" void orbis_input_set_diagnostics(int32_t enabled) {
     pthread_mutex_unlock(&lock);
 }
 
+extern "C" void orbis_input_set_diagnostics_log(const char *path) {
+    pthread_mutex_lock(&diag_lock);
+    snprintf(diag_path, sizeof(diag_path), "%s", path != nullptr ? path : "");
+    pthread_mutex_unlock(&diag_lock);
+}
+
 extern "C" int32_t orbis_input_set_pointer(int32_t x, int32_t y) {
     if (x < 0) x = 0; if (x > 1279) x = 1279;
     if (y < 0) y = 0; if (y > 719) y = 719;
@@ -1030,6 +1142,7 @@ extern "C" int32_t orbis_input_read_event(orbis_input_focus requested,
             *out = queue[i];
             memmove(&queue[i], &queue[i + 1], (queue_size - i - 1) * sizeof(queue[0]));
             --queue_size;
+            log_delivery_locked(*out);
             pthread_mutex_unlock(&lock);
             return 0;
         }
@@ -1048,6 +1161,7 @@ extern "C" int32_t orbis_input_read_event(orbis_input_focus requested,
             *out = queue[i];
             memmove(&queue[i], &queue[i + 1], (queue_size - i - 1) * sizeof(queue[0]));
             --queue_size;
+            log_delivery_locked(*out);
             pthread_mutex_unlock(&lock);
             return 0;
         }

@@ -76,6 +76,8 @@ int32_t orbis_input_set_focus_toggle_enabled(int32_t enabled);
 int32_t orbis_input_set_pointer(int32_t x, int32_t y);
 /* Bounded UART dumps of raw keyboard samples and keyboard transitions (debug mode). */
 void orbis_input_set_diagnostics(int32_t enabled);
+/* Also appends the diagnostics, stamped in ms, to this file (written by the collector). */
+void orbis_input_set_diagnostics_log(const char *path);
 
 #ifdef __cplusplus
 }
