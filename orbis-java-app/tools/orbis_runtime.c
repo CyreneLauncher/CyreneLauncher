@@ -309,7 +309,7 @@ struct dirent *readdir(DIR *dir) {
     for (;;) {
         if (d->buf_pos >= d->buf_end) {
             // libkernel's getdents: -1 on failure, its errno not musl's.
-            int len = getdents(d->fd, d->buf, (int)sizeof(d->buf));
+            int len = getdents(d->fd, (void *)d->buf, (int)sizeof(d->buf));
             if (len <= 0) {
                 if (len < 0) errno = EIO;
                 return NULL;
@@ -330,6 +330,34 @@ struct dirent *readdir(DIR *dir) {
 }
 
 struct dirent *readdir64(DIR *dir) __attribute__((alias("readdir")));
+
+/* The toolchain's time.h has Linux clock ids, and libkernel's clock_gettime hands them to a FreeBSD
+ * kernel: Linux CLOCK_MONOTONIC (1) is FreeBSD's CLOCK_VIRTUAL, the process's user CPU time, which
+ * stands still while a thread waits and ran key repeat, OpenAL's steady_clock and every other
+ * "monotonic" deadline 3-17x slow on the console. Every module built with this runtime gets this
+ * clock_gettime instead; it maps the Linux ids to FreeBSD's and asks libkernel directly:
+ *   realtime (0, 5 coarse)                        -> 0 CLOCK_REALTIME
+ *   monotonic (1, 4 raw, 6 coarse, 7 boottime)    -> 4 CLOCK_MONOTONIC (as HotSpot already uses)
+ *   process/thread CPU time (2, 3)                -> 2 CLOCK_PROF, the process's CPU time
+ * Other ids pass through. Weak, so the graphics platform keeps orbis-compat's own clock_gettime. */
+extern int32_t orbis_kernel_clock_gettime(int32_t clock_id, struct timespec *tp) __asm__("sceKernelClockGettime");
+
+__attribute__((weak)) int clock_gettime(clockid_t id, struct timespec *ts) {
+    int32_t native;
+    switch ((int)id) {
+    case 0: case 5: native = 0; break;
+    case 1: case 4: case 6: case 7: native = 4; break;
+    case 2: case 3: native = 2; break;
+    default: native = (int32_t)id; break;
+    }
+    int32_t result = orbis_kernel_clock_gettime(native, ts);
+    if (result < 0) {
+        /* SCE errors are 0x8002xxxx with the errno in the low bits. */
+        errno = ((uint32_t)result & 0xffff0000u) == 0x80020000u ? (int)(result & 0xffff) : EINVAL;
+        return -1;
+    }
+    return 0;
+}
 
 int orbis_runtime_allocator_probe(size_t block_size, size_t limit,
                                   struct orbis_alloc_result *result) {

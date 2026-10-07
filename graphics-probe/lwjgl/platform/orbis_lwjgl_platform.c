@@ -17,6 +17,10 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+
+/* musl's CLOCK_MONOTONIC (1) is FreeBSD's CLOCK_VIRTUAL (process CPU time) on Orbis; FreeBSD's
+ * monotonic clock is 4 (orbis-java-app/tools/orbis_runtime.h, HotSpot). */
+#define ORBIS_CLOCK_MONOTONIC ((clockid_t)4)
 #include <sys/mman.h>
 #include <errno.h>
 
@@ -236,7 +240,7 @@ int __wrap_pthread_create(pthread_t *thread, const pthread_attr_t *attr,
     int rc = __real_pthread_create(thread, attr, start, arg);
     if (rc == 0) return 0;
     struct timespec now;
-    clock_gettime(CLOCK_MONOTONIC, &now);
+    clock_gettime(ORBIS_CLOCK_MONOTONIC, &now);
     size_t stack = 0;
     if (attr) pthread_attr_getstacksize(attr, &stack);
     size_t flexible = 0;
@@ -907,7 +911,7 @@ static uint64_t ime_term_retry_at;
 
 static uint64_t ime_now(void) {
     struct timespec t;
-    clock_gettime(CLOCK_MONOTONIC, &t);
+    clock_gettime(ORBIS_CLOCK_MONOTONIC, &t);
     return (uint64_t)t.tv_sec * 1000000000u + (uint64_t)t.tv_nsec;
 }
 

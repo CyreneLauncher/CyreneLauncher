@@ -410,7 +410,7 @@ static void run_late_metaspace_probe(void) {
     };
     const int variant_flags = MAP_PRIVATE | MAP_ANON;
     struct timespec started;
-    clock_gettime(CLOCK_MONOTONIC, &started);
+    clock_gettime(ORBIS_CLOCK_MONOTONIC, &started);
     orbis_log_line("INFO", "metaspace-probe",
                    "begin samples=%d interval_seconds=30 size_mib=64 alignment_mib=16",
                    METASPACE_PROBE_SAMPLES);
@@ -421,7 +421,7 @@ static void run_late_metaspace_probe(void) {
         int status = orbis_mapping_probe_hotspot_reservation(
             request_size, alignment, &result);
         struct timespec now;
-        clock_gettime(CLOCK_MONOTONIC, &now);
+        clock_gettime(ORBIS_CLOCK_MONOTONIC, &now);
         int64_t elapsed = (int64_t)(now.tv_sec - started.tv_sec);
         if (now.tv_nsec < started.tv_nsec) --elapsed;
         orbis_log_line("INFO", "metaspace-probe",

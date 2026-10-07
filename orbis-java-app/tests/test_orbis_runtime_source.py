@@ -17,6 +17,11 @@ assert "struct orbis_alloc_result" in header
 assert "sceLibcHeapSize" in runtime
 assert "sceLibcHeapExtendedAlloc" in runtime
 assert "orbis_runtime_exit" in runtime
+# Linux clock ids from the toolchain headers map to FreeBSD's before libkernel sees them.
+assert '__asm__("sceKernelClockGettime")' in runtime
+assert re.search(r"__attribute__\(\(weak\)\) int clock_gettime\(clockid_t id, struct timespec \*ts\)", runtime)
+assert "case 1: case 4: case 6: case 7: native = 4; break;" in runtime
+assert "case 2: case 3: native = 2; break;" in runtime
 # UFS leaves inode-0 entries behind renames; readdir must skip them.
 assert re.search(r"struct dirent \*readdir\(DIR \*dir\)[\s\S]*?if \(de->fileno != 0\)", runtime)
 assert "readdir64(DIR *dir) __attribute__((alias(\"readdir\")))" in runtime

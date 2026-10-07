@@ -4,6 +4,11 @@
 #include <stddef.h>
 #include <stdint.h>
 
+/* The toolchain's musl time.h has Linux clock ids: its CLOCK_MONOTONIC (1) is FreeBSD's
+ * CLOCK_VIRTUAL on Orbis, the process's user CPU time, which runs several times slower than real
+ * time under load. FreeBSD's CLOCK_MONOTONIC is 4 (HotSpot uses it the same way). */
+#define ORBIS_CLOCK_MONOTONIC ((clockid_t)4)
+
 #ifdef __cplusplus
 extern "C" {
 #endif

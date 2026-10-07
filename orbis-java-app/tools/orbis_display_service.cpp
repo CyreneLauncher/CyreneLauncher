@@ -1,5 +1,6 @@
 #define _POSIX_C_SOURCE 200809L
 #include <orbis/libkernel.h>
+#include "orbis_runtime.h"
 #include <orbis/UserService.h>
 #include <orbis/VideoOut.h>
 
@@ -84,7 +85,7 @@ void diagnostic(const char *stage, int32_t result) {
 
 uint64_t monotonic_ns() {
     struct timespec now{};
-    if (clock_gettime(CLOCK_MONOTONIC, &now) != 0) return 0;
+    if (clock_gettime(ORBIS_CLOCK_MONOTONIC, &now) != 0) return 0;
     return static_cast<uint64_t>(now.tv_sec) * 1000000000ULL +
            static_cast<uint64_t>(now.tv_nsec);
 }
