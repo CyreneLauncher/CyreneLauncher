@@ -297,6 +297,13 @@ struct orbis_dirstream {
     char buf[2048];
 };
 
+/* The record as getdents writes it: the toolchain's and the SDK's dirent.h disagree on the inode
+ * field's name (one #defines d_fileno to d_ino), so the layout is spelled out here. */
+struct orbis_dirent_head {
+    uint32_t fileno;
+    uint16_t reclen;
+};
+
 struct dirent *readdir(DIR *dir) {
     struct orbis_dirstream *d = (struct orbis_dirstream *)dir;
     for (;;) {
@@ -310,15 +317,15 @@ struct dirent *readdir(DIR *dir) {
             d->buf_end = len;
             d->buf_pos = 0;
         }
-        struct dirent *de = (struct dirent *)(d->buf + d->buf_pos);
-        if (de->d_reclen == 0) {
+        const struct orbis_dirent_head *de = (const struct orbis_dirent_head *)(d->buf + d->buf_pos);
+        if (de->reclen == 0) {
             // A malformed record would loop forever; end the listing instead.
             d->buf_pos = d->buf_end = 0;
             return NULL;
         }
-        d->buf_pos += de->d_reclen;
-        if (de->d_fileno != 0)
-            return de;
+        d->buf_pos += de->reclen;
+        if (de->fileno != 0)
+            return (struct dirent *)de;
     }
 }
 
