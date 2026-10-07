@@ -1,5 +1,7 @@
+#define _BSD_SOURCE
 #include "orbis_runtime.h"
 
+#include <dirent.h>
 #include <errno.h>
 #include <orbis/libkernel.h>
 #include <signal.h>
@@ -279,6 +281,48 @@ void *__mremap(void *old_address, size_t old_size, size_t new_size, int flags, .
     }
     return old_address;
 }
+
+// UFS keeps a removed or renamed entry that opens a directory block, with
+// inode 0, so getdents still returns its old name. FreeBSD's readdir skips
+// those; musl's (written for Linux, which never returns them) does not, so a
+// renamed mods/x.jar went on being listed beside x.jar.disabled. This mirrors
+// musl's readdir and its __dirstream layout (checked against libc.a's
+// readdir.lo), skipping inode 0.
+struct orbis_dirstream {
+    off_t tell;
+    int fd;
+    int buf_pos;
+    int buf_end;
+    volatile int lock[1];
+    char buf[2048];
+};
+
+struct dirent *readdir(DIR *dir) {
+    struct orbis_dirstream *d = (struct orbis_dirstream *)dir;
+    for (;;) {
+        if (d->buf_pos >= d->buf_end) {
+            // libkernel's getdents: -1 on failure, its errno not musl's.
+            int len = getdents(d->fd, d->buf, (int)sizeof(d->buf));
+            if (len <= 0) {
+                if (len < 0) errno = EIO;
+                return NULL;
+            }
+            d->buf_end = len;
+            d->buf_pos = 0;
+        }
+        struct dirent *de = (struct dirent *)(d->buf + d->buf_pos);
+        if (de->d_reclen == 0) {
+            // A malformed record would loop forever; end the listing instead.
+            d->buf_pos = d->buf_end = 0;
+            return NULL;
+        }
+        d->buf_pos += de->d_reclen;
+        if (de->d_fileno != 0)
+            return de;
+    }
+}
+
+struct dirent *readdir64(DIR *dir) __attribute__((alias("readdir")));
 
 int orbis_runtime_allocator_probe(size_t block_size, size_t limit,
                                   struct orbis_alloc_result *result) {

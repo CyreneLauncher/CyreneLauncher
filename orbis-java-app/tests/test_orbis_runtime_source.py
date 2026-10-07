@@ -17,6 +17,9 @@ assert "struct orbis_alloc_result" in header
 assert "sceLibcHeapSize" in runtime
 assert "sceLibcHeapExtendedAlloc" in runtime
 assert "orbis_runtime_exit" in runtime
+# UFS leaves inode-0 entries behind renames; readdir must skip them.
+assert re.search(r"struct dirent \*readdir\(DIR \*dir\)[\s\S]*?if \(de->d_fileno != 0\)", runtime)
+assert "readdir64(DIR *dir) __attribute__((alias(\"readdir\")))" in runtime
 assert "void *__expand_heap(size_t *size)" in runtime
 assert "ORBIS_HEAP_PAGE_SIZE" in runtime
 assert "ORBIS_HEAP_ARENA_SIZE (1024u * 1024u)" in runtime
