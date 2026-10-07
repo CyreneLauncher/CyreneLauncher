@@ -2,6 +2,7 @@
 #include "orbis_input_service.h"
 #include "orbis_mouse_abi.h"
 #include "orbis_display_service.h"
+#include "orbis_runtime.h"
 
 #include <orbis/Keyboard.h>
 #include <orbis/Sysmodule.h>
@@ -104,7 +105,7 @@ int32_t open_mouse() {
 
 uint64_t now_us() {
     struct timespec ts{};
-    clock_gettime(CLOCK_MONOTONIC, &ts);
+    clock_gettime(ORBIS_CLOCK_MONOTONIC, &ts);
     return static_cast<uint64_t>(ts.tv_sec) * 1000000u +
            static_cast<uint64_t>(ts.tv_nsec / 1000);
 }
@@ -119,8 +120,9 @@ uint32_t diag_dropped;
 uint64_t diag_flushed_at;
 
 void diag_line(const char *line) {
-    sceKernelDebugOutText(0, line);
     pthread_mutex_lock(&diag_lock);
+    /* The kernel log is slow and was written under the input lock; with a file it is skipped. */
+    if (!diag_path[0]) sceKernelDebugOutText(0, line);
     if (diag_path[0]) {
         char stamp[24];
         int head = snprintf(stamp, sizeof(stamp), "%llu ", static_cast<unsigned long long>(now_us() / 1000));
@@ -259,13 +261,26 @@ void transfer_focus_locked(orbis_input_focus next) {
     }
 }
 
+bool keyboard_event(uint32_t type) {
+    return type == ORBIS_INPUT_EVENT_KEY_DOWN || type == ORBIS_INPUT_EVENT_KEY_UP ||
+           type == ORBIS_INPUT_EVENT_TEXT || type == ORBIS_INPUT_EVENT_MODIFIERS;
+}
+
 void enqueue_locked(const orbis_input_event &event) {
-    if (event.type == ORBIS_INPUT_EVENT_MOTION && queue_size != 0 &&
-        queue[queue_size - 1].type == ORBIS_INPUT_EVENT_MOTION &&
-        queue[queue_size - 1].focus == event.focus) {
-        queue[queue_size - 1] = event;
-        pthread_cond_broadcast(&changed);
-        return;
+    /* Motion replaces the newest queued motion of its owner when only keyboard events lie after it:
+     * they do not depend on the pointer, the total movement is kept, and a key held while the mouse
+     * moves (its repeats between the motions) no longer leaves one queued motion per sample. */
+    if (event.type == ORBIS_INPUT_EVENT_MOTION) {
+        for (uint32_t i = queue_size; i-- > 0;) {
+            const orbis_input_event &queued = queue[i];
+            if (queued.focus != event.focus) continue;
+            if (queued.type == ORBIS_INPUT_EVENT_MOTION) {
+                queue[i] = event;
+                pthread_cond_broadcast(&changed);
+                return;
+            }
+            if (!keyboard_event(queued.type)) break;
+        }
     }
     if (queue_size == ORBIS_INPUT_QUEUE_CAPACITY) {
         reset_overflow_locked();
@@ -287,12 +302,16 @@ uint8_t keyboard_last_dump[1 + kExtraKeyboardSlots][kKeyboardReadBytes];
 /* Buffered reads: at most 16 records of 96 bytes per call (the firmware's limit). */
 constexpr int32_t kKeyboardBatch = 16;
 constexpr size_t kKeyboardRecordBytes = 96;
-bool buffered_reads = true;
+/* The keyboard is read through its primary slot every pass; the others are polled for keys. A slot
+ * that reports a key becomes primary (a wired keyboard has reported on slot 1 with slot 0 silent),
+ * so the slot in use gets the buffered, replayed reads. Whether the buffered call works is per slot. */
+bool slot_buffered[1 + kExtraKeyboardSlots] = {true, true, true, true};
+int primary_slot;
 uint64_t last_keyboard_stamp;
-OrbisKeyboardData last_slot0;
-/* Slots 1-3 have never reported a key on the tested setup, yet each read can block the
- * collector for hundreds of ms: poll them every 250 ms, and every pass for 2 s after one
- * reports a key or modifier. Between polls their last state is reused. */
+OrbisKeyboardData last_slot0;   /* the primary slot's latest state */
+/* The slots other than the primary can block the collector for hundreds of ms per read: poll them
+ * every 250 ms, and every pass for 2 s after one reports a key or modifier (a key also makes that
+ * slot the primary). Between polls their last state is reused. */
 constexpr uint64_t kIdleExtraPollUs = 250000;
 constexpr uint64_t kActiveExtraUs = 2000000;
 OrbisKeyboardData cached_extras;
@@ -498,25 +517,38 @@ bool read_extra_mice() {
     return cursor_changed;
 }
 
-/* Reads slots 1-3 once per pass into one union of their keys and modifiers. */
-void read_extra_keyboards(OrbisKeyboardData *extras) {
+int32_t keyboard_slot_handle(int slot) {
+    return slot == 0 ? keyboard_handle : extra_keyboard_handles[slot - 1];
+}
+
+/* Reads every slot but the primary once into one union of their keys and modifiers. Returns the
+ * first slot that reports a key (its state in *reporter), or -1. */
+int read_extra_keyboards(OrbisKeyboardData *extras, OrbisKeyboardData *reporter) {
     memset(extras, 0, sizeof(*extras));
+    int reporting = -1;
     int32_t count = 0;
-    for (int slot = 0; slot < kExtraKeyboardSlots; ++slot) {
-        int32_t handle = extra_keyboard_handles[slot];
+    for (int slot = 0; slot <= kExtraKeyboardSlots; ++slot) {
+        if (slot == primary_slot) continue;
+        int32_t handle = keyboard_slot_handle(slot);
         if (handle < 0) continue;
         alignas(16) uint8_t raw[kKeyboardReadBytes];
         memset(raw, kKeyboardCanary, sizeof(raw));
         int32_t result = sceKeyboardReadState(handle, reinterpret_cast<OrbisKeyboardData *>(raw));
-        log_keyboard_read(slot + 1, raw, result);
+        log_keyboard_read(slot, raw, result);
         if (result < 0) {
-            sceKeyboardClose(handle);
-            extra_keyboard_handles[slot] = -1;
+            /* Slot 0 keeps its retry path; a failing extra slot closes until the next start. */
+            if (slot != 0) {
+                sceKeyboardClose(handle);
+                extra_keyboard_handles[slot - 1] = -1;
+            }
             continue;
         }
         OrbisKeyboardData extra{};
         memcpy(&extra, raw, sizeof(extra));
         if (extra.nkeys < 0 || extra.nkeys > 32) continue;
+        if (reporting < 0)
+            for (int32_t i = 0; i < extra.nkeys; ++i)
+                if (extra.keycodes[i] != 0) { reporting = slot; *reporter = extra; break; }
         extras->mods |= extra.mods;
         extras->locks |= extra.locks;
         for (int32_t i = 0; i < extra.nkeys; ++i) {
@@ -527,6 +559,45 @@ void read_extra_keyboards(OrbisKeyboardData *extras) {
         }
     }
     extras->nkeys = count;
+    return reporting;
+}
+
+/* Makes slot the primary. Its buffered queue may still hold changes from before, which were already
+ * seen through ReadState: they are drained unapplied, and the newest drained state (else the
+ * ReadState one) becomes the primary's state. */
+void promote_keyboard_slot(int slot, const OrbisKeyboardData &state_now) {
+    if (diagnostics_enabled) {
+        char line[128];
+        snprintf(line, sizeof(line), "orbis-java-input: kbd slot %d reports keys; reading it every pass (was slot %d)\n",
+                 slot, primary_slot);
+        diag_line(line);
+    }
+    primary_slot = slot;
+    last_keyboard_stamp = 0;
+    OrbisKeyboardData latest = state_now;
+    int32_t handle = keyboard_slot_handle(slot);
+    if (slot_buffered[slot]) {
+        alignas(16) uint8_t batch[kKeyboardBatch * kKeyboardRecordBytes + kKeyboardReadBytes];
+        for (int round = 0; round < 8; ++round) {
+            memset(batch, kKeyboardCanary, sizeof(batch));
+            int32_t result = orbis_keyboard_read(handle, batch, kKeyboardBatch);
+            if (result < 0 || result > kKeyboardBatch) {
+                slot_buffered[slot] = false;
+                log_buffered_read(batch, result);
+                break;
+            }
+            for (int32_t r = 0; r < result; ++r) {
+                uint64_t stamp;
+                memcpy(&stamp, batch + r * kKeyboardRecordBytes, sizeof(stamp));
+                if (stamp >= last_keyboard_stamp) {
+                    last_keyboard_stamp = stamp;
+                    memcpy(&latest, batch + r * kKeyboardRecordBytes, sizeof(latest));
+                }
+            }
+            if (result < kKeyboardBatch) break;
+        }
+    }
+    if (latest.nkeys >= 0 && latest.nkeys <= 32) last_slot0 = latest;
 }
 
 /* Unions the extra slots into sample; key code 0 means "no key" and is dropped. */
@@ -543,6 +614,48 @@ void merge_extra_keyboards(OrbisKeyboardData *sample, const OrbisKeyboardData &e
         if (!present && count < 32) sample->keycodes[count++] = key;
     }
     sample->nkeys = count;
+}
+
+/* Key translations (sceKeyboardGetKey2Char, an IPC) are fetched before the input lock is taken and
+ * kept here, so the lock - which the application's per-frame read waits for - is never held across
+ * the IPC. Only the collector uses the cache. */
+struct translation {
+    uint16_t key;
+    uint8_t valid;
+    uint8_t ok;
+    uint32_t mods;
+    uint32_t locks;
+    uint32_t scalar;
+};
+constexpr size_t kTranslationSlots = 512;
+translation translations[kTranslationSlots];
+
+translation &translation_slot(uint16_t key, uint32_t mods, uint32_t locks) {
+    size_t hash = (key * 31u + (mods & 0xffu) * 7u + (locks & 7u)) % kTranslationSlots;
+    return translations[hash];
+}
+
+/* The printable character key makes with these modifiers and locks, from the cache or the IPC. */
+bool translate_key(int32_t handle, uint32_t locks, uint32_t mods, uint16_t key, uint32_t *scalar) {
+    translation &slot = translation_slot(key, mods, locks);
+    if (!(slot.valid && slot.key == key && slot.mods == mods && slot.locks == locks)) {
+        OrbisKeyboardKey2Char translated{};
+        bool ok = sceKeyboardGetKey2Char(handle, false, static_cast<int32_t>(locks), static_cast<int32_t>(mods),
+                                         key, &translated) == 0 && translated.ok &&
+                  translated.keycode >= 32 && translated.keycode <= 126;
+        slot = translation{key, 1, static_cast<uint8_t>(ok ? 1 : 0), mods, locks,
+                           ok ? static_cast<uint32_t>(translated.keycode) : 0u};
+    }
+    *scalar = slot.scalar;
+    return slot.ok != 0;
+}
+
+/* Fetches the translations a sample's keys will need, outside the input lock. */
+void prefetch_translations(int32_t handle, const OrbisKeyboardData &sample) {
+    uint32_t scalar;
+    for (int32_t i = 0; i < sample.nkeys && i < 32; ++i)
+        if (sample.keycodes[i] != 0 && sample.keycodes[i] < 256)
+            translate_key(handle, sample.locks, sample.mods, sample.keycodes[i], &scalar);
 }
 
 /* Applies one keyboard state: presses and releases against prior_keys, at service time tick. */
@@ -580,13 +693,9 @@ bool apply_keyboard_sample_locked(const OrbisKeyboardData &sample, int32_t handl
             // The initial edit/commit is represented by KEY_DOWN only.
             if (key == ORBIS_KEYBOARD_KEY_BACKSPACE ||
                 key == ORBIS_KEYBOARD_KEY_RETURN) continue;
-            OrbisKeyboardKey2Char translated{};
-            if (sceKeyboardGetKey2Char(handle, false, sample.locks,
-                    sample.mods, key, &translated) == 0 && translated.ok &&
-                translated.keycode >= 32 && translated.keycode <= 126) {
-                transition_locked(ORBIS_INPUT_EVENT_TEXT, key,
-                                  static_cast<uint32_t>(translated.keycode));
-            }
+            uint32_t scalar;
+            if (translate_key(handle, sample.locks, sample.mods, key, &scalar))
+                transition_locked(ORBIS_INPUT_EVENT_TEXT, key, scalar);
         }
     }
     for (uint32_t i = 0; i < prior_count; ++i) {
@@ -628,17 +737,15 @@ void repeat_held_keys_locked(int32_t handle, uint64_t tick, uint32_t locks, uint
             repeated[key] = true;
             return;
         }
-        OrbisKeyboardKey2Char translated{};
-        if (sceKeyboardGetKey2Char(handle, false, locks, mods, key, &translated) == 0 &&
-            translated.ok && translated.keycode >= 32 && translated.keycode <= 126) {
+        uint32_t scalar;
+        if (translate_key(handle, locks, mods, key, &scalar)) {
             if (diagnostics_enabled && !repeated[key]) {
                 char line[128];
                 snprintf(line, sizeof(line), "orbis-java-input: kbd repeat starts key=%u held %llu ms\n", key,
                          static_cast<unsigned long long>((tick - held_since[key]) / 1000));
                 diag_line(line);
             }
-            transition_locked(ORBIS_INPUT_EVENT_TEXT, key,
-                              static_cast<uint32_t>(translated.keycode));
+            transition_locked(ORBIS_INPUT_EVENT_TEXT, key, scalar);
             repeat_due[key] = tick + 33000;
             repeated[key] = true;
             return;
@@ -708,19 +815,26 @@ void *collect(void *) {
             }
             mhandle = mouse_handle;
         }
-        /* Slot 0 is read through the buffered call, so every change since the last pass is
-         * replayed in order: a tap shorter than a stalled pass is neither lost nor stretched.
-         * ReadState snapshots remain the fallback when the buffered call is refused. */
+        /* The primary slot is read through the buffered call, so every change since the last pass
+         * is replayed in order: a tap shorter than a stalled pass is neither lost nor stretched.
+         * ReadState snapshots remain the fallback where the buffered call is refused. */
         alignas(16) uint8_t batch[kKeyboardBatch * kKeyboardRecordBytes + kKeyboardReadBytes];
         int32_t result = 0;
         int32_t records = 0;
         uint64_t read_tick = 0;
         uint64_t call_us = 0;
+        if (primary_slot != 0 && keyboard_slot_handle(primary_slot) < 0) {
+            primary_slot = 0;
+            last_keyboard_stamp = 0;
+        }
+        const int slot = primary_slot;
+        const int32_t khandle = slot == 0 ? handle : keyboard_slot_handle(slot);
+        bool &buffered_reads = slot_buffered[slot];
         if (handle >= 0) {
             uint64_t before = now_us();
             if (buffered_reads) {
                 memset(batch, kKeyboardCanary, sizeof(batch));
-                result = orbis_keyboard_read(handle, batch, kKeyboardBatch);
+                result = orbis_keyboard_read(khandle, batch, kKeyboardBatch);
                 if (result >= 0 && result <= kKeyboardBatch) {
                     records = result;
                     log_buffered_read(batch, result);
@@ -731,14 +845,32 @@ void *collect(void *) {
             }
             if (!buffered_reads) {
                 memset(batch, kKeyboardCanary, sizeof(batch));
-                result = sceKeyboardReadState(handle, reinterpret_cast<OrbisKeyboardData *>(batch));
+                result = sceKeyboardReadState(khandle, reinterpret_cast<OrbisKeyboardData *>(batch));
                 records = result >= 0 ? 1 : 0;
             }
             read_tick = now_us();
             call_us = read_tick - before;
             note_slow(buffered_reads ? "sceKeyboardRead" : "sceKeyboardReadState", call_us);
         }
-        if (result < 0) {
+        if (result < 0 && slot != 0) {
+            /* The primary extra slot failed (unplugged): close it and fall back to slot 0. */
+            sceKeyboardClose(khandle);
+            extra_keyboard_handles[slot - 1] = -1;
+            primary_slot = 0;
+            last_keyboard_stamp = 0;
+            memset(&last_slot0, 0, sizeof(last_slot0));
+            pthread_mutex_lock(&lock);
+            reset_keyboard_locked();
+            pthread_mutex_unlock(&lock);
+            if (diagnostics_enabled) {
+                char message[128];
+                snprintf(message, sizeof(message), "orbis-java-input: kbd slot %d read error 0x%08x; back to slot 0\n",
+                         slot, static_cast<unsigned int>(result));
+                diag_line(message);
+            }
+            result = 0;
+            records = 0;
+        } else if (result < 0) {
             keyboard_retry_after = now_us() + 1000000;
             sceKeyboardClose(handle);
             keyboard_handle = -1;
@@ -759,8 +891,10 @@ void *collect(void *) {
         bool refresh_cursor = false;
         if (handle >= 0 && result >= 0) {
             uint64_t extras_before = now_us();
+            int promote = -1;
+            OrbisKeyboardData promote_state{};
             if (extras_before >= extras_due) {
-                read_extra_keyboards(&cached_extras);
+                promote = read_extra_keyboards(&cached_extras, &promote_state);
                 note_slow("extra keyboard slots", now_us() - extras_before);
                 if (cached_extras.nkeys > 0 || cached_extras.mods != 0)
                     extras_active_until = extras_before + kActiveExtraUs;
@@ -784,6 +918,18 @@ void *collect(void *) {
                 uint64_t stamp;
                 memcpy(&stamp, batch + r * kKeyboardRecordBytes, sizeof(stamp));
                 if (stamp > newest) newest = stamp;
+            }
+            /* Translations for every state this pass can apply, and for repeats of held keys. */
+            {
+                OrbisKeyboardData candidate = last_slot0;
+                merge_extra_keyboards(&candidate, extras);
+                prefetch_translations(khandle, candidate);
+                for (int32_t r = 0; r < records; ++r) {
+                    memcpy(&candidate, batch + r * kKeyboardRecordBytes, sizeof(candidate));
+                    if (candidate.nkeys < 0 || candidate.nkeys > 32) continue;
+                    merge_extra_keyboards(&candidate, extras);
+                    prefetch_translations(khandle, candidate);
+                }
             }
             pthread_mutex_lock(&lock);
             uint64_t gap = last_read_tick != 0 ? read_tick - last_read_tick : 0;
@@ -837,15 +983,15 @@ void *collect(void *) {
                 /* Place each change at its device time relative to the newest one. */
                 uint64_t behind = newest > stamp ? newest - stamp : 0;
                 if (behind > 1000000u) behind = 1000000u;
-                refresh_cursor |= apply_keyboard_sample_locked(sample, handle, read_tick - behind,
+                refresh_cursor |= apply_keyboard_sample_locked(sample, khandle, read_tick - behind,
                                                                static_cast<uint32_t>(stamp));
                 have_sample = true;
             }
             if (!have_sample) {
-                /* No slot 0 change: the extra slots alone may still have moved. */
+                /* No change on the primary slot: the other slots alone may still have moved. */
                 sample = last_slot0;
                 merge_extra_keyboards(&sample, extras);
-                refresh_cursor |= apply_keyboard_sample_locked(sample, handle, read_tick,
+                refresh_cursor |= apply_keyboard_sample_locked(sample, khandle, read_tick,
                         static_cast<uint32_t>(last_keyboard_stamp));
             }
             /* A pass that blocked or came late cannot vouch that a key is still down: hold
@@ -857,9 +1003,15 @@ void *collect(void *) {
                         repeat_due[key] = read_tick + 100000;
                 }
             } else if (now_us() - read_tick <= kRepeatFreshUs) {
-                repeat_held_keys_locked(handle, read_tick, sample.locks, state.modifiers);
+                repeat_held_keys_locked(khandle, read_tick, sample.locks, state.modifiers);
             }
             pthread_mutex_unlock(&lock);
+            /* After this pass's keys: the union of slots is unchanged by the handover, so it causes
+             * no transitions; from the next pass the new primary is read on its own. */
+            if (promote >= 0) {
+                promote_keyboard_slot(promote, promote_state);
+                extras_due = 0;
+            }
         }
 
         if (refresh_cursor) {
@@ -1057,6 +1209,8 @@ extern "C" void orbis_input_stop(void) {
     memset(swallowed_keys, 0, sizeof(swallowed_keys));
     last_read_tick = 0;
     last_keyboard_stamp = 0;
+    primary_slot = 0;
+    for (bool &buffered : slot_buffered) buffered = true;
     memset(&last_slot0, 0, sizeof(last_slot0));
     memset(&cached_extras, 0, sizeof(cached_extras));
     extras_due = extras_active_until = 0;
@@ -1134,10 +1288,10 @@ extern "C" int32_t orbis_input_read_event(orbis_input_focus requested,
         orbis_input_event *out, uint32_t timeout_ms) {
     if (out == nullptr || (requested != ORBIS_INPUT_FOCUS_CONSOLE && requested != ORBIS_INPUT_FOCUS_DESKTOP)) return -1;
     if (timeout_ms == 0) {
-        /* The per-frame poll: never block the render thread. The collector holds the lock across
-         * sceKeyboardGetKey2Char (an IPC), so a busy lock means "nothing yet" - the events are
-         * there for the next frame - and an empty queue returns without a timed wait. */
-        if (pthread_mutex_trylock(&lock) != 0) return 1;
+        /* The per-frame poll: an empty queue returns without a timed wait. The collector holds the
+         * lock only briefly (no IPC under it), so waiting for it beats ending the frame's reads
+         * early: a busy mouse kept the lock taken often enough that events piled up for seconds. */
+        pthread_mutex_lock(&lock);
         for (uint32_t i = 0; i < queue_size; ++i) if (queue[i].focus == requested) {
             *out = queue[i];
             memmove(&queue[i], &queue[i + 1], (queue_size - i - 1) * sizeof(queue[0]));
