@@ -2,12 +2,15 @@ package orbis.compat;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.util.List;
+import java.util.Objects;
 
 /**
  * Opens the console's system keyboard (orbis.graphics.TextInput, in the graphics adapter) when a
- * Minecraft text field or a sign gets focus while the controller was the last input, and writes what
- * the player accepted back into it; with a keyboard or mouse in use nothing opens. Chat sends what was
- * accepted. Driven once per client tick (ClientTickMixin), on the render thread.
+ * Minecraft text field gets focus, a sign is edited, or a book is opened at a page or signed, while the
+ * controller was the last input, and writes what the player accepted back; with a keyboard or mouse in
+ * use nothing opens. Chat sends what was accepted. Driven once per client tick (ClientTickMixin), on
+ * the render thread.
  *
  * Minecraft is reached by its intermediary names, the same from 1.18.2 to 1.20.4 except where both
  * spellings are listed. Anything missing switches the feature off with one log line.
@@ -18,12 +21,14 @@ public final class TextEntry {
     private static final String CHAT_SCREEN = "net.minecraft.class_408";
     private static final String SIGN_SCREEN_1_20 = "net.minecraft.class_7743"; // AbstractSignEditScreen
     private static final String SIGN_SCREEN_1_18 = "net.minecraft.class_498";  // SignEditScreen
+    private static final String BOOK_SCREEN = "net.minecraft.class_473";      // BookEditScreen
+    private static final int BOOK_TITLE_LENGTH = 15;                          // vanilla: length < 16
     private static final int ENTER = 257;
     private static final int SIGN_ROWS = 4;
 
     private static Class<?> input;      // orbis.graphics.TextInput, absent off the console
     private static boolean disabled;
-    private static Object lastSeen;     // the field or sign screen focused at the previous tick
+    private static Object lastSeen;     // the field, sign screen or book page focused at the previous tick
     private static Object target;       // what the open dialog edits
     private static Object targetScreen;
     private static boolean open, closing;
@@ -69,7 +74,7 @@ public final class TextEntry {
         }
         ClassLoader game = client.getClass().getClassLoader();
         Object found = screen == null ? null : findTarget(screen, game);
-        if (found == lastSeen) return;
+        if (Objects.equals(found, lastSeen)) return;
         lastSeen = found;
         if (found == null || !(Boolean) call(input, "gamepadLast")) return;
         if (begin(found, screen, game)) {
@@ -81,9 +86,34 @@ public final class TextEntry {
         }
     }
 
-    /** The focused, editable text field of the screen, or the screen itself for a sign. */
+    /** A book being written: its screen, and the page shown or its title being signed. */
+    private static final class BookTarget {
+        final Object screen;
+        final boolean signing;
+        final int page;
+
+        BookTarget(Object screen, boolean signing, int page) {
+            this.screen = screen;
+            this.signing = signing;
+            this.page = page;
+        }
+
+        @Override public boolean equals(Object other) {
+            if (!(other instanceof BookTarget)) return false;
+            BookTarget o = (BookTarget) other;
+            return o.screen == screen && o.signing == signing && o.page == page;
+        }
+
+        @Override public int hashCode() {
+            return System.identityHashCode(screen) * 31 + page * 2 + (signing ? 1 : 0);
+        }
+    }
+
+    /** The focused, editable text field of the screen, the screen itself for a sign, or a book page. */
     private static Object findTarget(Object screen, ClassLoader game) throws ReflectiveOperationException {
         if (isA(screen, SIGN_SCREEN_1_20, game) || isA(screen, SIGN_SCREEN_1_18, game)) return screen;
+        if (isA(screen, BOOK_SCREEN, game))
+            return new BookTarget(screen, (Boolean) field(screen, "field_2828"), (Integer) field(screen, "field_2840"));
         Object focused = screen;
         for (int depth = 0; depth < 8 && focused != null; ++depth) {
             if (isA(focused, TEXT_FIELD, game)) {
@@ -100,6 +130,15 @@ public final class TextEntry {
     }
 
     private static boolean begin(Object found, Object screen, ClassLoader game) throws ReflectiveOperationException {
+        if (found instanceof BookTarget) {
+            BookTarget book = (BookTarget) found;
+            if (book.signing)
+                return (Boolean) call(input, "begin", (String) field(screen, "field_2847"), "Book title",
+                                      BOOK_TITLE_LENGTH, false, 0);
+            int pages = (Integer) call(screen, "method_17046");
+            return (Boolean) call(input, "begin", (String) call(screen, "method_2427"),
+                                  "Page " + (book.page + 1) + " of " + Math.max(1, pages), 1024, true, 0);
+        }
         if (found == screen) {
             String[] rows = signRows(screen);
             return (Boolean) call(input, "begin", String.join("\n", rows), "Sign", 4 * 90, true, 0);
@@ -112,6 +151,12 @@ public final class TextEntry {
 
     private static void apply(Object screen, String text) throws ReflectiveOperationException {
         ClassLoader game = screen.getClass().getClassLoader();
+        if (target instanceof BookTarget) {
+            BookTarget book = (BookTarget) target;
+            if (book.signing) writeBookTitle(screen, text);
+            else writeBookPages(screen, book.page, text);
+            return;
+        }
         if (target == screen) {
             writeSign(screen, text);
             return;
@@ -159,6 +204,77 @@ public final class TextEntry {
         }
         current.setInt(screen, 0);
         Object selection = field(screen, "field_40429", "field_3032");
+        if (selection != null) call(selection, "method_16204");
+    }
+
+    private static void writeBookTitle(Object screen, String text) throws ReflectiveOperationException {
+        String title = text.replace("\n", " ").replace("\r", "");
+        if (title.length() > BOOK_TITLE_LENGTH) title = title.substring(0, BOOK_TITLE_LENGTH);
+        Field field = field(screen.getClass(), "field_2847");
+        if (field == null) throw new NoSuchFieldException("book title");
+        field.set(screen, title);
+        Field dirty = field(screen.getClass(), "field_2837");
+        if (dirty != null) dirty.setBoolean(screen, true);
+        call(screen, "method_2413");                      // updateButtons: "Sign and Close" follows the title
+        Object selection = field(screen, "field_24270");
+        if (selection != null) call(selection, "method_16204");
+    }
+
+    /**
+     * The accepted text goes on the page shown; what does not fit (the book's own check: 1024
+     * characters and 14 lines) continues on the following pages, which are added as needed up to the
+     * game's page limit, broken between words where a word fits.
+     */
+    @SuppressWarnings("unchecked")
+    private static void writeBookPages(Object screen, int page, String text) throws ReflectiveOperationException {
+        Method fits = method(screen.getClass(), "method_27593");
+        List<String> pages = (List<String>) field(screen, "field_17116");
+        if (fits == null || pages == null) throw new NoSuchMethodException("book page check");
+        String rest = text.replace("\r", "");
+        int index = page;
+        while (true) {
+            // The longest prefix that fits: a longer prefix never takes fewer lines, so a binary search.
+            int cut = rest.length();
+            if (!(Boolean) fits.invoke(screen, rest)) {
+                int low = 0, high = rest.length();
+                while (low < high) {
+                    int middle = (low + high + 1) >>> 1;
+                    if ((Boolean) fits.invoke(screen, rest.substring(0, middle))) low = middle;
+                    else high = middle - 1;
+                }
+                cut = low;
+            }
+            // Break between words: at the cut if a space or line break is there (it is consumed, so
+            // the next page does not start with it), else after the last one before it.
+            boolean separator = false;
+            if (cut < rest.length()) {
+                char next = rest.charAt(cut);
+                if (next == ' ' || next == '\n') {
+                    separator = true;
+                } else {
+                    int breakAt = Math.max(rest.lastIndexOf(' ', cut - 1), rest.lastIndexOf('\n', cut - 1));
+                    if (breakAt > 0) cut = breakAt + 1;
+                }
+            }
+            String content = rest.substring(0, cut);
+            if (index == page) {
+                call(screen, "method_2439", content);   // setPageContent: the page shown, marked dirty
+            } else {
+                while (pages.size() <= index) {
+                    int before = pages.size();
+                    call(screen, "method_2436");         // appendNewPage, which stops at the page limit
+                    if (pages.size() == before) break;
+                }
+                if (index >= pages.size()) break;
+                pages.set(index, content);
+            }
+            rest = rest.substring(separator ? cut + 1 : cut);
+            if (rest.isEmpty() || cut == 0) break;
+            ++index;
+        }
+        call(screen, "method_27577");                    // invalidatePageContent: re-wrap the page shown
+        call(screen, "method_2413");                     // updateButtons: page arrows follow new pages
+        Object selection = field(screen, "field_24269");
         if (selection != null) call(selection, "method_16204");
     }
 

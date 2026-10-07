@@ -981,11 +981,22 @@ final class OrbisGLFW {
         0x0010 /* up */, 0x0020 /* right */, 0x0040 /* down */, 0x0080 /* left */};
 
     private static int padButtonsBefore;
+    private static boolean padSwallowed;
 
     private static void pollPad() {
         NativePlatform.nPadRead(pad);
         padPolled = true;
         boolean connected = pad[0] != 0;
+        // While the system keyboard is open the player steers it with the pad; the game sees a neutral
+        // pad meanwhile (Controlify moved the focus around the book under the dialog), and afterwards
+        // until every button is up, so the press that accepted the dialog does not land in the game.
+        if (orbis.graphics.TextInput.active()) padSwallowed = true;
+        else if (padSwallowed && (!connected || pad[1] == 0)) padSwallowed = false;
+        if (padSwallowed && connected) {
+            pad[1] = 0;
+            pad[2] = pad[3] = pad[4] = pad[5] = 128;
+            pad[6] = pad[7] = 0;
+        }
         // A press, or a stick pushed past a dead zone, makes the controller the last input
         // (TextInput opens the system keyboard for a focused text field only then).
         if (connected && ((pad[1] & ~padButtonsBefore) != 0 || Math.abs(pad[2] - 128) > 64 || Math.abs(pad[3] - 128) > 64

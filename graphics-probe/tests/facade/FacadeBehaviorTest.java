@@ -241,6 +241,34 @@ public final class FacadeBehaviorTest {
         check(windowState.equals(java.util.List.of("enter true", "iconify false", "focus true"))
             && glfwGetWindowAttrib(window, GLFW_FOCUSED) == GLFW_TRUE && glfwGetWindowAttrib(window, GLFW_HOVERED) == GLFW_TRUE,
             "foreground restores focus and the cursor");
+        // While the system keyboard is open the game sees a neutral pad, and after it closes until the
+        // button that accepted it is released.
+        NativePlatform.imeBeginResult = 0;
+        NativePlatform.imeStatus = orbis.graphics.TextInput.RUNNING;
+        check(orbis.graphics.TextInput.begin("", "Text", 32, false, 0), "dialog opens for the pad check");
+        NativePlatform.padState = new int[]{1, 0x4000 | 0x0010, 255, 0, 128, 128, 0, 255};
+        glfwPollEvents();
+        try (org.lwjgl.glfw.GLFWGamepadState state = org.lwjgl.glfw.GLFWGamepadState.calloc()) {
+            check(glfwGetGamepadState(GLFW_JOYSTICK_1, state) && state.buttons(GLFW_GAMEPAD_BUTTON_A) == GLFW_RELEASE
+                && state.buttons(GLFW_GAMEPAD_BUTTON_DPAD_UP) == GLFW_RELEASE
+                && Math.abs(state.axes(GLFW_GAMEPAD_AXIS_LEFT_X)) < 0.01f, "pad neutral under the system keyboard");
+            NativePlatform.imeStatus = orbis.graphics.TextInput.ACCEPTED;
+            orbis.graphics.TextInput.poll();
+            glfwPollEvents();
+            check(glfwGetGamepadState(GLFW_JOYSTICK_1, state) && state.buttons(GLFW_GAMEPAD_BUTTON_A) == GLFW_RELEASE,
+                "the accepting press stays out of the game until released");
+            NativePlatform.padState = new int[]{1, 0, 128, 128, 128, 128, 0, 0};
+            glfwPollEvents();
+            NativePlatform.padState = new int[]{1, 0x4000, 128, 128, 128, 128, 0, 0};
+            glfwPollEvents();
+            check(glfwGetGamepadState(GLFW_JOYSTICK_1, state) && state.buttons(GLFW_GAMEPAD_BUTTON_A) == GLFW_PRESS,
+                "a fresh press reaches the game again");
+        }
+        NativePlatform.padState = new int[8];
+        glfwPollEvents();
+        NativePlatform.imeBeginResult = -1;
+        NativePlatform.imeStatus = 0;
+
         // The system keyboard the game opened is system UI too, but focus stays with the game meanwhile.
         NativePlatform.imeBeginResult = 0;
         NativePlatform.imeStatus = orbis.graphics.TextInput.RUNNING;
