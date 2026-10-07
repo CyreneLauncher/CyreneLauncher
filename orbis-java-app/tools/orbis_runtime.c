@@ -252,11 +252,32 @@ int __munmap(void *address, size_t size) {
     return result;
 }
 
-// No mremap on Orbis; musl's realloc then allocates, copies and frees.
+// No mremap on Orbis. When this fails, musl's (old) realloc allocates, copies
+// and frees - and copies the OLD size even when shrinking, running past the
+// new block (the Iris crash, 91601fff369; that fix covered one module). So a
+// shrink is done in place, as Linux's mremap does it: musl then only records
+// the new size. A plain mapping gives back its tail now; a direct mapping
+// stays whole, since __munmap releases it by its recorded size. Growing still
+// fails, and musl's copy is correct for that.
 void *__mremap(void *old_address, size_t old_size, size_t new_size, int flags, ...) {
-    (void)old_address; (void)old_size; (void)new_size; (void)flags;
-    errno = ENOMEM;
-    return MAP_FAILED;
+    (void)flags;
+    const size_t old_length = round_heap_pages(old_size);
+    const size_t new_length = round_heap_pages(new_size);
+    if (new_size == 0 || new_length > old_length) {
+        errno = ENOMEM;
+        return MAP_FAILED;
+    }
+    if (new_length < old_length) {
+        int direct = 0;
+        lock_direct_mappings();
+        for (int i = 0; i < ORBIS_DIRECT_MAPPINGS && !direct; ++i)
+            direct = direct_mappings[i].address == old_address;
+        unlock_direct_mappings();
+        // A failed unmap only keeps the tail mapped; the block is still valid.
+        if (!direct)
+            munmap((char *)old_address + new_length, old_length - new_length);
+    }
+    return old_address;
 }
 
 int orbis_runtime_allocator_probe(size_t block_size, size_t limit,
