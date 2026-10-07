@@ -860,6 +860,22 @@ JNIEXPORT jint JNICALL Java_orbis_graphics_NativePlatform_nRelaunchWithIntent(JN
     return (jint)sceSystemServiceLoadExec("/app0/eboot.bin", args);
 }
 
+/* libSceSystemService's status: eventNum (int32), then isSystemUiOverlaid, isInBackgroundExecution,
+ * isCpuMode7CpuNormal, isGameLiveStreamingOnAir, isOutOfVrPlayArea (bools) and reserved bytes. The
+ * buffer is larger than the struct, zeroed, and the leading bytes are copied out for Java to decode. */
+int32_t sceSystemServiceGetStatus(void *status);
+
+JNIEXPORT jint JNICALL Java_orbis_graphics_NativePlatform_nSystemStatus(JNIEnv *env, jclass klass, jbyteArray out) {
+    (void)klass;
+    uint8_t status[256];
+    memset(status, 0, sizeof(status));
+    int32_t rc = sceSystemServiceGetStatus(status);
+    jsize length = (*env)->GetArrayLength(env, out);
+    if (length > (jsize)sizeof(status)) length = (jsize)sizeof(status);
+    (*env)->SetByteArrayRegion(env, out, 0, length, (const jbyte *)status);
+    return (jint)rc;
+}
+
 JNIEXPORT jstring JNICALL Java_orbis_graphics_NativePlatform_nLastError(JNIEnv *env, jclass klass) {
     (void)klass;
     return (*env)->NewStringUTF(env, last_error);

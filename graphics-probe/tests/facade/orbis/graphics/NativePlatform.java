@@ -48,6 +48,10 @@ public final class NativePlatform {
     public static int[] padState = new int[8];
     public static int nPadRead(int[] out) { System.arraycopy(padState, 0, out, 0, 8); return 0; }
 
+    public static byte[] systemStatus = new byte[16];
+    public static int statusCalls;
+    public static int nSystemStatus(byte[] out) { statusCalls++; System.arraycopy(systemStatus, 0, out, 0, Math.min(out.length, systemStatus.length)); return 0; }
+
     public static int relaunches;
     public static int nRelaunch() { relaunches++; return -1; }
     public static int nRelaunchWithIntent(String preparationId) { relaunches++; return -1; }

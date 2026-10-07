@@ -207,6 +207,45 @@ public final class FacadeBehaviorTest {
         check(glfwGetKey(window, GLFW_KEY_BACKSPACE) == GLFW_RELEASE, "state cleared");
         events.clear();
 
+        // The system's UI over the application, or the application in the background, takes focus away;
+        // the background also iconifies. Status is read at most every 100 ms.
+        java.util.List<String> windowState = new java.util.ArrayList<>();
+        glfwSetWindowFocusCallback(window, (handle, focused) -> windowState.add("focus " + focused));
+        glfwSetWindowIconifyCallback(window, (handle, iconified) -> windowState.add("iconify " + iconified));
+        glfwSetCursorEnterCallback(window, (handle, entered) -> windowState.add("enter " + entered));
+        NativeInput.push(NativeInput.EVENT_FOCUS, 0, 1, 0, 0, 0, 0, 0);
+        glfwPollEvents();
+        check(windowState.equals(java.util.List.of("focus true")) && glfwGetWindowAttrib(window, GLFW_FOCUSED) == GLFW_TRUE,
+            "console focus back");
+        windowState.clear();
+        NativePlatform.systemStatus[4] = 1;
+        sleepPastStatusInterval();
+        glfwPollEvents();
+        check(windowState.equals(java.util.List.of("enter false", "focus false")) && glfwGetWindowAttrib(window, GLFW_FOCUSED) == GLFW_FALSE
+            && glfwGetWindowAttrib(window, GLFW_HOVERED) == GLFW_FALSE && glfwGetWindowAttrib(window, GLFW_ICONIFIED) == GLFW_FALSE,
+            "system UI takes focus and the cursor");
+        windowState.clear();
+        NativePlatform.systemStatus[4] = 0;
+        NativePlatform.systemStatus[5] = 1;
+        sleepPastStatusInterval();
+        glfwPollEvents();
+        check(windowState.equals(java.util.List.of("iconify true")) && glfwGetWindowAttrib(window, GLFW_ICONIFIED) == GLFW_TRUE
+            && glfwGetWindowAttrib(window, GLFW_FOCUSED) == GLFW_FALSE, "background iconifies, still unfocused");
+        windowState.clear();
+        int calls = NativePlatform.statusCalls;
+        glfwPollEvents();
+        check(NativePlatform.statusCalls == calls, "status not read again within 100 ms");
+        NativePlatform.systemStatus[5] = 0;
+        sleepPastStatusInterval();
+        glfwPollEvents();
+        check(windowState.equals(java.util.List.of("enter true", "iconify false", "focus true"))
+            && glfwGetWindowAttrib(window, GLFW_FOCUSED) == GLFW_TRUE && glfwGetWindowAttrib(window, GLFW_HOVERED) == GLFW_TRUE,
+            "foreground restores focus and the cursor");
+        glfwSetWindowFocusCallback(window, null);
+        glfwSetWindowIconifyCallback(window, null);
+        glfwSetCursorEnterCallback(window, null);
+        events.clear();
+
         // Errors and unsupported calls are explicit.
         errors.clear();
         check(glfwGetKey(window, 9999) == GLFW_RELEASE && errors.contains(GLFW_INVALID_ENUM), "invalid key reported");
@@ -292,5 +331,9 @@ public final class FacadeBehaviorTest {
 
     private static void check(boolean condition, String message) {
         if (!condition) throw new AssertionError(message);
+    }
+
+    private static void sleepPastStatusInterval() {
+        try { Thread.sleep(120); } catch (InterruptedException e) { throw new AssertionError(e); }
     }
 }

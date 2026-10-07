@@ -52,7 +52,9 @@ with tempfile.TemporaryDirectory() as directory:
                     '--toolchain', str(toolchain), '--jni-headers', str(boot_jdk / 'include'),
                     '--output', str(output)], check=True)
     audit = json.loads((output / 'platform-audit.json').read_text())
-    assert audit['needed'] == ['libSceGnmDriver.so', 'libScePad.so', 'libSceSystemService.so', 'libSceUserService.so', 'libSceVideoOut.so',
+    # The system keyboard (ba214e7fad6) added the dialog and sysmodule libraries.
+    assert audit['needed'] == ['libSceCommonDialog.so', 'libSceGnmDriver.so', 'libSceImeDialog.so', 'libScePad.so',
+                               'libSceSysmodule.so', 'libSceSystemService.so', 'libSceUserService.so', 'libSceVideoOut.so',
                                'libkernel.so'], audit['needed']
     assert len(audit['jni_natives']) == len(declared), audit['jni_natives']
     assert audit['tls']['align'] <= 64 and audit['tls']['size'] > 0, audit['tls']

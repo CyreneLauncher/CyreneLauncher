@@ -49,6 +49,10 @@ public final class NativePlatform {
      *  right y, L2, R2 (raw 0-255). Returns 0, or libScePad's error while the pad cannot be opened. */
     public static native int nPadRead(int[] out);
 
+    /** sceSystemServiceGetStatus into out (leading bytes of the struct: int32 eventNum, then the
+     *  isSystemUiOverlaid and isInBackgroundExecution bytes at 4 and 5). Returns its result, 0 on success. */
+    public static native int nSystemStatus(byte[] out);
+
     /** Restarts the application in a fresh process (LoadExec of /app0/eboot.bin). Returns only on
      *  failure, with libSceSystemService's error. */
     public static native int nRelaunch();

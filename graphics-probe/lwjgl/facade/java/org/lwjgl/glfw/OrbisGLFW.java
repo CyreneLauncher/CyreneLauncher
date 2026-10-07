@@ -246,6 +246,8 @@ final class OrbisGLFW {
         if (monitors != null) { memFree(monitors); monitors = null; }
         clipboard = null;
         glfwDefaultWindowHints();
+        inputFocused = true; systemOverlaid = false; systemBackground = false; statusUnavailable = false; statusDue = 0;
+        java.util.Arrays.fill(lastSystemStatus, (byte) 0);
         initialized = false;
     }
 
@@ -580,9 +582,12 @@ final class OrbisGLFW {
     static int glfwGetWindowAttrib(long handle, int attrib) {
         if (!requireWindow(handle)) return 0;
         switch (attrib) {
-            case GLFW_FOCUSED: case GLFW_VISIBLE: return GLFW_TRUE;
-            case GLFW_ICONIFIED: case GLFW_RESIZABLE: case GLFW_DECORATED: case GLFW_FLOATING:
-            case GLFW_TRANSPARENT_FRAMEBUFFER: case GLFW_MAXIMIZED: case GLFW_HOVERED: return GLFW_FALSE;
+            case GLFW_FOCUSED: return focused() ? GLFW_TRUE : GLFW_FALSE;
+            case GLFW_ICONIFIED: return systemBackground ? GLFW_TRUE : GLFW_FALSE;
+            case GLFW_VISIBLE: return GLFW_TRUE;
+            case GLFW_HOVERED: return systemOwnsScreen() ? GLFW_FALSE : GLFW_TRUE;
+            case GLFW_RESIZABLE: case GLFW_DECORATED: case GLFW_FLOATING:
+            case GLFW_TRANSPARENT_FRAMEBUFFER: case GLFW_MAXIMIZED: return GLFW_FALSE;
             case GLFW_CLIENT_API: return GLFW_OPENGL_API;
             case GLFW_CONTEXT_VERSION_MAJOR: return hintMajor;
             case GLFW_CONTEXT_VERSION_MINOR: return hintMinor;
@@ -1114,9 +1119,64 @@ final class OrbisGLFW {
     }
 
     /** Reads available input; with wait, blocks up to waitNanos for the first event. */
+    // ---------------------------------------------------------------- system focus
+
+    /* The console's input focus (F12 between console and desktop) and the system's own state: its UI
+     * (the PS button's home screen, notifications opened) over the application, or the application in
+     * the background. Either takes focus away, as another window would on a desktop, so Minecraft pauses
+     * and Dynamic FPS slows down; the background also counts as iconified. The cursor leaves the window
+     * with it: Dynamic FPS tells "unfocused" from "hovered" only by GLFW's cursor enter callback. */
+    private static boolean inputFocused = true, systemOverlaid, systemBackground, statusUnavailable;
+    private static long statusDue;
+    private static final long STATUS_INTERVAL_NANOS = 100_000_000L;
+    private static final byte[] systemStatus = new byte[16], lastSystemStatus = new byte[16];
+
+    private static boolean systemOwnsScreen() {
+        return systemOverlaid || systemBackground;
+    }
+
+    private static boolean focused() {
+        return inputFocused && !systemOwnsScreen();
+    }
+
+    private static void pollSystem() {
+        long now = System.nanoTime();
+        if (statusUnavailable || (statusDue != 0 && now - statusDue < 0)) return;
+        statusDue = now + STATUS_INTERVAL_NANOS;
+        int result;
+        try {
+            result = NativePlatform.nSystemStatus(systemStatus);
+        } catch (LinkageError missing) {
+            statusUnavailable = true;
+            System.err.println("orbis-glfw: no system status in the platform library: " + missing);
+            return;
+        }
+        if (result != 0) {
+            statusUnavailable = true;
+            System.err.println("orbis-glfw: sceSystemServiceGetStatus failed: 0x" + Integer.toHexString(result));
+            return;
+        }
+        if (!java.util.Arrays.equals(systemStatus, lastSystemStatus)) {
+            System.arraycopy(systemStatus, 0, lastSystemStatus, 0, systemStatus.length);
+            StringBuilder hex = new StringBuilder();
+            for (byte b : systemStatus) hex.append(String.format("%02x", b & 0xff));
+            System.err.println("orbis-glfw: system status " + hex);
+        }
+        boolean overlaid = systemStatus[4] != 0, background = systemStatus[5] != 0;
+        if (overlaid == systemOverlaid && background == systemBackground) return;
+        boolean wasFocused = focused(), wasIconified = systemBackground, wasOwned = systemOwnsScreen();
+        systemOverlaid = overlaid;
+        systemBackground = background;
+        System.err.println("orbis-glfw: system UI overlaid=" + overlaid + " background=" + background);
+        if (wasOwned != systemOwnsScreen() && cursorEnterCallback != null) cursorEnterCallback.invoke(window, !systemOwnsScreen());
+        if (wasIconified != background && windowIconifyCallback != null) windowIconifyCallback.invoke(window, background);
+        if (wasFocused != focused() && windowFocusCallback != null) windowFocusCallback.invoke(window, focused());
+    }
+
     private static void drain(long waitNanos, boolean wait) {
         if (!dispatching) reconcileSize();
         if (!dispatching && window != NULL) pollPad();
+        if (!dispatching && window != NULL) pollSystem();
         if (dispatching || window == NULL || !inputAvailable) {
             if (wait && waitNanos > 0 && waitNanos != Long.MAX_VALUE) sleep(waitNanos);
             return;
@@ -1182,8 +1242,10 @@ final class OrbisGLFW {
                         rawDown[code] = true;
                         if (key != GLFW_KEY_UNKNOWN) keys[key] = true;
                     }
-                if (type == NativeInput.EVENT_FOCUS && windowFocusCallback != null)
-                    windowFocusCallback.invoke(window, event[NativeInput.FOCUS] == 1);
+                if (type == NativeInput.EVENT_FOCUS) {
+                    inputFocused = event[NativeInput.FOCUS] == 1;
+                    if (windowFocusCallback != null) windowFocusCallback.invoke(window, focused());
+                }
                 break;
             case NativeInput.EVENT_KEY_DOWN:
                 if (raw >= 0 && raw < 256) {
