@@ -267,6 +267,25 @@ final class OrbisGLFW {
 
     // ---------------------------------------------------------------- hints
 
+    /** GLFW_JOYSTICK_HAT_BUTTONS (Controlify turns it off) decides whether the d-pad is also reported as
+     *  four joystick buttons; the macOS hints are accepted and do not apply. */
+    static void glfwInitHint(int hint, int value) {
+        switch (hint) {
+            case GLFW_JOYSTICK_HAT_BUTTONS:
+                if (value != GLFW_TRUE && value != GLFW_FALSE)
+                    error(GLFW_INVALID_VALUE, "Invalid value " + value + " for init hint " + hint);
+                else hatButtons = value == GLFW_TRUE;
+                break;
+            case GLFW_COCOA_CHDIR_RESOURCES:
+            case GLFW_COCOA_MENUBAR:
+                if (value != GLFW_TRUE && value != GLFW_FALSE)
+                    error(GLFW_INVALID_VALUE, "Invalid value " + value + " for init hint " + hint);
+                break;
+            default:
+                error(GLFW_INVALID_ENUM, "Invalid init hint " + hint);
+        }
+    }
+
     static void glfwDefaultWindowHints() {
         hintMajor = 1; hintMinor = 0; hintProfile = GLFW_OPENGL_ANY_PROFILE; hintClientApi = GLFW_OPENGL_API;
         hintDepth = 24; hintStencil = 8; hintForwardCompat = false;
@@ -575,6 +594,20 @@ final class OrbisGLFW {
         }
     }
 
+    /** The settable attributes are accepted as GLFW does; the console's window stays full-screen and
+     *  undecorated, so glfwGetWindowAttrib keeps reporting that (Cubes Without Borders sets DECORATED). */
+    static void glfwSetWindowAttrib(long handle, int attrib, int value) {
+        if (!requireWindow(handle)) return;
+        switch (attrib) {
+            case GLFW_DECORATED: case GLFW_RESIZABLE: case GLFW_FLOATING: case GLFW_AUTO_ICONIFY: case GLFW_FOCUS_ON_SHOW:
+                if (value != GLFW_TRUE && value != GLFW_FALSE)
+                    error(GLFW_INVALID_VALUE, "Invalid value " + value + " for window attribute 0x" + Integer.toHexString(attrib));
+                break;
+            default:
+                error(GLFW_INVALID_ENUM, "Invalid window attribute 0x" + Integer.toHexString(attrib));
+        }
+    }
+
     // ---------------------------------------------------------------- context
 
     static void glfwMakeContextCurrent(long handle) {
@@ -585,6 +618,29 @@ final class OrbisGLFW {
             return;
         }
         current.get()[0] = handle;
+    }
+
+    /** Whether the current context lists the extension (core profile: GL_NUM_EXTENSIONS and glGetStringi). */
+    static boolean glfwExtensionSupported(CharSequence extension) {
+        if (!requireInit()) return false;
+        if (current.get()[0] == NULL) {
+            error(GLFW_NO_CURRENT_CONTEXT, "Cannot query extension without a current OpenGL context");
+            return false;
+        }
+        if (extension == null || extension.length() == 0) {
+            error(GLFW_INVALID_VALUE, "Extension name cannot be an empty string");
+            return false;
+        }
+        try {
+            String name = extension.toString();
+            int count = org.lwjgl.opengl.GL11.glGetInteger(org.lwjgl.opengl.GL30.GL_NUM_EXTENSIONS);
+            for (int i = 0; i < count; i++)
+                if (name.equals(org.lwjgl.opengl.GL30.glGetStringi(org.lwjgl.opengl.GL11.GL_EXTENSIONS, i))) return true;
+            return false;
+        } catch (IllegalStateException noCapabilities) {
+            error(GLFW_PLATFORM_ERROR, "No OpenGL capabilities on this thread: " + noCapabilities.getMessage());
+            return false;
+        }
     }
 
     static long glfwGetCurrentContext() {
@@ -944,6 +1000,50 @@ final class OrbisGLFW {
         return Math.max(-1f, Math.min(1f, (raw - 128) / 127f));
     }
 
+    /** GLFW_JOYSTICK_HAT_BUTTONS, true by default as in GLFW. */
+    private static boolean hatButtons = true;
+    // The raw joystick is the gamepad's state: its first 11 buttons, then the d-pad as four buttons
+    // when hat buttons are on; the same 6 axes; one hat. GLFW keeps these arrays until the next call.
+    private static final int PAD_FACE_BUTTONS = 11;
+    private static final FloatBuffer JOYSTICK_AXES = org.lwjgl.BufferUtils.createFloatBuffer(6);
+    private static final ByteBuffer JOYSTICK_BUTTONS = org.lwjgl.BufferUtils.createByteBuffer(PAD_BUTTONS.length);
+    private static final ByteBuffer JOYSTICK_HATS = org.lwjgl.BufferUtils.createByteBuffer(1);
+
+    private static float[] padAxes() {
+        return new float[]{stick(pad[2]), stick(pad[3]), stick(pad[4]), stick(pad[5]),
+            pad[6] / 127.5f - 1f, pad[7] / 127.5f - 1f};
+    }
+
+    static FloatBuffer glfwGetJoystickAxes(int jid) {
+        if (!padPresent(jid)) return null;
+        float[] axes = padAxes();
+        JOYSTICK_AXES.clear();
+        JOYSTICK_AXES.put(axes).flip();
+        return JOYSTICK_AXES;
+    }
+
+    static ByteBuffer glfwGetJoystickButtons(int jid) {
+        if (!padPresent(jid)) return null;
+        int count = hatButtons ? PAD_BUTTONS.length : PAD_FACE_BUTTONS;
+        JOYSTICK_BUTTONS.clear();
+        for (int i = 0; i < count; i++)
+            JOYSTICK_BUTTONS.put((byte) ((pad[1] & PAD_BUTTONS[i]) != 0 && PAD_BUTTONS[i] != 0 ? GLFW_PRESS : GLFW_RELEASE));
+        JOYSTICK_BUTTONS.flip();
+        return JOYSTICK_BUTTONS;
+    }
+
+    static ByteBuffer glfwGetJoystickHats(int jid) {
+        if (!padPresent(jid)) return null;
+        int hat = 0;
+        if ((pad[1] & 0x0010) != 0) hat |= GLFW_HAT_UP;
+        if ((pad[1] & 0x0020) != 0) hat |= GLFW_HAT_RIGHT;
+        if ((pad[1] & 0x0040) != 0) hat |= GLFW_HAT_DOWN;
+        if ((pad[1] & 0x0080) != 0) hat |= GLFW_HAT_LEFT;
+        JOYSTICK_HATS.clear();
+        JOYSTICK_HATS.put((byte) hat).flip();
+        return JOYSTICK_HATS;
+    }
+
     static boolean glfwJoystickPresent(int jid) {
         return padPresent(jid);
     }
@@ -975,8 +1075,7 @@ final class OrbisGLFW {
         for (int i = 0; i < PAD_BUTTONS.length; i++)
             memPutByte(address + GLFWGamepadState.BUTTONS + i,
                 (byte) ((pad[1] & PAD_BUTTONS[i]) != 0 && PAD_BUTTONS[i] != 0 ? GLFW_PRESS : GLFW_RELEASE));
-        float[] axes = {stick(pad[2]), stick(pad[3]), stick(pad[4]), stick(pad[5]),
-            pad[6] / 127.5f - 1f, pad[7] / 127.5f - 1f};
+        float[] axes = padAxes();
         for (int i = 0; i < axes.length; i++)
             memPutFloat(address + GLFWGamepadState.AXES + 4L * i, axes[i]);
         return true;

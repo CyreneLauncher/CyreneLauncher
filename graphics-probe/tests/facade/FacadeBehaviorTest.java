@@ -32,7 +32,15 @@ public final class FacadeBehaviorTest {
         replaced.free();
         replaced.invoke(0, 0L);
 
+        // Controlify sets this before glfwInit.
+        glfwInitHint(GLFW_JOYSTICK_HAT_BUTTONS, GLFW_FALSE);
+        check(glfwGetError(null) == GLFW_NO_ERROR, "joystick hat init hint accepted");
+        glfwInitHint(0x7ffffffe, GLFW_TRUE);
+        check(glfwGetError(null) == GLFW_INVALID_ENUM, "unknown init hint rejected");
+
         check(glfwInit(), "glfwInit");
+        check(!glfwExtensionSupported("GL_ARB_texture_storage") && glfwGetError(null) == GLFW_NO_CURRENT_CONTEXT,
+            "extension query needs a current context");
         check(NativePlatform.mesaLogFile != null && NativePlatform.mesaLogFile.endsWith("/mesa.log")
                 && NativePlatform.mesaLogFile.startsWith("/"), "Mesa log defaults to an absolute mesa.log");
         check(!NativeInput.started, "input waits for the window (VideoOut before keyboard)");
@@ -226,6 +234,11 @@ public final class FacadeBehaviorTest {
         check(!glfwWindowShouldClose(window), "open");
         glfwSetWindowShouldClose(window, true);
         check(glfwWindowShouldClose(window), "close requested");
+        glfwSetWindowAttrib(window, GLFW_DECORATED, GLFW_TRUE);
+        check(glfwGetError(null) == GLFW_NO_ERROR && glfwGetWindowAttrib(window, GLFW_DECORATED) == GLFW_FALSE,
+            "window attribute accepted; the window stays undecorated");
+        glfwSetWindowAttrib(window, GLFW_FOCUSED, GLFW_TRUE);
+        check(glfwGetError(null) == GLFW_INVALID_ENUM, "read-only window attribute rejected");
         // Gamepad: the DualShock 4 as GLFW_JOYSTICK_1 with the standard mapping.
         int[] events = new int[2];
         glfwSetJoystickCallback((jid, event) -> { events[0] = jid; events[1] = event; });
@@ -245,8 +258,19 @@ public final class FacadeBehaviorTest {
             check(Math.abs(state.axes(GLFW_GAMEPAD_AXIS_LEFT_TRIGGER) + 1f) < 0.01f
                 && Math.abs(state.axes(GLFW_GAMEPAD_AXIS_RIGHT_TRIGGER) - 1f) < 0.01f, "pad triggers: -1 released, +1 pressed");
         }
+        // Raw joystick: hat buttons were turned off by the init hint above, so 11 buttons and one hat.
+        java.nio.ByteBuffer buttons = glfwGetJoystickButtons(GLFW_JOYSTICK_1);
+        check(buttons != null && buttons.remaining() == 11 && buttons.get(0) == GLFW_PRESS && buttons.get(7) == GLFW_PRESS
+            && buttons.get(1) == GLFW_RELEASE, "raw buttons follow the gamepad order, without the d-pad");
+        java.nio.ByteBuffer hats = glfwGetJoystickHats(GLFW_JOYSTICK_1);
+        check(hats != null && hats.remaining() == 1 && hats.get(0) == GLFW_HAT_DOWN, "d-pad down as the hat");
+        java.nio.FloatBuffer axes = glfwGetJoystickAxes(GLFW_JOYSTICK_1);
+        check(axes != null && axes.remaining() == 6 && Math.abs(axes.get(1) + 1f) < 0.01f && Math.abs(axes.get(5) - 1f) < 0.01f,
+            "raw axes match the gamepad axes");
         NativePlatform.padState = new int[8];
         glfwPollEvents();
+        check(glfwGetJoystickButtons(GLFW_JOYSTICK_1) == null && glfwGetJoystickHats(GLFW_JOYSTICK_1) == null,
+            "no raw state without a pad");
         check(events[1] == GLFW_DISCONNECTED && !glfwJoystickPresent(GLFW_JOYSTICK_1), "pad disconnect");
         glfwSetJoystickCallback(null);
 
