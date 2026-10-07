@@ -71,8 +71,13 @@ public final class GeometryProbe {
             List<Test> tests = new ArrayList<>();
             for (Test t : List.of(gsQuads(), gsHeavy(), gsInstanced(), tessQuads(), tessMax(), tessGs()))
                 if (only.isEmpty() || List.of(only.split(",")).contains(t.name())) tests.add(t);
-            for (int run = 0, runs = Integer.getInteger("orbis.probe.runs", 3); run < runs; run++)
+            boolean depth = only.isEmpty() || List.of(only.split(",")).contains("depth");
+            for (int run = 0, runs = Integer.getInteger("orbis.probe.runs", 3); run < runs; run++) {
                 for (Test test : tests) run(test, run);
+                if (depth)
+                    for (int[] size : new int[][]{{512, 512}, {1024, 1024}, {2048, 1024}})
+                        depthTest(size[0], size[1], run);
+            }
 
             say("summary failures=%d %s", failures, failures == 0 ? "result=clean" : "result=WRONG");
             glBindFramebuffer(GL_FRAMEBUFFER, 0);
@@ -280,6 +285,234 @@ public final class GeometryProbe {
         return new Test("tess-gs", 64, 6, new String[]{VS, gs, tcs, tes(64, true)},
                 () -> { glPatchParameteri(GL_PATCH_VERTICES, 1); glDrawArrays(GL_PATCHES, 0, 64 * 64); },
                 (cell, cx, cy, px, py, cp) -> cell ^ 0x55);
+    }
+
+    // ------------------------------------------------------------------ depth (HTILE / HiZ)
+
+    private static final String DEPTH_VS = """
+            #version 430 core
+            uniform int cells;
+            uniform float zEven, zOdd;
+            uniform uint idEven, idOdd;
+            flat out uint id;
+            void main() {
+                int c = gl_InstanceID, cx = c % cells, cy = c / cells;
+                vec2 uv = vec2(float(gl_VertexID & 1), float(gl_VertexID >> 1));
+                vec2 p = (vec2(float(cx), float(cy)) + uv) / float(cells) * 2.0 - 1.0;
+                bool even = ((cx + cy) & 1) == 0;
+                id = even ? idEven : idOdd;
+                gl_Position = vec4(p, even ? zEven : zOdd, 1.0);
+            }
+            """;
+
+    private static final String DEPTH_FS = """
+            #version 430 core
+            flat in uint id;
+            layout(location=0) out uvec4 color;
+            void main() { color = uvec4(id & 255u, id >> 8, 7u, 255u); }
+            """;
+
+    private static int depthProgram;
+
+    /** cells x cells instanced quads; NDC z, so depth = z * 0.5 + 0.5. */
+    private static void quads(int cells, float zEven, float zOdd, int idEven, int idOdd) {
+        glUniform1i(glGetUniformLocation(depthProgram, "cells"), cells);
+        glUniform1f(glGetUniformLocation(depthProgram, "zEven"), zEven);
+        glUniform1f(glGetUniformLocation(depthProgram, "zOdd"), zOdd);
+        glUniform1ui(glGetUniformLocation(depthProgram, "idEven"), idEven);
+        glUniform1ui(glGetUniformLocation(depthProgram, "idOdd"), idOdd);
+        glDrawArraysInstanced(GL_TRIANGLE_STRIP, 0, 4, cells * cells);
+    }
+
+    /**
+     * Depth testing where HTILE decides the picture: a full quad at depth 0.5, a 32x32 checkerboard with even cells
+     * in front (0.3) and odd cells behind (0.7), then a full quad at 0.4 - even cells must show the checkerboard,
+     * odd cells the last quad. Then a depth clear to 0.45 (a fast depth clear through HTILE) and a checkerboard at
+     * 0.3 / 0.5: only even cells may pass. Every pixel against its cell.
+     */
+    private static void depthTest(int w, int h, int run) {
+        String name = String.format(Locale.ROOT, "depth %dx%d run=%d", w, h, run);
+        say("%s start", name);
+        System.out.flush();
+        if (depthProgram == 0) {
+            depthProgram = glCreateProgram();
+            int vs = shader(GL_VERTEX_SHADER, DEPTH_VS), fs = shader(GL_FRAGMENT_SHADER, DEPTH_FS);
+            glAttachShader(depthProgram, vs);
+            glAttachShader(depthProgram, fs);
+            glLinkProgram(depthProgram);
+            glDeleteShader(vs);
+            glDeleteShader(fs);
+            if (glGetProgrami(depthProgram, GL_LINK_STATUS) == GL_FALSE)
+                throw new IllegalStateException(glGetProgramInfoLog(depthProgram));
+        }
+        int previous = glGetInteger(GL_FRAMEBUFFER_BINDING);
+        // A depth TEXTURE, so phases 2 and 3 can sample it - it gets HTILE all the same.
+        int fbo = glGenFramebuffers(), color = glGenTextures(), depth = glGenTextures();
+        glBindTexture(GL_TEXTURE_2D, color);
+        glTexStorage2D(GL_TEXTURE_2D, 1, GL_RGBA8UI, w, h);
+        glBindTexture(GL_TEXTURE_2D, depth);
+        glTexStorage2D(GL_TEXTURE_2D, 1, GL_DEPTH_COMPONENT24, w, h);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, color, 0);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, depth, 0);
+        if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+            throw new IllegalStateException("depth framebuffer incomplete");
+        glViewport(0, 0, w, h);
+        glUseProgram(depthProgram);
+        glEnable(GL_DEPTH_TEST);
+        glDepthFunc(GL_LESS);
+
+        for (int phase = 0; phase < 2; phase++) {
+            glClearBufferuiv(GL_COLOR, 0, new int[]{0, 0, 0, 0});
+            glClearBufferfv(GL_DEPTH, 0, new float[]{phase == 0 ? 1.0f : 0.45f});
+            int expectEven, expectOdd;
+            if (phase == 0) {
+                quads(1, 0.0f, 0.0f, 1, 1);        // depth 0.5 everywhere
+                quads(32, -0.4f, 0.4f, 2, 3);      // even in front (0.3), odd behind (0.7): rejected
+                quads(1, -0.2f, -0.2f, 4, 4);      // 0.4: beats 0.5 (odd cells), loses to 0.3 (even)
+                expectEven = 2; expectOdd = 4;
+            } else {
+                quads(32, -0.4f, 0.0f, 5, 6);      // 0.3 passes the cleared 0.45, 0.5 does not
+                expectEven = 5; expectOdd = -1;
+            }
+            glFinish();
+            ByteBuffer px = MemoryUtil.memAlloc(w * h * 4);
+            glReadPixels(0, 0, w, h, GL_RGBA_INTEGER, GL_UNSIGNED_BYTE, px);
+            int error = glGetError(), wrong = 0;
+            char[] mark = new char[32 * 32];
+            java.util.Arrays.fill(mark, '.');
+            List<String> examples = new ArrayList<>();
+            for (int y = 0; y < h; y++) {
+                for (int x = 0; x < w; x++) {
+                    int cx = x * 32 / w, cy = y * 32 / h;
+                    boolean even = ((cx + cy) & 1) == 0;
+                    int want = even ? expectEven : expectOdd;
+                    int o = (y * w + x) * 4;
+                    int r = px.get(o) & 255, g = px.get(o + 1) & 255, b = px.get(o + 2) & 255, a = px.get(o + 3) & 255;
+                    boolean ok = want < 0 ? (r | g | b | a) == 0 : b == 7 && a == 255 && (r | (g << 8)) == want;
+                    if (ok) continue;
+                    wrong++;
+                    mark[cy * 32 + cx] = a == 0 ? ' ' : 'x';
+                    if (examples.size() < 6)
+                        examples.add(String.format(Locale.ROOT, "(%d,%d) want %d got %d/%d/%d/%d", x, y, want, r, g, b, a));
+                }
+            }
+            MemoryUtil.memFree(px);
+            boolean clean = wrong == 0 && error == GL_NO_ERROR;
+            if (!clean) failures++;
+            say("%s phase=%d %s pixels_wrong=%d of %d gl_error=0x%x %s", name, phase, clean ? "clean" : "WRONG", wrong,
+                    w * h, error, examples.isEmpty() ? "" : String.join("; ", examples));
+            if (!clean && run < 2)
+                for (int cy = 31; cy >= 0; cy--)
+                    say("%s phase=%d map %2d |%s|", name, phase, cy, new String(mark, cy * 32, 32));
+        }
+
+        // Phases 2 and 3: what Fabulous graphics does with depth - read it back. Re-render phase 0's scene (even
+        // cells at depth 0.3, odd at 0.4), then sample the depth texture directly (2), and blit it into a second
+        // depth texture with glBlitFramebuffer and sample that (3). Values are compared at 1/65536.
+        glClearBufferuiv(GL_COLOR, 0, new int[]{0, 0, 0, 0});
+        glClearBufferfv(GL_DEPTH, 0, new float[]{1.0f});
+        quads(1, 0.0f, 0.0f, 1, 1);
+        quads(32, -0.4f, 0.4f, 2, 3);
+        quads(1, -0.2f, -0.2f, 4, 4);
+        glDisable(GL_DEPTH_TEST);
+        int copy = glGenTextures(), copyFbo = glGenFramebuffers();
+        glBindTexture(GL_TEXTURE_2D, copy);
+        glTexStorage2D(GL_TEXTURE_2D, 1, GL_DEPTH_COMPONENT24, w, h);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        glBindFramebuffer(GL_FRAMEBUFFER, copyFbo);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, copy, 0);
+        glDrawBuffer(GL_NONE);
+        glReadBuffer(GL_NONE);
+        for (int phase = 2; phase <= 3; phase++) {
+            int source = depth;
+            if (phase == 3) {
+                glBindFramebuffer(GL_READ_FRAMEBUFFER, fbo);
+                glBindFramebuffer(GL_DRAW_FRAMEBUFFER, copyFbo);
+                glBlitFramebuffer(0, 0, w, h, 0, 0, w, h, GL_DEPTH_BUFFER_BIT, GL_NEAREST);
+                source = copy;
+            }
+            glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+            glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, 0, 0); // not bound while read
+            glUseProgram(sampleProgram());
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_2D, source);
+            glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+            glFinish();
+            ByteBuffer px = MemoryUtil.memAlloc(w * h * 4);
+            glReadPixels(0, 0, w, h, GL_RGBA_INTEGER, GL_UNSIGNED_BYTE, px);
+            int error = glGetError(), wrong = 0;
+            char[] mark = new char[32 * 32];
+            java.util.Arrays.fill(mark, '.');
+            List<String> examples = new ArrayList<>();
+            for (int y = 0; y < h; y++) {
+                for (int x = 0; x < w; x++) {
+                    int cx = x * 32 / w, cy = y * 32 / h;
+                    double want = ((cx + cy) & 1) == 0 ? 0.3 : 0.4;
+                    int o = (y * w + x) * 4;
+                    int v = (px.get(o) & 255) | ((px.get(o + 1) & 255) << 8);
+                    if (Math.abs(v / 65535.0 - want) <= 2.0 / 65535.0 && (px.get(o + 3) & 255) == 255) continue;
+                    wrong++;
+                    mark[cy * 32 + cx] = 'x';
+                    if (examples.size() < 6)
+                        examples.add(String.format(Locale.ROOT, "(%d,%d) want %.4f got %.4f", x, y, want, v / 65535.0));
+                }
+            }
+            MemoryUtil.memFree(px);
+            boolean clean = wrong == 0 && error == GL_NO_ERROR;
+            if (!clean) failures++;
+            say("%s phase=%d (%s) %s pixels_wrong=%d of %d gl_error=0x%x %s", name, phase,
+                    phase == 2 ? "sample depth" : "blit depth, sample copy", clean ? "clean" : "WRONG", wrong, w * h, error,
+                    examples.isEmpty() ? "" : String.join("; ", examples));
+            if (!clean && run < 2)
+                for (int cy = 31; cy >= 0; cy--)
+                    say("%s phase=%d map %2d |%s|", name, phase, cy, new String(mark, cy * 32, 32));
+            glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, depth, 0);
+            glUseProgram(depthProgram);
+        }
+
+        glBindFramebuffer(GL_FRAMEBUFFER, previous);
+        glViewport(0, 0, SIZE, SIZE);
+        glDeleteFramebuffers(new int[]{fbo, copyFbo});
+        glDeleteTextures(new int[]{color, depth, copy});
+    }
+
+    private static int sampleProgram;
+
+    /** A full-screen pass writing the sampled depth, 16 bits of it, into red/green. */
+    private static int sampleProgram() {
+        if (sampleProgram == 0) {
+            String vs = """
+                    #version 430 core
+                    void main() {
+                        vec2 uv = vec2(float(gl_VertexID & 1), float(gl_VertexID >> 1));
+                        gl_Position = vec4(uv * 2.0 - 1.0, 0.0, 1.0);
+                    }
+                    """;
+            String fs = """
+                    #version 430 core
+                    uniform sampler2D depthTex;
+                    layout(location=0) out uvec4 color;
+                    void main() {
+                        float d = texelFetch(depthTex, ivec2(gl_FragCoord.xy), 0).r;
+                        uint v = uint(round(clamp(d, 0.0, 1.0) * 65535.0));
+                        color = uvec4(v & 255u, v >> 8, 9u, 255u);
+                    }
+                    """;
+            sampleProgram = glCreateProgram();
+            int v = shader(GL_VERTEX_SHADER, vs), f = shader(GL_FRAGMENT_SHADER, fs);
+            glAttachShader(sampleProgram, v);
+            glAttachShader(sampleProgram, f);
+            glLinkProgram(sampleProgram);
+            glDeleteShader(v);
+            glDeleteShader(f);
+            if (glGetProgrami(sampleProgram, GL_LINK_STATUS) == GL_FALSE)
+                throw new IllegalStateException(glGetProgramInfoLog(sampleProgram));
+        }
+        return sampleProgram;
     }
 
     // ------------------------------------------------------------------ running and checking
