@@ -962,9 +962,11 @@ static int ime_cancel_locked(void) {
     return ime_finish_locked();
 }
 
-JNIEXPORT jint JNICALL Java_orbis_graphics_NativePlatform_nImeBegin(JNIEnv *env, jclass klass,
-        jstring initial, jstring title, jint max_length) {
-    (void)klass;
+/* Sony's IME option bit for a multi-line field (SCE_IME_OPTION_MULTILINE); the SDK names none. */
+#define ORBIS_IME_OPTION_MULTILINE 0x1u
+
+static jint ime_begin(JNIEnv *env, jstring initial, jstring title, jint max_length, uint32_t option,
+                      OrbisButtonLabel enter_label) {
     pthread_mutex_lock(&platform_lock);
     int32_t rc = -1;
     if (ime_active) { record("IME dialog already active"); goto done; }
@@ -989,7 +991,8 @@ JNIEXPORT jint JNICALL Java_orbis_graphics_NativePlatform_nImeBegin(JNIEnv *env,
     memset(&ime_parameter, 0, sizeof(ime_parameter));
     ime_parameter.userId = (uint32_t)user;
     ime_parameter.type = ORBIS_TYPE_DEFAULT;
-    ime_parameter.enterLabel = ORBIS_BUTTON_LABEL_DEFAULT;
+    ime_parameter.enterLabel = enter_label;
+    ime_parameter.option = option;
     ime_parameter.maxTextLength = (uint32_t)max_length;
     ime_parameter.inputTextBuffer = (wchar_t *)(void *)ime_text;
     ime_parameter.title = (const wchar_t *)(const void *)ime_title;
@@ -999,6 +1002,21 @@ JNIEXPORT jint JNICALL Java_orbis_graphics_NativePlatform_nImeBegin(JNIEnv *env,
 done:
     pthread_mutex_unlock(&platform_lock);
     return rc;
+}
+
+JNIEXPORT jint JNICALL Java_orbis_graphics_NativePlatform_nImeBegin(JNIEnv *env, jclass klass,
+        jstring initial, jstring title, jint max_length) {
+    (void)klass;
+    return ime_begin(env, initial, title, max_length, 0, ORBIS_BUTTON_LABEL_DEFAULT);
+}
+
+/* multiline: Sony's multi-line field; enter_label: 0 default, 1 Send, 2 Search, 3 Go. */
+JNIEXPORT jint JNICALL Java_orbis_graphics_NativePlatform_nImeBeginOptions(JNIEnv *env, jclass klass,
+        jstring initial, jstring title, jint max_length, jboolean multiline, jint enter_label) {
+    (void)klass;
+    if (enter_label < ORBIS_BUTTON_LABEL_DEFAULT || enter_label > ORBIS_BUTTON_LABEL_GO) enter_label = ORBIS_BUTTON_LABEL_DEFAULT;
+    return ime_begin(env, initial, title, max_length, multiline ? ORBIS_IME_OPTION_MULTILINE : 0,
+                     (OrbisButtonLabel)enter_label);
 }
 
 /* 0 idle, 1 running, 2 accepted, 3 cancelled, negative error. */

@@ -3,7 +3,7 @@
   "id": "orbis_compat",
   "version": "1.0.0",
   "name": "Orbis compatibility",
-  "description": "Added by the PS4 launcher: Minecraft reports Orbis as Linux, so mods do not take unsupported operating system paths, and Controlify stays off native libraries the console cannot load.",
+  "description": "Added by the PS4 launcher: Minecraft reports Orbis as Linux, so mods do not take unsupported operating system paths, Controlify stays off native libraries the console cannot load, and text fields and signs open the system keyboard for controller players.",
   "license": "GPL-2.0-only WITH Classpath-exception-2.0",
   "environment": "*",
   "mixins": ["orbis_compat.mixins.json"],

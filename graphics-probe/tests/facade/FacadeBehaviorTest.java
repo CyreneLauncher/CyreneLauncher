@@ -241,6 +241,27 @@ public final class FacadeBehaviorTest {
         check(windowState.equals(java.util.List.of("enter true", "iconify false", "focus true"))
             && glfwGetWindowAttrib(window, GLFW_FOCUSED) == GLFW_TRUE && glfwGetWindowAttrib(window, GLFW_HOVERED) == GLFW_TRUE,
             "foreground restores focus and the cursor");
+        // The system keyboard the game opened is system UI too, but focus stays with the game meanwhile.
+        NativePlatform.imeBeginResult = 0;
+        NativePlatform.imeStatus = orbis.graphics.TextInput.RUNNING;
+        check(orbis.graphics.TextInput.begin("hi", "Chat", 256, false, orbis.graphics.TextInput.LABEL_SEND)
+            && NativePlatform.imeLabel == 1 && !NativePlatform.imeMultiline, "system keyboard opens with the Send label");
+        windowState.clear();
+        NativePlatform.systemStatus[4] = 1;
+        sleepPastStatusInterval();
+        glfwPollEvents();
+        check(windowState.isEmpty() && glfwGetWindowAttrib(window, GLFW_FOCUSED) == GLFW_TRUE, "focus kept under the system keyboard");
+        NativePlatform.imeStatus = orbis.graphics.TextInput.ACCEPTED;
+        check(orbis.graphics.TextInput.poll() == orbis.graphics.TextInput.ACCEPTED && !orbis.graphics.TextInput.active(),
+            "accepted dialog closes");
+        sleepPastStatusInterval();
+        glfwPollEvents();
+        check(windowState.equals(java.util.List.of("enter false", "focus false")), "the quick menu still takes focus afterwards");
+        NativePlatform.systemStatus[4] = 0;
+        sleepPastStatusInterval();
+        glfwPollEvents();
+        NativePlatform.imeBeginResult = -1;
+        NativePlatform.imeStatus = 0;
         glfwSetWindowFocusCallback(window, null);
         glfwSetWindowIconifyCallback(window, null);
         glfwSetCursorEnterCallback(window, null);
@@ -297,6 +318,12 @@ public final class FacadeBehaviorTest {
             check(Math.abs(state.axes(GLFW_GAMEPAD_AXIS_LEFT_TRIGGER) + 1f) < 0.01f
                 && Math.abs(state.axes(GLFW_GAMEPAD_AXIS_RIGHT_TRIGGER) - 1f) < 0.01f, "pad triggers: -1 released, +1 pressed");
         }
+        // The pad's press makes it the last input; a key or click hands it back to keyboard and mouse.
+        check(orbis.graphics.TextInput.gamepadLast(), "pad press noted for the system keyboard");
+        NativeInput.push(NativeInput.EVENT_KEY_DOWN, 4, 0, 0, 0, 0, 0, 0);
+        NativeInput.push(NativeInput.EVENT_KEY_UP, 4, 0, 0, 0, 0, 0, 0);
+        glfwPollEvents();
+        check(!orbis.graphics.TextInput.gamepadLast(), "key press noted as keyboard input");
         // Raw joystick: hat buttons were turned off by the init hint above, so 11 buttons and one hat.
         java.nio.ByteBuffer buttons = glfwGetJoystickButtons(GLFW_JOYSTICK_1);
         check(buttons != null && buttons.remaining() == 11 && buttons.get(0) == GLFW_PRESS && buttons.get(7) == GLFW_PRESS

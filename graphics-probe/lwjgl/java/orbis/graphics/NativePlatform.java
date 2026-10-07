@@ -61,6 +61,8 @@ public final class NativePlatform {
     public static native int nRelaunchWithIntent(String preparationId);
     /** Nonblocking system keyboard. 0 means successful begin; negative means failure. */
     public static native int nImeBegin(String initial, String title, int maxLength);
+    /** As nImeBegin, for a multi-line field and with an Enter label: 0 default, 1 Send, 2 Search, 3 Go. */
+    public static native int nImeBeginOptions(String initial, String title, int maxLength, boolean multiline, int enterLabel);
     /** 0 idle, 1 running, 2 accepted, 3 cancelled; negative means failure. */
     public static native int nImePoll();
     public static native String nImeResult();

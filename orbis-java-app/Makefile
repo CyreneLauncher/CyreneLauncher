@@ -27,7 +27,7 @@ CXX = $(SDK)/bin/orbis-clang++
 LD = $(SDK)/bin/orbis-ld
 FSELF ?= $(TOOLCHAIN)/bin/linux/create-fself
 TITLE ?= Orbis Java JAR Runner
-VERSION ?= 0.50
+VERSION ?= 0.51
 TITLE_ID ?= OJDK00003
 CONTENT_ID ?= IV0000-OJDK00003_00-ORBISJARRUNNER01
 PAID ?= 0x3800000000000011
@@ -35,7 +35,10 @@ PAID ?= 0x3800000000000011
 # "The application supports NEO mode (PS4 pro)" - on a PS4 Pro the title then runs in Neo mode
 # (36 CUs, higher GPU and CPU clocks) instead of Base mode. ATTRIBUTE=0 builds a Base-mode package.
 # 0x00010000 is "CPU mode (7 CPU)": a seventh CPU core for the application.
-ATTRIBUTE ?= 0x00810000
+# 0x00000020 is "Enter Button Assignment for the common dialog: Assigned by the System Software": the
+# system keyboard (sceImeDialog) confirms with the console's own enter button. Without it (or 0x2,
+# Cross) the dialogs used Circle to confirm and Cross to cancel.
+ATTRIBUTE ?= 0x00810020
 # param.sfo ATTRIBUTE2 bits (SfoData.Attribute2Names): 0x00004000 is "Enlarge FMEM 256MB", 256 MiB more
 # flexible memory - every anonymous mapping is charged to it. Asking for more in the executable's own
 # memory parameters instead is refused at load (PRX_INVALID_IMAGE).

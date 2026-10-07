@@ -58,7 +58,13 @@ public final class NativePlatform {
 
     // System keyboard: never opens on the host.
     public static int nImeBegin(String initial, String title, int maxLength) { return -1; }
-    public static int nImePoll() { return 0; }
+    public static int imeBeginResult = -1, imeStatus = 0;
+    public static boolean imeMultiline;
+    public static int imeLabel;
+    public static int nImeBeginOptions(String initial, String title, int maxLength, boolean multiline, int enterLabel) {
+        imeMultiline = multiline; imeLabel = enterLabel; return imeBeginResult;
+    }
+    public static int nImePoll() { return imeStatus; }
     public static String nImeResult() { return ""; }
     public static int nImeCancel() { return 0; }
 }

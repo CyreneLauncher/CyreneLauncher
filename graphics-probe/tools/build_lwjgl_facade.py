@@ -211,7 +211,8 @@ subprocess.run([str(javac), '--release', '17', '-d', str(runner_classes),
 REPLACED = {'org/lwjgl/glfw/GLFW.class', 'org/lwjgl/glfw/GLFW$Functions.class', 'org/lwjgl/glfw/Callbacks.class',
             'org/lwjgl/glfw/GLFWImage.class', 'org/lwjgl/glfw/GLFWImage$Buffer.class',
             'org/lwjgl/glfw/GLFWNativeGLX.class', 'org/lwjgl/glfw/GLFWNativeGLX$Functions.class'}
-own = sorted(FACADE.rglob('*.java')) + [ROOT / 'lwjgl/java/orbis/graphics/NativePlatform.java']
+own = sorted(FACADE.rglob('*.java')) + [ROOT / 'lwjgl/java/orbis/graphics/NativePlatform.java',
+                                      ROOT / 'lwjgl/java/orbis/graphics/TextInput.java']
 # The official GLFW jar supplies the unchanged classes; the generated GLFW source overrides its GLFW.
 classpath = ':'.join(map(str, (core_jar, opengl_jar, glfw_jar, runner_classes)))
 
@@ -273,6 +274,7 @@ platform_built = built.get('org/lwjgl/system/Platform.class')
 if platform_built is None or platform_built.exported_members() != official_platform.exported_members():
     problems.append('Platform shim exported members differ from lwjgl-3.2.2.jar')
 allowed = set(official) | {'org/lwjgl/system/Platform.class', 'orbis/graphics/NativePlatform.class',
+                           'orbis/graphics/TextInput.class',
                            'org/lwjgl/glfw/OrbisGLFW.class', 'org/lwjgl/glfw/OrbisGLFW$EglFunctionProvider.class',
                            'org/lwjgl/glfw/OrbisKeys.class', 'org/lwjgl/glfw/OrbisGLFW$JavaErrorCallback.class',
                            'org/lwjgl/glfw/OrbisGLFW$JavaMonitorCallback.class'}

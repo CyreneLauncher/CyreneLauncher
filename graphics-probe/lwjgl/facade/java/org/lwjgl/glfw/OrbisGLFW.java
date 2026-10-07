@@ -980,10 +980,18 @@ final class OrbisGLFW {
         0 /* PS button: reserved by the system */, 0x0002 /* L3 */, 0x0004 /* R3 */,
         0x0010 /* up */, 0x0020 /* right */, 0x0040 /* down */, 0x0080 /* left */};
 
+    private static int padButtonsBefore;
+
     private static void pollPad() {
         NativePlatform.nPadRead(pad);
         padPolled = true;
         boolean connected = pad[0] != 0;
+        // A press, or a stick pushed past a dead zone, makes the controller the last input
+        // (TextInput opens the system keyboard for a focused text field only then).
+        if (connected && ((pad[1] & ~padButtonsBefore) != 0 || Math.abs(pad[2] - 128) > 64 || Math.abs(pad[3] - 128) > 64
+                || Math.abs(pad[4] - 128) > 64 || Math.abs(pad[5] - 128) > 64))
+            orbis.graphics.TextInput.noteGamepad();
+        padButtonsBefore = connected ? pad[1] : 0;
         if (connected != padConnected) {
             padConnected = connected;
             if (joystickCallback != null)
@@ -1162,7 +1170,8 @@ final class OrbisGLFW {
             for (byte b : systemStatus) hex.append(String.format("%02x", b & 0xff));
             System.err.println("orbis-glfw: system status " + hex);
         }
-        boolean overlaid = systemStatus[4] != 0, background = systemStatus[5] != 0;
+        // The system keyboard is system UI too, but one the game asked for: it keeps focus meanwhile.
+        boolean overlaid = systemStatus[4] != 0 && !orbis.graphics.TextInput.active(), background = systemStatus[5] != 0;
         if (overlaid == systemOverlaid && background == systemBackground) return;
         boolean wasFocused = focused(), wasIconified = systemBackground, wasOwned = systemOwnsScreen();
         systemOverlaid = overlaid;
@@ -1231,6 +1240,8 @@ final class OrbisGLFW {
         boolean keyEvent = type == NativeInput.EVENT_KEY_DOWN || type == NativeInput.EVENT_KEY_UP
                 || type == NativeInput.EVENT_TEXT;
         if (keyEvent && raw < HID_FIRST_KEY) return;
+        if (type == NativeInput.EVENT_KEY_DOWN || type == NativeInput.EVENT_BUTTON_DOWN || type == NativeInput.EVENT_WHEEL)
+            orbis.graphics.TextInput.noteKeyboardOrMouse();
         switch (type) {
             case NativeInput.EVENT_RESET:
             case NativeInput.EVENT_FOCUS:
