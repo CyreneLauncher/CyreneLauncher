@@ -1,0 +1,34 @@
+{
+  "version": "3.15.3",
+  "license": "BSD-3-Clause",
+  "license_file": "legal/twelvemonkeys-LICENSE.txt",
+  "license_url": "https://raw.githubusercontent.com/haraldk/TwelveMonkeys/twelvemonkeys-3.15.3/LICENSE.txt",
+  "license_sha256": "10e1e2688c74b337e0ca9e3a6a02e16319c3ee4cec79b768bca28ab8823ffde2",
+  "purpose": "WebP decoding for Modrinth icons and gallery images; classes merged into orbis-launcher.jar without META-INF/services, so the game ImageIO is unchanged",
+  "jars": {
+    "imageio-webp-3.15.3.jar": {
+      "url": "https://repo1.maven.org/maven2/com/twelvemonkeys/imageio/imageio-webp/3.15.3/imageio-webp-3.15.3.jar",
+      "sha256": "70d8fe5daddcdebfc3f548014bc8bb00dfee10d082c303e77c0fd5b177cf50b2"
+    },
+    "imageio-core-3.15.3.jar": {
+      "url": "https://repo1.maven.org/maven2/com/twelvemonkeys/imageio/imageio-core/3.15.3/imageio-core-3.15.3.jar",
+      "sha256": "14d96b09384c48484b376127a0338f66875e94a67c99a3e94440a724bf1e0f09"
+    },
+    "imageio-metadata-3.15.3.jar": {
+      "url": "https://repo1.maven.org/maven2/com/twelvemonkeys/imageio/imageio-metadata/3.15.3/imageio-metadata-3.15.3.jar",
+      "sha256": "24cdb4d24b3711026a220fc1c20557c82933662967803faada7c021d7caf6ff5"
+    },
+    "common-lang-3.15.3.jar": {
+      "url": "https://repo1.maven.org/maven2/com/twelvemonkeys/common/common-lang/3.15.3/common-lang-3.15.3.jar",
+      "sha256": "24454ab8b23d8aaf54bb3a54e2187fdb5d96561905157852bdf75dddb730f426"
+    },
+    "common-io-3.15.3.jar": {
+      "url": "https://repo1.maven.org/maven2/com/twelvemonkeys/common/common-io/3.15.3/common-io-3.15.3.jar",
+      "sha256": "f5a164b4868ccef6baee5139d99b1b299fcc8f809dec882435b9a8fd61d473d3"
+    },
+    "common-image-3.15.3.jar": {
+      "url": "https://repo1.maven.org/maven2/com/twelvemonkeys/common/common-image/3.15.3/common-image-3.15.3.jar",
+      "sha256": "702f6edcbc91046c8a41c15d3a35e19aa3196536507169654370e3467e48c481"
+    }
+  }
+}

@@ -79,6 +79,70 @@ final class ModInspector {
         return new Installed(jars, ids, versions);
     }
 
+    /** What the Mods page shows about an installed JAR; icon holds the image bytes, or null. */
+    record LocalMod(String id, String name, String version, String description, List<String> authors, byte[] icon) {}
+
+    /** Name, version, description, authors and icon from fabric.mod.json or quilt.mod.json; null when neither is there. */
+    static LocalMod describe(Path jar) {
+        try (java.util.zip.ZipFile zip = new java.util.zip.ZipFile(jar.toFile())) {
+            ZipEntry fabric = zip.getEntry("fabric.mod.json"), quilt = zip.getEntry("quilt.mod.json");
+            if (fabric == null && quilt == null) return null;
+            JsonObject root = JsonParser.parseString(new String(zip.getInputStream(fabric != null ? fabric : quilt)
+                    .readAllBytes(), StandardCharsets.UTF_8)).getAsJsonObject();
+            JsonObject meta = root;
+            String id = text(root, "id"), version = text(root, "version");
+            if (fabric == null && root.has("quilt_loader") && root.get("quilt_loader").isJsonObject()) {
+                JsonObject loader = root.getAsJsonObject("quilt_loader");
+                id = text(loader, "id");
+                version = text(loader, "version");
+                meta = loader.has("metadata") && loader.get("metadata").isJsonObject() ? loader.getAsJsonObject("metadata") : new JsonObject();
+            }
+            List<String> authors = new ArrayList<>();
+            for (String key : new String[]{"authors", "contributors"}) {
+                JsonElement list = meta.get(key);
+                if (list != null && list.isJsonArray())
+                    for (JsonElement a : list.getAsJsonArray()) {
+                        if (a.isJsonPrimitive()) authors.add(a.getAsString());
+                        else if (a.isJsonObject() && a.getAsJsonObject().has("name")) authors.add(text(a.getAsJsonObject(), "name"));
+                    }
+                else if (list != null && list.isJsonObject()) authors.addAll(list.getAsJsonObject().keySet());
+            }
+            byte[] icon = null;
+            String iconPath = iconPath(meta.get("icon"));
+            if (iconPath != null) {
+                ZipEntry entry = zip.getEntry(iconPath.startsWith("/") ? iconPath.substring(1) : iconPath);
+                if (entry != null && entry.getSize() < (4 << 20)) icon = zip.getInputStream(entry).readAllBytes();
+            }
+            String name = text(meta, "name");
+            return new LocalMod(id, name.isEmpty() ? id : name, version, text(meta, "description"), authors, icon);
+        } catch (IOException | RuntimeException unreadable) {
+            return null;
+        }
+    }
+
+    /** The icon path: a string, or the size closest to 128 of a {"16": path, ...} map. */
+    private static String iconPath(JsonElement icon) {
+        if (icon == null || icon.isJsonNull()) return null;
+        if (icon.isJsonPrimitive()) return icon.getAsString();
+        if (!icon.isJsonObject()) return null;
+        String best = null;
+        int bestScore = Integer.MAX_VALUE;
+        for (Map.Entry<String, JsonElement> e : icon.getAsJsonObject().entrySet()) {
+            try {
+                int score = Math.abs(Integer.parseInt(e.getKey()) - 128);
+                if (score < bestScore && e.getValue().isJsonPrimitive()) { best = e.getValue().getAsString(); bestScore = score; }
+            } catch (NumberFormatException notSize) {
+                // ignored
+            }
+        }
+        return best;
+    }
+
+    private static String text(JsonObject o, String key) {
+        JsonElement e = o.get(key);
+        return e != null && e.isJsonPrimitive() ? e.getAsString() : "";
+    }
+
     /** Dependencies of info that neither the given ids nor info itself provide. */
     static Map<String, String> missing(ModInfo info, Set<String> available) {
         Map<String, String> out = new HashMap<>();

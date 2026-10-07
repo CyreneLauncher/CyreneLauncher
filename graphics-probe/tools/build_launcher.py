@@ -15,6 +15,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import lwjgl_sources  # noqa: E402
+import launcher_deps  # noqa: E402
 
 ROOT = lwjgl_sources.ROOT
 SOURCES = ROOT / 'launcher/java'
@@ -36,8 +37,11 @@ if classes.exists():
     shutil.rmtree(classes)
 classes.mkdir(parents=True)
 
+# TwelveMonkeys (WebP for Modrinth images) is merged into the launcher JAR; see launcher/twelvemonkeys.lock.json.
+third_party = launcher_deps.jars()
 classpath = ':'.join(str(lwjgl_sources.java_artifact(arguments.jars, name)) for name in
                      ('lwjgl-3.2.2.jar', 'lwjgl-opengl-3.2.2.jar', 'lwjgl-glfw-3.2.2.jar')) + ':' + arguments.gson
+classpath += ''.join(':' + str(path) for path in third_party)
 qr_lock = json.loads((ROOT / 'launcher/qr-sources.lock.json').read_text())
 for name, pinned in qr_lock['files'].items():
     path = SOURCES / 'orbis/launcher/qr' / name
@@ -73,4 +77,17 @@ with zipfile.ZipFile(jar, 'w', zipfile.ZIP_DEFLATED) as archive:
         archive.write(path, name)
     archive.write(ROOT / 'launcher/legal/nayuki-qr-LICENSE.txt', 'META-INF/licenses/nayuki-qr-LICENSE.txt')
     archive.write(ROOT / 'launcher/qr-sources.lock.json', 'META-INF/qr-sources.lock.json')
-print(f'launcher: {jar.name}, {sum(1 for _ in classes.rglob("*.class"))} classes')
+    # Only their classes: no META-INF/services, so the game's ImageIO does not gain these plugins.
+    merged = 0
+    for path in third_party:
+        with zipfile.ZipFile(path) as source:
+            for entry in source.infolist():
+                if entry.is_dir() or not entry.filename.endswith('.class'):
+                    continue
+                if not entry.filename.startswith('com/twelvemonkeys/'):
+                    raise SystemExit(f'unexpected class in {path.name}: {entry.filename}')
+                archive.writestr(entry.filename, source.read(entry))
+                merged += 1
+    archive.write(ROOT / 'launcher/legal/twelvemonkeys-LICENSE.txt', 'META-INF/licenses/twelvemonkeys-LICENSE.txt')
+    archive.write(ROOT / 'launcher/twelvemonkeys.lock.json', 'META-INF/twelvemonkeys.lock.json')
+print(f'launcher: {jar.name}, {sum(1 for _ in classes.rglob("*.class"))} classes, {merged} TwelveMonkeys classes')

@@ -23,6 +23,11 @@ public final class LauncherLogicTest {
 
     public static void main(String[] args) throws Exception {
         versionPredicates();
+        scroller();
+        packRules();
+        packInstall();
+        markdown();
+        pictures();
         textEntry();
         long seeds = args.length > 0 ? Long.parseLong(args[0]) : 8;
         int steps = args.length > 1 ? Integer.parseInt(args[1]) : 6000;
@@ -48,6 +53,160 @@ public final class LauncherLogicTest {
         for (String[] c : yes) check(VersionPredicate.matches(c[0], c[1]), c[0] + " should match " + c[1]);
         for (String[] c : no) check(!VersionPredicate.matches(c[0], c[1]), c[0] + " should not match " + c[1]);
         check(VersionPredicate.matches("weird", "a.b.c"), "unparseable never blocks");
+    }
+
+    // ------------------------------------------------------------------ modpacks, descriptions, pictures
+
+    private static void packRules() throws IOException {
+        for (String bad : new String[]{"", "/etc/x", "\\x", "C:/x", "a/../b", "./a", "a//b", "a\\b", "..", "mods/", "a\u0000b"})
+            check(PackInstaller.pathProblem(bad) != null, "unsafe pack path accepted: " + bad);
+        for (String good : new String[]{"mods/a.jar", "config/x/y.json", "options.txt", "resourcepacks/a b.zip"})
+            check(PackInstaller.pathProblem(good) == null, "safe pack path refused: " + good);
+        check(PackInstaller.allowed("https://cdn.modrinth.com/data/x.jar"), "Modrinth CDN allowed");
+        check(PackInstaller.allowed("https://github.com/a/b/releases/download/x.jar"), "GitHub allowed");
+        for (String bad : new String[]{"http://cdn.modrinth.com/x", "https://cdn.modrinth.com.evil.org/x",
+                "https://user@cdn.modrinth.com/x", "https://cdn.modrinth.com:8443/x", "ftp://github.com/x", "not a url"})
+            check(!PackInstaller.allowed(bad), "download host accepted: " + bad);
+
+        // A hostile pack: every escape attempt is a blocker, and reading never throws for it.
+        Path archive = Files.createTempFile("hostile", ".mrpack");
+        try (java.util.zip.ZipOutputStream zip = new java.util.zip.ZipOutputStream(Files.newOutputStream(archive))) {
+            zip.putNextEntry(new java.util.zip.ZipEntry("modrinth.index.json"));
+            zip.write(("{\"formatVersion\":1,\"game\":\"minecraft\",\"name\":\"Evil\",\"dependencies\":{"
+                    + "\"minecraft\":\"1.18.2\",\"fabric-loader\":\"0.14.9\"},\"files\":["
+                    + "{\"path\":\"../../x.jar\",\"hashes\":{\"sha1\":\"" + "a".repeat(40) + "\"},\"downloads\":[\"https://cdn.modrinth.com/x\"]},"
+                    + "{\"path\":\"mods/y.jar\",\"hashes\":{\"sha1\":\"" + "a".repeat(40) + "\"},\"downloads\":[\"https://evil.example/y\"]},"
+                    + "{\"path\":\"mods/z.jar\",\"hashes\":{\"sha1\":\"" + "a".repeat(40) + "\"},\"env\":{\"client\":\"unsupported\"},"
+                    + "\"downloads\":[\"https://evil.example/z\"]}]}").getBytes(StandardCharsets.UTF_8));
+            zip.putNextEntry(new java.util.zip.ZipEntry("overrides/../../../outside.txt"));
+            zip.write(1);
+        }
+        PackInstaller.Pack pack = PackInstaller.read(archive);
+        check(!pack.installable(), "hostile pack refused");
+        check(pack.blockers().stream().anyMatch(b -> b.contains("../../x.jar")), "escaping file path named");
+        check(pack.blockers().stream().anyMatch(b -> b.contains("mods/y.jar")), "foreign host named");
+        check(pack.blockers().stream().noneMatch(b -> b.contains("mods/z.jar")), "server-only files are skipped");
+        check(pack.blockers().stream().anyMatch(b -> b.contains("outside.txt")), "escaping override named");
+        Files.delete(archive);
+    }
+
+    /** Smooth: the view eases to its target, stays within the content, and reveal moves it the least needed. */
+    private static void scroller() {
+        Scroller sc = new Scroller();
+        sc.update(1000, 300, 0.016f);
+        sc.wheel(-1, 120);
+        float previous = 0;
+        for (int i = 0; i < 60; i++) {
+            float now = sc.update(1000, 300, 0.016f);
+            check(now >= previous && now <= 120, "eases monotonically towards the target");
+            previous = now;
+        }
+        check(sc.offset() == 120, "arrives");
+        for (int i = 0; i < 40; i++) sc.wheel(-3, 120);
+        for (int i = 0; i < 200; i++) sc.update(1000, 300, 0.016f);
+        check(sc.offset() == 700, "stops at the end, never past it: " + sc.offset());
+        sc.reveal(100, 150, 300);
+        check(sc.target() == 100, "reveal scrolls up just enough");
+        sc.reveal(150, 380, 300);
+        check(sc.target() == 100, "a visible span does not move the view");
+        sc.update(200, 300, 0.016f);
+        check(sc.target() == 0 && sc.offset() >= 0, "content shorter than the view: no scrolling");
+    }
+
+    /** A whole pack into a fresh instance: files checked, overrides copied, native mods disabled, nothing outside. */
+    private static void packInstall() throws IOException {
+        Path root = Files.createTempDirectory("pack-install");
+        Path profile = Files.writeString(root.resolve("profile.json"), "{}");
+        InstanceStore store = new InstanceStore(root.resolve("home"), Files.createDirectories(root.resolve("imported")),
+                profile, root.resolve("home/versions"), 1024, 1536);
+        store.load();
+        java.util.Map<String, byte[]> served = new java.util.HashMap<>();
+        java.io.ByteArrayOutputStream nativeJar = new java.io.ByteArrayOutputStream();
+        try (java.util.zip.ZipOutputStream zip = new java.util.zip.ZipOutputStream(nativeJar)) {
+            zip.putNextEntry(new java.util.zip.ZipEntry("fabric.mod.json"));
+            zip.write("{\"id\":\"nat\",\"name\":\"Native Mod\",\"version\":\"1\"}".getBytes(StandardCharsets.UTF_8));
+            zip.putNextEntry(new java.util.zip.ZipEntry("natives/libthing.so"));
+            zip.write(1);
+        }
+        byte[] plain = "plain".getBytes(StandardCharsets.UTF_8), natives = nativeJar.toByteArray();
+        served.put("https://cdn.modrinth.com/plain", plain);
+        served.put("https://cdn.modrinth.com/native", natives);
+        String index = "{\"formatVersion\":1,\"game\":\"minecraft\",\"name\":\"Good Pack\",\"versionId\":\"2\","
+                + "\"dependencies\":{\"minecraft\":\"1.18.2\",\"fabric-loader\":\"0.14.9\"},\"files\":["
+                + "{\"path\":\"config/plain.txt\",\"hashes\":{\"sha1\":\"" + PackInstaller.hex("SHA-1", plain) + "\"},"
+                + "\"fileSize\":" + plain.length + ",\"downloads\":[\"https://cdn.modrinth.com/missing\",\"https://cdn.modrinth.com/plain\"]},"
+                + "{\"path\":\"mods/native.jar\",\"hashes\":{\"sha1\":\"" + PackInstaller.hex("SHA-1", natives) + "\"},"
+                + "\"downloads\":[\"https://cdn.modrinth.com/native\"]}]}";
+        Path archive = root.resolve("good.mrpack");
+        try (java.util.zip.ZipOutputStream zip = new java.util.zip.ZipOutputStream(Files.newOutputStream(archive))) {
+            zip.putNextEntry(new java.util.zip.ZipEntry("modrinth.index.json"));
+            zip.write(index.getBytes(StandardCharsets.UTF_8));
+            zip.putNextEntry(new java.util.zip.ZipEntry("overrides/config/plain.txt"));
+            zip.write("overridden".getBytes(StandardCharsets.UTF_8));
+            zip.putNextEntry(new java.util.zip.ZipEntry("client-overrides/options.txt"));
+            zip.write("client".getBytes(StandardCharsets.UTF_8));
+        }
+        PackInstaller installer = new PackInstaller((url, max) -> {
+            byte[] data = served.get(url);
+            if (data == null) throw new IOException("HTTP 404");
+            return data;
+        }, (minecraft, loader, loaderVersion, op) -> {
+            check(minecraft.equals("1.18.2") && loader == VersionStore.Loader.FABRIC && loaderVersion.equals("0.14.9"), "pack's versions");
+            return profile;
+        }, store);
+        PackInstaller.Pack pack = PackInstaller.read(archive);
+        check(pack.installable(), "good pack installable: " + pack.blockers());
+        PackInstaller.Installed done = installer.install(pack, pack.name(), new InstanceStore.Operation());
+        Path game = done.instance().gameDir();
+        check(done.instance().name().equals("Good Pack"), "instance named after the pack");
+        check(Files.readString(game.resolve("config/plain.txt")).equals("overridden"), "overrides win over downloads");
+        check(Files.readString(game.resolve("options.txt")).equals("client"), "client overrides copied");
+        check(Files.exists(game.resolve("mods/native.jar.disabled")) && !Files.exists(game.resolve("mods/native.jar")),
+                "native mod disabled");
+        check(done.disabled().equals(List.of("Native Mod")), "disabled mod reported");
+        // The same pack again gets its own name; a failing download removes the half-made instance.
+        check(installer.install(pack, pack.name(), new InstanceStore.Operation()).instance().name().equals("Good Pack (2)"),
+                "second install gets a unique name");
+        served.remove("https://cdn.modrinth.com/native");
+        int before = store.list().size();
+        try {
+            installer.install(pack, pack.name(), new InstanceStore.Operation());
+            throw new AssertionError("install with a missing file succeeded");
+        } catch (IOException expected) {
+            check(store.list().size() == before, "failed install leaves no instance behind");
+        }
+    }
+
+    private static void markdown() {
+        List<Markdown.Block> blocks = Markdown.parse("# Title\n\nSome **bold** [link](https://x) `code`.\n\n"
+                + "- a\n  - b\n1. c\n\n![img](https://cdn.modrinth.com/a.png) ![badge](https://img.shields.io/x.svg)\n\n"
+                + "<p align=\"center\"><img src=\"https://x/y.webp\" width=\"5\"></p>\n```\ncode\n```\n---\n> quote &amp; more");
+        java.util.Map<Markdown.Kind, Integer> kinds = new java.util.EnumMap<>(Markdown.Kind.class);
+        for (Markdown.Block b : blocks) kinds.merge(b.kind(), 1, Integer::sum);
+        check(kinds.getOrDefault(Markdown.Kind.HEADING, 0) == 1, "one heading");
+        check(kinds.getOrDefault(Markdown.Kind.BULLET, 0) == 3, "three list items");
+        check(kinds.getOrDefault(Markdown.Kind.IMAGE, 0) == 2, "two pictures, badge dropped");
+        check(blocks.stream().anyMatch(b -> b.text().equals("Some bold link code.")), "inline markup reduced to text");
+        check(blocks.stream().anyMatch(b -> b.kind() == Markdown.Kind.QUOTE && b.text().equals("quote & more")), "entities");
+        Random random = new Random(3);
+        String alphabet = "#*_-[]()!<>`|> \n\\abc&;=\"/";
+        for (int round = 0; round < 3000; round++) {
+            StringBuilder text = new StringBuilder();
+            for (int i = 0; i < random.nextInt(200); i++) text.append(alphabet.charAt(random.nextInt(alphabet.length())));
+            for (Markdown.Block b : Markdown.parse(text.toString())) check(b.text() != null, "blocks have text");
+        }
+    }
+
+    private static void pictures() throws IOException {
+        java.awt.image.BufferedImage image = ImageCache.decode(png(300, 200, 0xff00ff00), ImageCache.Size.ICON);
+        java.awt.image.BufferedImage fitted = ImageCache.fit(image, ImageCache.Size.ICON);
+        check(fitted.getWidth() <= 128 && fitted.getHeight() <= 128 && fitted.getWidth() > fitted.getHeight(), "fitted, aspect kept");
+        try {
+            ImageCache.decode(new byte[]{'R', 'I', 'F', 'F', 0, 0, 0, 0, 'W', 'E', 'B', 'P', 1, 2, 3}, ImageCache.Size.ICON);
+            throw new AssertionError("broken WebP decoded");
+        } catch (IOException | RuntimeException expected) {
+            // refused, as it should be
+        }
     }
 
     // ------------------------------------------------------------------ text entry
@@ -91,19 +250,168 @@ public final class LauncherLogicTest {
         @Override void end() {}
         @Override void rect(float x, float y, float w, float h, int color) {}
         @Override void text(String text, float x, float y, float scale, int color) {}
+        @Override void image(int texture, float x, float y, float w, float h, int color) {
+            check(texture > 0, "draws only uploaded textures");
+        }
+        @Override void image(int texture, float x, float y, float w, float h, float u0, float v0, float u1, float v1, int color) {
+            check(texture > 0 && u0 >= 0 && v0 >= 0 && u1 <= 1.0001f && v1 <= 1.0001f && u0 <= u1 && v0 <= v1,
+                    "image crop stays inside the texture");
+        }
+        int textures;
+        @Override int upload(int w, int h, java.nio.ByteBuffer rgba) {
+            check(rgba.remaining() == w * h * 4, "upload size matches");
+            return ++textures;
+        }
+        @Override void deleteTexture(int id) {}
+        @Override void clip(float x, float y, float w, float h) {}
+        @Override void unclip() {}
+    }
+
+    /** A small PNG, as a picture from the web would arrive. */
+    static byte[] png(int w, int h, int argb) {
+        try {
+            java.awt.image.BufferedImage image = new java.awt.image.BufferedImage(w, h, java.awt.image.BufferedImage.TYPE_INT_ARGB);
+            for (int y = 0; y < h; y++) for (int x = 0; x < w; x++) image.setRGB(x, y, argb ^ (x * 31 + y));
+            java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+            javax.imageio.ImageIO.write(image, "png", out);
+            return out.toByteArray();
+        } catch (IOException impossible) {
+            throw new AssertionError(impossible);
+        }
+    }
+
+    /**
+     * Generated .mrpack files and the files they list, served by URL. Some packs are hostile or
+     * unsupported (escaping paths, foreign hosts, Forge, too new a Minecraft) and must be refused.
+     */
+    static final class FakePacks {
+        final java.util.Map<String, byte[]> files = new java.util.concurrent.ConcurrentHashMap<>();
+        final Random random;
+        int hostile;
+        FakePacks(Random random) { this.random = random; }
+
+        synchronized ModrinthClient.ModFile pack(String id) throws IOException {
+            java.io.ByteArrayOutputStream bytes = new java.io.ByteArrayOutputStream();
+            int kind = random.nextInt(8);
+            String minecraft = kind == 1 ? "1.21" : random.nextBoolean() ? "1.18.2" : "1.20.4";
+            String loader = kind == 2 ? "forge" : random.nextInt(4) == 0 ? "quilt-loader" : "fabric-loader";
+            com.google.gson.JsonObject index = new com.google.gson.JsonObject();
+            index.addProperty("formatVersion", 1);
+            index.addProperty("game", "minecraft");
+            index.addProperty("versionId", "1." + random.nextInt(9));
+            index.addProperty("name", "Pack " + id + (random.nextInt(4) == 0 ? "\u0007\u00e9" : ""));
+            index.addProperty("summary", "A pack " + "x".repeat(random.nextInt(200)));
+            com.google.gson.JsonObject deps = new com.google.gson.JsonObject();
+            deps.addProperty("minecraft", minecraft);
+            deps.addProperty(loader, "0.14.9");
+            index.add("dependencies", deps);
+            com.google.gson.JsonArray list = new com.google.gson.JsonArray();
+            int n = random.nextInt(6);
+            for (int i = 0; i < n; i++) {
+                byte[] data = ("file " + id + " " + i + " " + random.nextInt()).getBytes(StandardCharsets.UTF_8);
+                String path = i % 2 == 0 ? "mods/m" + i + ".jar" : "config/c" + i + ".txt";
+                String url = "https://cdn.modrinth.com/data/" + id + "/" + i;
+                if (kind == 3 && i == 0) path = "../escape-" + i + ".txt";
+                if (kind == 4 && i == 0) path = "/abs/" + i;
+                if (kind == 5 && i == 0) url = "https://evil.example/" + i;
+                files.put(url, random.nextInt(12) == 0 ? new byte[]{9} : data);
+                com.google.gson.JsonObject f = new com.google.gson.JsonObject();
+                f.addProperty("path", path);
+                com.google.gson.JsonObject hashes = new com.google.gson.JsonObject();
+                hashes.addProperty("sha1", PackInstaller.hex("SHA-1", data));
+                hashes.addProperty("sha512", PackInstaller.hex("SHA-512", data));
+                f.add("hashes", hashes);
+                com.google.gson.JsonArray downloads = new com.google.gson.JsonArray();
+                downloads.add(url);
+                f.add("downloads", downloads);
+                f.addProperty("fileSize", data.length);
+                list.add(f);
+            }
+            index.add("files", list);
+            if (kind >= 1 && kind <= 5) hostile++;
+            try (java.util.zip.ZipOutputStream zip = new java.util.zip.ZipOutputStream(bytes)) {
+                zip.putNextEntry(new java.util.zip.ZipEntry("modrinth.index.json"));
+                zip.write(index.toString().getBytes(StandardCharsets.UTF_8));
+                zip.putNextEntry(new java.util.zip.ZipEntry("overrides/config/pack.txt"));
+                zip.write("override".getBytes(StandardCharsets.UTF_8));
+                zip.putNextEntry(new java.util.zip.ZipEntry("client-overrides/options.txt"));
+                zip.write("client".getBytes(StandardCharsets.UTF_8));
+                if (kind == 6) {
+                    zip.putNextEntry(new java.util.zip.ZipEntry("overrides/../../outside.txt"));
+                    zip.write(1);
+                    hostile++;
+                }
+            }
+            byte[] archive = bytes.toByteArray();
+            String url = "https://cdn.modrinth.com/data/" + id + "/pack.mrpack";
+            files.put(url, archive);
+            return new ModrinthClient.ModFile(url, id + ".mrpack", ModrinthClient.sha1(archive), archive.length);
+        }
+
+        byte[] fetch(String url) throws IOException {
+            byte[] data = files.get(url);
+            if (data == null) throw new IOException("HTTP 404 " + url);
+            return data;
+        }
     }
 
     static final class FakeModrinth extends ModrinthClient {
         final Random random;
-        FakeModrinth(Random random) { super("1.18.2"); this.random = random; }
+        final FakePacks packs;
+        final byte[] picture;
+        FakeModrinth(Random random, FakePacks packs) {
+            super("1.18.2");
+            this.random = random;
+            this.packs = packs;
+            this.picture = png(40, 30, 0xff336699);
+        }
 
-        @Override List<Hit> search(String query) {
+        @Override Results search(String query, Type type, Sort sort, int offset) throws IOException {
+            if (random.nextInt(10) == 0) throw new IOException("network unreachable");
             List<Hit> hits = new ArrayList<>();
-            int n = random.nextInt(5) == 0 ? 0 : random.nextInt(45);
-            for (int i = 0; i < n; i++)
-                hits.add(new Hit("p" + i, "mod-" + i, "Mod " + i + " " + query, "A mod with a description that is "
-                        + "x".repeat(random.nextInt(300)), random.nextInt(1_000_000), "author" + i));
-            return hits;
+            int total = random.nextInt(5) == 0 ? 0 : random.nextInt(70);
+            int n = Math.max(0, Math.min(PAGE, total - offset));
+            for (int i = offset; i < offset + n; i++)
+                hits.add(new Hit((type == Type.MODPACK ? "k" : "p") + i, "mod-" + i, (type == Type.MODPACK ? "Pack " : "Mod ")
+                        + i + " " + query, "A project with a description that is " + "x".repeat(random.nextInt(300)),
+                        random.nextInt(1_000_000), "author" + i, random.nextInt(3) == 0 ? "" : "https://img.test/icon" + i
+                        + ".png", List.of("optimization", "utility", "decoration").subList(0, random.nextInt(4)),
+                        random.nextInt(5000), "", "2024-0" + (1 + random.nextInt(9)) + "-01T00:00:00Z", type));
+            return new Results(hits, offset, total);
+        }
+
+        @Override Project project(String id) throws IOException {
+            if (random.nextInt(10) == 0) throw new IOException("HTTP 500");
+            List<GalleryImage> gallery = new ArrayList<>();
+            for (int i = 0; i < random.nextInt(11); i++)
+                gallery.add(new GalleryImage("https://img.test/g" + i + "_350.png", "https://img.test/g" + i + ".png",
+                        random.nextBoolean() ? "" : "Shot " + i, "About shot " + i, random.nextInt(6) == 0));
+            String body = String.join("\n", "# " + id, "", "Some **bold** and _quiet_ text with a [link](https://x).",
+                    "", "- one", "  - two", "1. first", "", "![shot](https://img.test/body.png)", "",
+                    "<img src=\"https://img.test/html.png\"> <br> <h2>Html</h2>", "```", "code line", "```", "---",
+                    "> quoted " + "y".repeat(random.nextInt(400)), "| a | b |", "|---|---|", "| 1 | 2 |",
+                    "x ".repeat(random.nextInt(800)));
+            return new Project(id, "slug-" + id, id.startsWith("k") ? Type.MODPACK : Type.MOD, "Title " + id, "Summary", body,
+                    "https://img.test/icon.png", gallery, random.nextBoolean() ? "MIT" : "", 1234, 56, List.of("utility"),
+                    List.of("fabric"), List.of("1.18.2"), "2024-01-01T00:00:00Z", "required");
+        }
+
+        @Override List<VersionInfo> projectVersions(String id, Type type, boolean compatible) throws IOException {
+            if (random.nextInt(10) == 0) throw new IOException("timeout");
+            List<VersionInfo> out = new ArrayList<>();
+            for (int i = 0; i < random.nextInt(compatible ? 8 : 20); i++) {
+                ModFile file = type == Type.MODPACK ? packs.pack(id + "v" + i)
+                        : new ModFile("https://cdn.modrinth.com/" + id + "/" + i, id + "-" + i + ".jar", "00", 1);
+                out.add(new VersionInfo("v" + i, id, "Version " + i, "1." + i, i % 3 == 0 ? "release" : i % 3 == 1 ? "beta" : "alpha",
+                        "2024-01-0" + (1 + i % 9) + "T00:00:00Z", i * 100L, List.of("1.18.2", "1.18.1"), List.of("fabric"),
+                        file, List.of()));
+            }
+            return out;
+        }
+
+        @Override byte[] fetchPublic(String url) throws IOException {
+            if (random.nextInt(5) == 0) throw new IOException("HTTP 404");
+            return random.nextInt(8) == 0 ? new byte[]{1, 2, 3} : picture;
         }
     }
 
@@ -112,7 +420,7 @@ public final class LauncherLogicTest {
         final Path mods;
         FakeInstaller(ModrinthClient m, Path mods, Random random) { super(m, mods, null, java.util.Map.of()); this.mods = mods; this.random = random; }
 
-        @Override Plan plan(String projectId, String title) throws IOException {
+        @Override Plan plan(String projectId, String title, ModrinthClient.Version pinned) throws IOException {
             if (random.nextInt(8) == 0) throw new IOException("network unreachable");
             List<Entry> entries = new ArrayList<>();
             int n = random.nextInt(4);
@@ -136,11 +444,19 @@ public final class LauncherLogicTest {
     static final class TestScreen extends LauncherScreen {
         final LauncherConfig config;
         final Random random;
-        int relaunches, consumed, closes, installs, compatLaunches;
-        TestScreen(LauncherConfig c, Renderer r, ModrinthClient m, ModInstaller i, Random random) {
+        final FakePacks packs;
+        int relaunches, consumed, closes, installs, compatLaunches, packFetches;
+        TestScreen(LauncherConfig c, Renderer r, ModrinthClient m, ModInstaller i, Random random, FakePacks packs) {
             super(c, r, m, i);
             config = c;
             this.random = random;
+            this.packs = packs;
+        }
+
+        @Override protected byte[] fetchPackFile(String url, long max) throws IOException {
+            check(url.startsWith("https://cdn.modrinth.com/"), "pack files only from allowed hosts: " + url);
+            packFetches++;
+            return packs.fetch(url);
         }
 
         @Override protected List<VersionStore.GameVersion> fetchCatalog(VersionStore.Loader loader) throws IOException {
@@ -155,7 +471,7 @@ public final class LauncherLogicTest {
         @Override protected VersionStore.Installed installVersion(VersionStore.GameVersion version,
                 VersionStore.Loader loader, InstanceStore.Operation op) throws IOException {
             if (random.nextInt(5) == 0) throw new IOException("download failed");
-            String loaderVersion = loader == VersionStore.Loader.VANILLA ? "" : "0.1";
+            String loaderVersion = loader == VersionStore.Loader.VANILLA ? "" : "0.16.0";
             String id = VersionStore.profileId(version.id(), loader, loaderVersion);
             Path dir = Files.createDirectories(config.versions.versionsRoot().resolve(id));
             Files.copy(config.metadata, dir.resolve("game.json"), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
@@ -228,9 +544,10 @@ public final class LauncherLogicTest {
         // A saved Microsoft account; without a client configuration its refresh fails safely.
         if (seed % 2 == 0) new AccountStore(config.home, config.runnerRoot).putMicrosoft(
                 "0123456789abcdef0123456789abcdef", "Tester", "00000000-0000-0000-0000-000000000000", "refresh");
-        FakeModrinth modrinth = new FakeModrinth(random);
+        FakePacks packs = new FakePacks(random);
+        FakeModrinth modrinth = new FakeModrinth(random, packs);
         TestScreen screen = new TestScreen(config, new HeadlessRenderer(), modrinth,
-                new FakeInstaller(modrinth, game, random), random);
+                new FakeInstaller(modrinth, game, random), random, packs);
 
         // Play directly once: focus the actions, Play is the first.
         String conf = Files.readString(runner.resolve("runner.conf")), options = Files.readString(runner.resolve("jvm-options.txt"));
@@ -254,10 +571,26 @@ public final class LauncherLogicTest {
                         : pick < 8 ? Input.Action.BACK : ACTIONS[random.nextInt(ACTIONS.length)]);
             }
             String typed = random.nextInt(10) == 0 ? "ab c".substring(0, random.nextInt(5)) : "";
-            recent.add(actions + " '" + typed + "'");
+            // The pointer, against the last frame (1280x720): moves, clicks, right clicks and the wheel.
+            List<Input.Mouse> pointer = new ArrayList<>();
+            for (int i = 0, m = random.nextInt(3) == 0 ? random.nextInt(4) : 0; i < m; i++) {
+                float px = random.nextFloat() * 1280, py = random.nextFloat() * 720;
+                int pick = random.nextInt(10);
+                pointer.add(pick < 4 ? new Input.Mouse(Input.MouseKind.MOVE, px, py, -1, 0)
+                        : pick < 8 ? new Input.Mouse(Input.MouseKind.PRESS, px, py, pick == 7 ? 1 : 0, 0)
+                        : new Input.Mouse(Input.MouseKind.WHEEL, px, py, -1, random.nextBoolean() ? 1 : -2));
+            }
+            recent.add(actions + " '" + typed + "' " + pointer);
             if (recent.size() > 12) recent.poll();
             try {
                 screen.apply(typed, actions);
+                // The wheel only scrolls: it selects nothing and changes no page.
+                List<Input.Mouse> wheels = new ArrayList<>(), others = new ArrayList<>();
+                for (Input.Mouse m : pointer) (m.kind() == Input.MouseKind.WHEEL ? wheels : others).add(m);
+                String before = screen.selectionState();
+                screen.applyMouse(wheels);
+                check(before.equals(screen.selectionState()), "the wheel changed the selection: " + before + " -> " + screen.selectionState());
+                screen.applyMouse(others);
                 long deadline = System.nanoTime() + 2_000_000_000L;
                 while (screen.applyResults()) {
                     if (System.nanoTime() > deadline) throw new AssertionError("background work did not finish");
@@ -277,7 +610,20 @@ public final class LauncherLogicTest {
                 + screen.compatLaunches + " loader launches, "
                 + config.instances.list().size() + " instances, " + screen.relaunches + " Play ("
                 + screen.consumed + " consumed), "
-                + screen.closes + " Quit, mods now " + listCount(game));
+                + screen.closes + " Quit, mods now " + listCount(game) + ", " + screen.packFetches + " pack downloads, "
+                + packs.hostile + " hostile packs generated, " + config.instances.list().stream()
+                .filter(i -> i.name().startsWith("Pack ")).count() + " pack instances");
+        // An installed pack holds its overrides, client ones winning.
+        for (InstanceStore.Instance i : config.instances.list()) {
+            if (!i.name().startsWith("Pack ")) continue;
+            check("override".equals(Files.readString(i.gameDir().resolve("config/pack.txt"))), "pack overrides copied");
+            check("client".equals(Files.readString(i.gameDir().resolve("options.txt"))), "client overrides copied");
+        }
+        // Nothing a pack listed ever lands outside the instances.
+        try (var walk = Files.walk(root)) {
+            walk.filter(p -> p.getFileName().toString().startsWith("escape-") || p.getFileName().toString().equals("outside.txt"))
+                    .forEach(p -> { throw new AssertionError("a pack wrote outside its instance: " + p); });
+        }
     }
 
     private static long listCount(Path dir) throws IOException {

@@ -15,13 +15,14 @@ import org.lwjgl.system.MemoryUtil;
 import static org.lwjgl.opengl.GL30C.*;
 
 /**
- * The launcher's drawing: solid rectangles and Minecraft's ascii.png font (read from the game JAR
- * on the class path), batched into one core-profile shader. Coordinates are screen pixels with the
+ * The launcher's drawing: solid rectangles, uploaded images and Minecraft's ascii.png font (read from
+ * the game JAR on the class path), batched into one core-profile shader. Coordinates are screen pixels with the
  * origin at the top left; {@link #s} scales a 1080-line layout to the framebuffer.
  */
 class Renderer {
     static final int BACKGROUND = 0xff16181d, PANEL = 0xff23262e, PANEL_HI = 0xff2e323c, ACCENT = 0xff5aa864,
-            TEXT = 0xffe8e8e8, DIM = 0xff9aa0a6, WARN = 0xffe0b050, ERROR = 0xffd9534f, DARK = 0xff101010;
+            TEXT = 0xffe8e8e8, DIM = 0xff9aa0a6, WARN = 0xffe0b050, ERROR = 0xffd9534f, DARK = 0xff101010,
+            WHITE = 0xffffffff, SHADE = 0xc0101216, CHIP = 0xff3a3f4b, BLUE = 0xff5b8fd6;
 
     int width, height;
     float s = 1f;
@@ -85,6 +86,61 @@ class Renderer {
         quad(x, y, w, h, 0, 0, 1, 1, color);
     }
 
+    /** An uploaded image (see {@link #upload}) stretched over the rectangle; color tints it (white: as is). */
+    void image(int texture, float x, float y, float w, float h, int color) {
+        bind(texture);
+        quad(x, y, w, h, 0, 0, 1, 1, color);
+    }
+
+    /** Part of an uploaded image (texture coordinates u0..u1, v0..v1) over the rectangle. */
+    void image(int texture, float x, float y, float w, float h, float u0, float v0, float u1, float v1, int color) {
+        bind(texture);
+        quad(x, y, w, h, u0, v0, u1, v1, color);
+    }
+
+    /** Uploads RGBA pixels as a linearly filtered texture; returns its id for {@link #image}. */
+    int upload(int w, int h, ByteBuffer rgba) {
+        flush();
+        int id = glGenTextures();
+        glBindTexture(GL_TEXTURE_2D, id);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, rgba);
+        boundTexture = -1;
+        return id;
+    }
+
+    void deleteTexture(int id) {
+        flush();
+        if (boundTexture == id) boundTexture = -1;
+        glDeleteTextures(id);
+    }
+
+    /** Draws only inside the rectangle until {@link #unclip}; clips do not nest. */
+    void clip(float x, float y, float w, float h) {
+        flush();
+        glEnable(GL_SCISSOR_TEST);
+        int left = Math.max(0, (int) Math.floor(x)), top = Math.max(0, (int) Math.floor(y));
+        int right = Math.min(width, (int) Math.ceil(x + w)), bottom = Math.min(height, (int) Math.ceil(y + h));
+        glScissor(left, height - bottom, Math.max(0, right - left), Math.max(0, bottom - top));
+    }
+
+    void unclip() {
+        flush();
+        glDisable(GL_SCISSOR_TEST);
+    }
+
+    /** A rectangle outline of the given thickness. */
+    void frame(float x, float y, float w, float h, float thickness, int color) {
+        rect(x, y, w, thickness, color);
+        rect(x, y + h - thickness, w, thickness, color);
+        rect(x, y, thickness, h, color);
+        rect(x + w - thickness, y, thickness, h, color);
+    }
+
     /** Text with its top-left at (x, y); scale is screen pixels per font pixel. Non-ASCII shows as '?'. */
     void text(String text, float x, float y, float scale, int color) {
         bind(font);
@@ -136,7 +192,17 @@ class Renderer {
     }
 
     private static int glyph(char c) {
-        return c < 256 ? c : '?';
+        if (c < 256) return c;
+        return switch (c) {
+            case '\u2018', '\u2019', '\u201a', '\u2032' -> '\'';
+            case '\u201c', '\u201d', '\u201e', '\u2033' -> '"';
+            case '\u2013', '\u2014', '\u2212', '\u2010', '\u2011' -> '-';
+            case '\u2022', '\u25cf', '\u2219' -> '*';
+            case '\u2026' -> '.';
+            case '\u2192' -> '>';
+            case '\u2190' -> '<';
+            default -> '?';
+        };
     }
 
     private int shader(int type, String source) {

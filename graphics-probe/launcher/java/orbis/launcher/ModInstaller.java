@@ -53,6 +53,11 @@ class ModInstaller {
     }
 
     Plan plan(String projectId, String title) throws IOException {
+        return plan(projectId, title, null);
+    }
+
+    /** pinned: the version to install (chosen on the Versions tab), or null for the newest that fits. */
+    Plan plan(String projectId, String title, ModrinthClient.Version pinned) throws IOException {
         ModInspector.Installed installed = ModInspector.installed(modsDir, builtInVersions);
         // Versions present once the plan is installed: installed mods, then each planned entry.
         Map<String, String> versions = new HashMap<>(installed.versions());
@@ -60,7 +65,7 @@ class ModInstaller {
         List<String> blockers = new ArrayList<>(), warnings = new ArrayList<>();
         Set<String> visited = new HashSet<>();
 
-        Entry main = choose(projectId, title, versions, blockers);
+        Entry main = pinned != null ? pinned(pinned, title, versions, blockers) : choose(projectId, title, versions, blockers);
         visited.add(projectId);
         if (main == null) return new Plan(entries, blockers, warnings);
         Path current = installed.jarById().get(main.info().id());
@@ -197,6 +202,29 @@ class ModInstaller {
         }
         blockers.add("No recent version of " + title + " works with the installed mods: " + firstProblem + ".");
         return null;
+    }
+
+    /** Exactly the chosen version: a blocker instead when it is not a Fabric mod or does not fit. */
+    private Entry pinned(ModrinthClient.Version version, String title, Map<String, String> versions, List<String> blockers)
+            throws IOException {
+        byte[] data = modrinth.download(version.file());
+        ModInspector.ModInfo info;
+        try {
+            info = ModInspector.inspect(data);
+        } catch (IOException | RuntimeException broken) {
+            blockers.add(title + " " + version.versionNumber() + " could not be read as a Fabric mod: " + broken.getMessage() + ".");
+            return null;
+        }
+        if (info.id() == null) {
+            blockers.add(title + " " + version.versionNumber() + " is not a Fabric mod (no fabric.mod.json).");
+            return null;
+        }
+        List<String> conflicts = conflicts(info, versions);
+        if (!conflicts.isEmpty()) {
+            blockers.add(title + " " + version.versionNumber() + " " + String.join(", ", conflicts) + ".");
+            return null;
+        }
+        return new Entry(title, version, info, data, null);
     }
 
     /** glfw_operations from the graphics bundle's manifest; empty when it cannot be read. */

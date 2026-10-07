@@ -12,7 +12,7 @@ import static org.lwjgl.glfw.GLFW.*;
 
 /** Converts physical input into source-aware actions and a separate Unicode character stream. */
 final class Input {
-    enum Source { KEYBOARD, CONTROLLER }
+    enum Source { KEYBOARD, CONTROLLER, MOUSE }
     enum Action {
         UP, DOWN, LEFT, RIGHT, CONFIRM, BACK, ALT, ALT2, MENU, DELETE,
         FORWARD_DELETE, HOME, END, FOCUS, PREV_SECTION, NEXT_SECTION
@@ -21,6 +21,10 @@ final class Input {
         Event(Source source, Action action) { this(source, action, ""); }
         static Event characters(String text) { return new Event(Source.KEYBOARD, null, text); }
     }
+
+    /** Pointer input in framebuffer pixels: MOVE, PRESS and RELEASE (button 0 left, 1 right), WHEEL (amount up). */
+    enum MouseKind { MOVE, PRESS, RELEASE, WHEEL }
+    record Mouse(MouseKind kind, float x, float y, int button, float amount) {}
 
     private static final Action[] PAD = {Action.UP, Action.DOWN, Action.LEFT, Action.RIGHT,
             Action.CONFIRM, Action.BACK, Action.ALT, Action.ALT2, Action.MENU,
@@ -33,6 +37,8 @@ final class Input {
     private final Set<Integer> guardedKeys = new HashSet<>();
     private final EnumSet<Action> guardedPad = EnumSet.noneOf(Action.class);
     private final StringBuilder typed = new StringBuilder();
+    private final List<Mouse> mouse = new ArrayList<>(), pendingMouse = new ArrayList<>();
+    private float pointerX = -1, pointerY = -1;
 
     void install(long window) {
         glfwSetKeyCallback(window, (w, key, scancode, action, mods) -> {
@@ -46,6 +52,19 @@ final class Input {
             Action mapped = keyAction(key);
             if (action == GLFW_REPEAT && !repeatable(mapped)) return;
             if (mapped != null) pending.add(new Event(Source.KEYBOARD, mapped));
+        });
+        glfwSetCursorPosCallback(window, (w, x, y) -> {
+            pointerX = (float) x;
+            pointerY = (float) y;
+            pendingMouse.add(new Mouse(MouseKind.MOVE, pointerX, pointerY, -1, 0));
+        });
+        glfwSetMouseButtonCallback(window, (w, button, action, mods) -> {
+            if (button > 1) return;
+            pendingMouse.add(new Mouse(action == GLFW_PRESS ? MouseKind.PRESS : MouseKind.RELEASE,
+                    pointerX, pointerY, button, 0));
+        });
+        glfwSetScrollCallback(window, (w, dx, dy) -> {
+            if (dy != 0) pendingMouse.add(new Mouse(MouseKind.WHEEL, pointerX, pointerY, -1, (float) dy));
         });
         glfwSetCharCallback(window, (w, codepoint) -> {
             if (Character.isValidCodePoint(codepoint) && (codepoint < 0xd800 || codepoint > 0xdfff)
@@ -74,6 +93,9 @@ final class Input {
         // GLFW callbacks are already ordered. Pad state is sampled after those callbacks.
         events.addAll(pending);
         pending.clear();
+        mouse.clear();
+        mouse.addAll(pendingMouse);
+        pendingMouse.clear();
         boolean[] now = new boolean[PAD.length];
         if (glfwJoystickIsGamepad(GLFW_JOYSTICK_1) && glfwGetGamepadState(GLFW_JOYSTICK_1, pad)) {
             float x = pad.axes(GLFW_GAMEPAD_AXIS_LEFT_X), y = pad.axes(GLFW_GAMEPAD_AXIS_LEFT_Y);
@@ -104,6 +126,11 @@ final class Input {
     }
 
     List<Event> events() { return events; }
+    /** This frame's pointer input, in order. */
+    List<Mouse> mouse() { return mouse; }
+    /** Where the pointer is; negative before it has moved. */
+    float pointerX() { return pointerX; }
+    float pointerY() { return pointerY; }
     /** Compatibility for code that only inspects actions. */
     List<Action> actions() { return events.stream().map(Event::action).filter(a -> a != null).toList(); }
     String takeTyped() {

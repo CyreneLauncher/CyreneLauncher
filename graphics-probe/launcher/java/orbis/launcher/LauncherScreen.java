@@ -3,13 +3,16 @@ package orbis.launcher;
 import java.io.IOException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Queue;
 import java.util.concurrent.CancellationException;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -24,12 +27,16 @@ import static org.lwjgl.glfw.GLFW.*;
 
 /**
  * The launcher's screen: the instance with Play, Mods, Settings and Quit; the installed mods; a
- * Modrinth browser whose installs are checked for the console first (ModInstaller); and the
- * accounts with Microsoft sign-in by QR code. Network and file work runs on a background thread;
- * its results are applied on this, the GL thread.
+ * Modrinth browser for mods and modpacks with each project's description, gallery and versions,
+ * whose installs are checked for the console first (ModInstaller, PackInstaller); and the accounts
+ * with Microsoft sign-in by QR code. Controller, keyboard and mouse all work: the mouse through
+ * regions each frame records (Clicks). Network and file work runs on background threads; its
+ * results are applied on this, the GL thread.
  */
 class LauncherScreen {
-    private enum Page { INSTANCES, MODS, ACCOUNTS, SETTINGS, BROWSE, DETAIL, VERSIONS }
+    private enum Page { INSTANCES, MODS, ACCOUNTS, SETTINGS, BROWSE, PROJECT, VERSIONS }
+    private enum Tab { DESCRIPTION, GALLERY, VERSIONS }
+    private enum Zone { ACTIONS, TABS, CONTENT }
     private enum Focus { LIST, DETAIL }
     private enum Field { SEARCH, INSTANCE_NAME, OFFLINE_NAME }
     private enum NameMode { CREATE, CLONE, RENAME }
@@ -43,6 +50,15 @@ class LauncherScreen {
         t.setDaemon(true);
         return t;
     });
+    /** Reads installed mods' metadata without holding up the main worker. */
+    private final ExecutorService infoWorker = Executors.newSingleThreadExecutor(task -> {
+        Thread t = new Thread(task, "launcher mod info");
+        t.setDaemon(true);
+        t.setPriority(Thread.MIN_PRIORITY);
+        return t;
+    });
+    private final Clicks clicks = new Clicks();
+    private final ImageCache images;
     private final Queue<Runnable> results = new ConcurrentLinkedQueue<>();
     private ModrinthClient modrinth;
     private final ModrinthClient suppliedModrinth;
@@ -53,8 +69,15 @@ class LauncherScreen {
     private Page page = Page.INSTANCES;
     private Focus focus = Focus.LIST;
     private final int[] selections = new int[Page.values().length];
-    private final int[] scrolls = new int[Page.values().length];
-    private int selected, scroll;
+    private int selected;
+    /** Each page's main list view, the project page's three views, and whether views follow the selection this frame. */
+    private final Scroller[] scrollers = new Scroller[Page.values().length];
+    private final Scroller descriptionScroll = new Scroller(), galleryScroll = new Scroller(), versionScroll = new Scroller();
+    private boolean reveal = true;
+    private long lastFrame;
+    private float frameSeconds = 1f / 60;
+    /** While rows of a scrolled list are drawn: the view their click regions are cut to. */
+    private float[] hitClip;
     private String status = "";
     private int statusColor = DIM;
     private boolean dirty, busy;
@@ -86,9 +109,28 @@ class LauncherScreen {
 
     // Mods page.
     private List<Path> mods = new ArrayList<>();
-    // Browse and detail pages.
+    private final Map<Path, ModInspector.LocalMod> modInfo = new ConcurrentHashMap<>();
+    private final Map<Path, Boolean> modInfoRequested = new ConcurrentHashMap<>();
+    // Browse page: rows are the type tabs, the search box, the sort, the results, then "load more".
     private final StringBuilder query = new StringBuilder();
     private List<ModrinthClient.Hit> hits = List.of();
+    private int totalHits;
+    private boolean searched;
+    private ModrinthClient.Type browseType = ModrinthClient.Type.MOD;
+    private ModrinthClient.Sort sort = ModrinthClient.Sort.RELEVANCE;
+    // Project page.
+    private ModrinthClient.Project project;
+    private List<Markdown.Block> description = List.of();
+    private Tab tab = Tab.DESCRIPTION;
+    private Zone zone = Zone.ACTIONS;
+    private int actionSelected, gallerySelected, galleryOpen = -1, versionSelected;
+    private float descriptionHeight, descriptionView;
+    private List<ModrinthClient.VersionInfo> projectVersions;
+    private boolean versionsAll;
+    // Install dialogs: a mod's plan, or a read modpack; choice 0 installs, 1 cancels.
+    private int dialogChoice;
+    private String planTitle = "";
+    private PackInstaller.Pack pack;
     private final TextEntry editor = new TextEntry();
     private Field editingField;
     private boolean systemKeyboardOpen;
@@ -108,7 +150,7 @@ class LauncherScreen {
         this.crash = config.lastSession();
         this.r = renderer;
         this.suppliedModrinth = modrinth;
-        this.modrinth = modrinth != null ? modrinth : new ModrinthClient(config.gameVersion());
+        this.modrinth = modrinth != null ? modrinth : newModrinth();
         this.suppliedInstaller = installer;
         String bundle = System.getProperty("runner.graphics.bundle");
         this.installer = installer != null ? installer
@@ -118,6 +160,15 @@ class LauncherScreen {
         for (int i = 0; i < all.size(); i++)
             if (all.get(i).id().equals(config.selectedInstance().id())) { selected = i; break; }
         if (!config.instances.recoveryWarning().isEmpty()) setStatus(config.instances.recoveryWarning(), WARN);
+        for (int i = 0; i < scrollers.length; i++) scrollers[i] = new Scroller();
+        ModrinthClient pictures = this.modrinth;
+        this.images = new ImageCache(url -> pictures.fetchPublic(url), config.home.resolve("cache/images"));
+    }
+
+    /** A Modrinth client for the selected instance: its game version, and Quilt instances also take Fabric mods. */
+    private ModrinthClient newModrinth() {
+        return new ModrinthClient(config.gameVersion(), config.loader() == VersionStore.Loader.QUILT
+                ? List.of("quilt", "fabric") : List.of("fabric"));
     }
 
     void run() throws IOException {
@@ -143,6 +194,7 @@ class LauncherScreen {
                     input.poll(pad);
                     input.takeTyped(); // Compatibility buffer; live input uses callback-order events.
                     applyEvents("", input.events());
+                    applyMouse(input.mouse());
                     pollSystemKeyboard();
                     pollMicrosoftLogin();
                     glfwGetFramebufferSize(window, w, h);
@@ -239,6 +291,8 @@ class LauncherScreen {
 
     /** The live loop always supplies the physical source of every action. */
     void applyEvents(String typed, List<Input.Event> events) {
+        // Controller, keyboard and clicks move the selection, and views follow it; hovering and the wheel never do.
+        if (!events.isEmpty()) reveal = true;
         if (editor.active() && !systemKeyboardOpen && !typed.isEmpty()) editor.insert(typed);
         for (Input.Event event : events) {
             if (event.action() == null) {
@@ -274,6 +328,16 @@ class LauncherScreen {
                 if (!cloneOptions) break;
                 continue;
             }
+            if (plan != null && !busy) {
+                planAction(action);
+                if (plan == null) break;
+                continue;
+            }
+            if (pack != null && !busy) {
+                packAction(action);
+                if (pack == null) break;
+                continue;
+            }
             if (editor.active()) {
                 if (action == Input.Action.CONFIRM) { finishEdit(true); break; }
                 if (action == Input.Action.BACK) { finishEdit(false); break; }
@@ -294,7 +358,7 @@ class LauncherScreen {
                 act(event);
                 if (editor.active() || systemKeyboardOpen || removePending != null
                         || instanceRemovePending != null || accountRemovePending != null || cloneOptions
-                        || login != null) break;
+                        || login != null || plan != null || pack != null) break;
             }
         }
     }
@@ -382,7 +446,7 @@ class LauncherScreen {
         if (editingField == Field.SEARCH) {
             query.setLength(0);
             query.append(value);
-            if (accepted) search();
+            if (accepted) search(true);
         } else if (editingField == Field.OFFLINE_NAME) {
             if (accepted) {
                 try {
@@ -425,9 +489,100 @@ class LauncherScreen {
     }
 
     void frame(int framebufferWidth, int framebufferHeight) {
+        long now = System.nanoTime();
+        frameSeconds = lastFrame == 0 ? 1f / 60 : Math.min(0.1f, (now - lastFrame) / 1e9f);
+        lastFrame = now;
         r.begin(framebufferWidth, framebufferHeight);
-        draw();
+        images.update(r);
+        clicks.begin();
+        try {
+            draw();
+        } finally {
+            clicks.end();
+            r.unclip();
+        }
         r.end();
+    }
+
+    // ------------------------------------------------------------------ pointer
+
+    /**
+     * The mouse: moving over something selects it, a left click activates it (the same as Cross or
+     * Enter on it), a right click goes back, the wheel scrolls the view under it (smoothly, without
+     * selecting anything). Everything a click does goes through applyEvents, so busy work and dialogs gate
+     * the mouse exactly as they gate the controller.
+     */
+    void applyMouse(List<Input.Mouse> events) {
+        for (Input.Mouse m : events) {
+            switch (m.kind()) {
+                case MOVE -> { if (!busy && !systemKeyboardOpen) clicks.hover(m.x(), m.y()); }
+                case PRESS -> {
+                    if (m.button() == 1) press(Input.Action.BACK);
+                    else if (systemKeyboardOpen) { /* the dialog has the input */ }
+                    else if (busy) { if (cancellable || instanceOperation != null) clicks.click(m.x(), m.y()); }
+                    else clicks.click(m.x(), m.y());
+                }
+                case WHEEL -> {
+                    // The wheel only moves the view under the pointer; it never selects anything.
+                    if (!systemKeyboardOpen) clicks.scroll(m.x(), m.y(), m.amount());
+                }
+                case RELEASE -> { }
+            }
+        }
+    }
+
+    /** One action, as if pressed: what clicks and the wheel turn into. */
+    private void press(Input.Action action) {
+        applyEvents("", List.of(new Input.Event(Input.Source.MOUSE, action)));
+    }
+
+    /** A clickable rectangle: hovering runs select, clicking runs select then action (null: none). */
+    private void hit(float x, float y, float w, float h, Runnable select, Input.Action action) {
+        if (hitClip != null) {
+            float x1 = Math.max(x, hitClip[0]), y1 = Math.max(y, hitClip[1]);
+            float x2 = Math.min(x + w, hitClip[0] + hitClip[2]), y2 = Math.min(y + h, hitClip[1] + hitClip[3]);
+            if (x2 <= x1 || y2 <= y1) return;
+            x = x1; y = y1; w = x2 - x1; h = y2 - y1;
+        }
+        clicks.add(x, y, w, h, select, action == null ? null : () -> press(action));
+    }
+
+    private interface Row { void draw(int index, float y); }
+
+    /**
+     * A list of equal rows in a view, drawn at its scroller's smooth offset and clipped to the view;
+     * the wheel over it scrolls it. selectedRow (or -1) is revealed only after a controller, keyboard
+     * or click move, so hovering a half-visible row never pulls the list.
+     */
+    private void scrollList(Scroller sc, int count, int selectedRow, float x, float y, float w, float h, float rowH, Row row) {
+        float content = count * rowH;
+        if (reveal && selectedRow >= 0 && selectedRow < count) sc.reveal(selectedRow * rowH, (selectedRow + 1) * rowH, h);
+        float offset = sc.update(content, h, frameSeconds);
+        clicks.wheel(x, y, w, h, amount -> sc.wheel(amount, 120 * r.s));
+        r.clip(x, y, w, h);
+        hitClip = new float[]{x, y, w, h};
+        try {
+            int first = Math.max(0, (int) (offset / rowH)), last = Math.min(count - 1, (int) ((offset + h) / rowH));
+            for (int i = first; i <= last; i++) row.draw(i, y + i * rowH - offset);
+        } finally {
+            hitClip = null;
+            r.unclip();
+        }
+        scrollbar(sc, content, x + w + 6 * r.s, y, h);
+    }
+
+    private void scrollbar(Scroller sc, float content, float x, float y, float h) {
+        if (content <= h + 1) return;
+        float s = r.s, barH = Math.max(40 * s, h * h / content);
+        r.rect(x, y, 5 * s, h, PANEL);
+        r.rect(x, y + (h - barH) * (sc.offset() / Math.max(1, sc.max())), 5 * s, barH, DIM);
+    }
+
+    /** No dialog, edit or work in progress: a click may change the page directly. */
+    private boolean idle() {
+        return !busy && !editor.active() && !systemKeyboardOpen && removePending == null && instanceRemovePending == null
+                && accountRemovePending == null && login == null && !cloneOptions && plan == null && pack == null
+                && galleryOpen < 0;
     }
 
     /** An unexpected error in a frame: logged with its stack (launcher.log) and shown, not fatal. */
@@ -442,7 +597,7 @@ class LauncherScreen {
         systemKeyboardOpen = false;
         if (editor.active()) editor.cancel();
         selected = 0;
-        scroll = 0;
+        scrollers[page.ordinal()].reset();
         setStatus("Internal error: " + failure + " (details in launcher.log)", ERROR);
     }
 
@@ -457,6 +612,9 @@ class LauncherScreen {
     }
 
     void showLaunchError(String message) { setStatus(message, ERROR); }
+
+    /** For tests: what is selected and on which page, which the wheel must never change. */
+    String selectionState() { return page + "/" + selected + "/" + focus + "/" + zone + "/" + tab + "/" + versionSelected + "/" + gallerySelected; }
 
     void closeWindow() {
         glfwSetWindowShouldClose(window, true);
@@ -475,6 +633,14 @@ class LauncherScreen {
         if (a == Input.Action.BACK) { back(); return; }
         if (page == Page.INSTANCES) {
             instanceAction(a, event.source());
+            return;
+        }
+        if (page == Page.BROWSE) {
+            browseAction(a, event.source());
+            return;
+        }
+        if (page == Page.PROJECT) {
+            projectAction(a);
             return;
         }
         int count = items();
@@ -503,25 +669,25 @@ class LauncherScreen {
             case SETTINGS -> 5;
             case ACCOUNTS -> accountList().size() + 2;
             case MODS -> 1 + mods.size();
-            case BROWSE -> 1 + hits.size();
-            case DETAIL -> plan != null && plan.installable() ? 2 : 1;
+            case BROWSE -> browseRows();
+            case PROJECT -> 1;
         };
     }
 
     private void go(Page next, int select) {
         selections[page.ordinal()] = selected;
-        scrolls[page.ordinal()] = scroll;
         page = next;
         selected = select < 0 ? selections[next.ordinal()] : select;
-        scroll = select < 0 ? scrolls[next.ordinal()] : 0;
+        if (select >= 0) scrollers[next.ordinal()].reset();
         focus = Focus.LIST;
+        reveal = true;
     }
 
     private void switchSection(int direction) {
         Page[] sections = {Page.INSTANCES, Page.MODS, Page.ACCOUNTS, Page.SETTINGS};
         int current = switch (page) {
             case INSTANCES, VERSIONS -> 0;
-            case MODS, BROWSE, DETAIL -> 1;
+            case MODS, BROWSE, PROJECT -> 1;
             case ACCOUNTS -> 2;
             case SETTINGS -> 3;
         };
@@ -546,20 +712,9 @@ class LauncherScreen {
                 else adjust(+1);
             }
             case MODS -> {
-                if (selected == 0) {
-                    if (config.loader() == VersionStore.Loader.VANILLA)
-                        setStatus("Vanilla instances do not load mods. Create a Fabric or Quilt instance for mods.", WARN);
-                    else { go(Page.BROWSE, -1); setStatus("", DIM); }
-                }
+                if (selected == 0) openBrowse(config.loader() == VersionStore.Loader.VANILLA
+                        ? ModrinthClient.Type.MODPACK : ModrinthClient.Type.MOD);
                 else toggle(mods.get(selected - 1));
-            }
-            case BROWSE -> {
-                if (selected == 0) beginEdit(Field.SEARCH, source);
-                else openDetail(hits.get(selected - 1));
-            }
-            case DETAIL -> {
-                if (selected == 0 && plan != null && plan.installable()) install();
-                else back();
             }
             case VERSIONS -> {
                 if (selected == 0) cycleLoader(+1);
@@ -585,7 +740,10 @@ class LauncherScreen {
             case MODS -> go(Page.INSTANCES, -1);
             case BROWSE -> { go(Page.MODS, -1); refreshMods(); }
             case VERSIONS -> { go(Page.INSTANCES, -1); setStatus("", DIM); }
-            case DETAIL -> { go(Page.BROWSE, -1); plan = null; }
+            case PROJECT -> {
+                if (galleryOpen >= 0) galleryOpen = -1;
+                else { go(Page.BROWSE, -1); setStatus("", DIM); }
+            }
             default -> { }
         }
     }
@@ -594,6 +752,8 @@ class LauncherScreen {
 
     private void instanceAction(Input.Action action, Input.Source source) {
         List<InstanceStore.Instance> values = config.instances.list();
+        // A click acts on the last frame's rows; the list may have shrunk since.
+        if (selected >= values.size()) selected = Math.max(0, values.size() - 1);
         if (focus == Focus.LIST) {
             switch (action) {
                 case UP -> selected = (selected + values.size() - 1) % values.size();
@@ -610,27 +770,31 @@ class LauncherScreen {
         }
         switch (action) {
             case LEFT -> focus = Focus.LIST;
-            case UP -> detailSelected = (detailSelected + 7) % 8;
-            case DOWN -> detailSelected = (detailSelected + 1) % 8;
+            case UP -> detailSelected = (detailSelected + HOME_ACTIONS.size() - 1) % HOME_ACTIONS.size();
+            case DOWN -> detailSelected = (detailSelected + 1) % HOME_ACTIONS.size();
             case CONFIRM -> {
                 InstanceStore.Instance current = config.selectedInstance();
                 switch (detailSelected) {
                     case 0 -> play();
                     case 1 -> openVersions();
-                    case 2 -> { nameMode = NameMode.CLONE; nameTargetId = current.id(); beginEdit(Field.INSTANCE_NAME, source); }
-                    case 3 -> { nameMode = NameMode.RENAME; nameTargetId = current.id(); beginEdit(Field.INSTANCE_NAME, source); }
-                    case 4 -> {
+                    case 2 -> openBrowse(ModrinthClient.Type.MODPACK);
+                    case 3 -> { nameMode = NameMode.CLONE; nameTargetId = current.id(); beginEdit(Field.INSTANCE_NAME, source); }
+                    case 4 -> { nameMode = NameMode.RENAME; nameTargetId = current.id(); beginEdit(Field.INSTANCE_NAME, source); }
+                    case 5 -> {
                         if (config.instances.list().size() <= 1) setStatus("Keep at least one instance.", WARN);
                         else { instanceRemovePending = current.id(); removeConfirmed = false; }
                     }
-                    case 5 -> { go(Page.MODS, -1); refreshMods(); setStatus("", DIM); }
-                    case 6 -> { go(Page.SETTINGS, -1); setStatus("", DIM); }
+                    case 6 -> { go(Page.MODS, -1); refreshMods(); setStatus("", DIM); }
+                    case 7 -> { go(Page.SETTINGS, -1); setStatus("", DIM); }
                     default -> closeWindow();
                 }
             }
             default -> { }
         }
     }
+
+    private static final List<String> HOME_ACTIONS = List.of("Play", "Create instance", "Get a modpack",
+            "Clone selected", "Rename selected", "Remove selected", "Mods", "Settings", "Quit");
 
     private void chooseInstance(String id) throws IOException {
         if (dirty) config.save();
@@ -648,14 +812,19 @@ class LauncherScreen {
         for (int i = 0; i < values.size(); i++)
             if (values.get(i).id().equals(config.selectedInstance().id())) { selected = i; break; }
         crash = config.lastSession();
-        if (suppliedModrinth == null) modrinth = new ModrinthClient(config.gameVersion());
+        if (suppliedModrinth == null) modrinth = newModrinth();
         String bundle = System.getProperty("runner.graphics.bundle");
         installer = suppliedInstaller != null ? suppliedInstaller
                 : new ModInstaller(modrinth, config.modsDir(), bundle == null ? null : Path.of(bundle),
                         config.builtInVersions());
         mods = new ArrayList<>();
         hits = List.of();
+        totalHits = 0;
+        searched = false;
         plan = null;
+        pack = null;
+        project = null;
+        projectVersions = null;
     }
 
     private interface InstanceWork { InstanceStore.Instance run(InstanceStore.Operation operation) throws IOException; }
@@ -717,8 +886,10 @@ class LauncherScreen {
             case CONFIRM -> {
                 String id = instanceRemovePending;
                 instanceRemovePending = null;
-                if (removeConfirmed) {
-                    boolean managed = !config.instances.get(id).imported();
+                InstanceStore.Instance target = config.instances.get(id);
+                if (removeConfirmed && target == null) setStatus("That instance is already gone.", WARN);
+                else if (removeConfirmed) {
+                    boolean managed = !target.imported();
                     if (dirty) {
                         try { config.save(); dirty = false; }
                         catch (IOException failure) {
@@ -1009,6 +1180,21 @@ class LauncherScreen {
         found.sort((a, b) -> a.getFileName().toString().compareToIgnoreCase(b.getFileName().toString()));
         mods = found;
         if (selected > mods.size()) selected = mods.size();
+        // Name, version, description and icon of each JAR, read once in the background.
+        for (Path mod : found) {
+            Path key = canonicalMod(mod);
+            if (modInfoRequested.putIfAbsent(key, Boolean.TRUE) != null) continue;
+            infoWorker.execute(() -> {
+                ModInspector.LocalMod info = ModInspector.describe(mod);
+                if (info != null) modInfo.put(key, info);
+            });
+        }
+    }
+
+    /** The same key for a mod whether it is enabled or not. */
+    private static Path canonicalMod(Path mod) {
+        String n = mod.getFileName().toString();
+        return n.endsWith(".disabled") ? mod.resolveSibling(n.substring(0, n.length() - ".disabled".length())) : mod;
     }
 
     private static boolean enabled(Path mod) {
@@ -1057,47 +1243,425 @@ class LauncherScreen {
         }
     }
 
-    // ------------------------------------------------------------------ browse and install
+    // ------------------------------------------------------------------ browse
 
-    private void search() {
+    private void openBrowse(ModrinthClient.Type type) {
+        boolean changed = type != browseType;
+        browseType = type;
+        if (type == ModrinthClient.Type.MOD && config.loader() == VersionStore.Loader.VANILLA) {
+            browseType = ModrinthClient.Type.MODPACK;
+            setStatus("Vanilla instances do not load mods; modpacks create their own instance.", WARN);
+        } else setStatus("", DIM);
+        go(Page.BROWSE, -1);
+        if (!searched || changed) search(false);
+    }
+
+    private int browseRows() {
+        return 3 + hits.size() + (hits.size() < totalHits ? 1 : 0);
+    }
+
+    private void browseAction(Input.Action a, Input.Source source) {
+        int count = browseRows();
+        if (selected >= count) selected = count - 1;
+        switch (a) {
+            case UP -> selected = (selected + count - 1) % count;
+            case DOWN -> selected = (selected + 1) % count;
+            case LEFT, RIGHT -> {
+                int d = a == Input.Action.RIGHT ? 1 : -1;
+                if (selected == 0) switchType(d);
+                else if (selected == 2) cycleSort(d);
+            }
+            case CONFIRM -> {
+                if (selected == 0) switchType(1);
+                else if (selected == 1) beginEdit(Field.SEARCH, source);
+                else if (selected == 2) cycleSort(1);
+                else if (selected - 3 < hits.size()) openProject(hits.get(selected - 3));
+                else loadMore();
+            }
+            case MENU -> beginEdit(Field.SEARCH, source);
+            default -> { }
+        }
+        selections[page.ordinal()] = selected;
+    }
+
+    private void switchType(int direction) {
+        ModrinthClient.Type[] all = ModrinthClient.Type.values();
+        ModrinthClient.Type next = all[(browseType.ordinal() + direction + all.length) % all.length];
+        if (next == ModrinthClient.Type.MOD && config.loader() == VersionStore.Loader.VANILLA) {
+            setStatus("Vanilla instances do not load mods. Create a Fabric or Quilt instance, or get a modpack.", WARN);
+            return;
+        }
+        browseType = next;
+        search(false);
+    }
+
+    private void cycleSort(int direction) {
+        ModrinthClient.Sort[] all = ModrinthClient.Sort.values();
+        sort = all[(sort.ordinal() + direction + all.length) % all.length];
+        search(false);
+    }
+
+    private void search(boolean fromEdit) {
         String q = query.toString().trim();
-        background("Searching Modrinth for \"" + q + "\"...", true, () -> modrinth.search(q), found -> {
-            hits = found;
-            go(Page.BROWSE, found.isEmpty() ? 0 : 1);
-            setStatus(found.isEmpty() ? "No Fabric mods for " + config.gameVersion() + " match \"" + q + "\"."
-                    : found.size() + " results.", DIM);
+        ModrinthClient.Type type = browseType;
+        ModrinthClient.Sort order = sort;
+        ModrinthClient client = modrinth;
+        searched = true;
+        background(q.isEmpty() ? "Loading " + type.title.toLowerCase(java.util.Locale.ROOT) + "..."
+                : "Searching Modrinth for \"" + q + "\"...", true, () -> client.search(q, type, order, 0), found -> {
+            hits = found.hits();
+            totalHits = found.total();
+            if (page == Page.BROWSE && (fromEdit || selected > 2)) selected = found.hits().isEmpty() ? 1 : 3;
+            scrollers[Page.BROWSE.ordinal()].reset();
+            setStatus(found.hits().isEmpty() ? "Nothing on Modrinth matches \"" + q + "\" for " + target(type) + "."
+                    : String.format("%,d results for %s.", found.total(), target(type)), DIM);
         });
     }
 
-    private void openDetail(ModrinthClient.Hit hit) {
+    private void loadMore() {
+        String q = query.toString().trim();
+        ModrinthClient.Type type = browseType;
+        ModrinthClient.Sort order = sort;
+        ModrinthClient client = modrinth;
+        int offset = hits.size();
+        background("Loading more...", true, () -> client.search(q, type, order, offset), found -> {
+            List<ModrinthClient.Hit> merged = new ArrayList<>(hits);
+            java.util.Set<String> seen = new java.util.HashSet<>();
+            for (ModrinthClient.Hit h : merged) seen.add(h.projectId());
+            for (ModrinthClient.Hit h : found.hits()) if (seen.add(h.projectId())) merged.add(h);
+            // A page that adds nothing new ends the list, so "load more" cannot loop.
+            totalHits = merged.size() == hits.size() ? merged.size() : found.total();
+            hits = merged;
+            setStatus(String.format("%,d of %,d results.", hits.size(), totalHits), DIM);
+        });
+    }
+
+    /** What the browser searches for, for messages. */
+    private String target(ModrinthClient.Type type) {
+        return type == ModrinthClient.Type.MOD
+                ? config.loader().title + " " + config.gameVersion() : "Fabric and Quilt, Minecraft 1.14 to 1.20.4";
+    }
+
+    // ------------------------------------------------------------------ project
+
+    private record ProjectView(ModrinthClient.Project project, List<Markdown.Block> blocks) {}
+
+    private void openProject(ModrinthClient.Hit hit) {
         chosen = hit;
-        plan = null;
-        go(Page.DETAIL, 0);
+        project = null;
+        description = List.of();
+        projectVersions = null;
+        versionsAll = false;
+        tab = Tab.DESCRIPTION;
+        zone = Zone.ACTIONS;
+        actionSelected = 0;
+        gallerySelected = 0;
+        galleryOpen = -1;
+        versionSelected = 0;
+        descriptionScroll.reset();
+        galleryScroll.reset();
+        versionScroll.reset();
+        go(Page.PROJECT, 0);
+        ModrinthClient client = modrinth;
+        background("Loading " + hit.title() + "...", true, () -> {
+            ModrinthClient.Project p = client.project(hit.projectId());
+            return new ProjectView(p, Markdown.parse(p.body()));
+        }, view -> {
+            if (chosen != hit) return;
+            project = view.project();
+            description = view.blocks();
+            setStatus("", DIM);
+        });
+    }
+
+    private ModrinthClient.Type projectType() {
+        return project != null ? project.type() : chosen != null ? chosen.type() : ModrinthClient.Type.MOD;
+    }
+
+    private void projectAction(Input.Action a) {
+        if (galleryOpen >= 0) {
+            int n = project == null ? 0 : project.gallery().size();
+            switch (a) {
+                case LEFT, UP -> { if (n > 0) galleryOpen = (galleryOpen + n - 1) % n; }
+                case RIGHT, DOWN -> { if (n > 0) galleryOpen = (galleryOpen + 1) % n; }
+                case CONFIRM -> galleryOpen = -1;
+                default -> { }
+            }
+            return;
+        }
+        switch (zone) {
+            case ACTIONS -> {
+                switch (a) {
+                    case LEFT, RIGHT -> actionSelected = 1 - actionSelected;
+                    case DOWN -> zone = Zone.TABS;
+                    case CONFIRM -> { if (actionSelected == 0) installLatest(); else back(); }
+                    default -> { }
+                }
+            }
+            case TABS -> {
+                switch (a) {
+                    case LEFT -> selectTab(Tab.values()[(tab.ordinal() + 2) % 3]);
+                    case RIGHT -> selectTab(Tab.values()[(tab.ordinal() + 1) % 3]);
+                    case UP -> zone = Zone.ACTIONS;
+                    case DOWN, CONFIRM -> zone = Zone.CONTENT;
+                    default -> { }
+                }
+            }
+            case CONTENT -> contentAction(a);
+        }
+    }
+
+    private void selectTab(Tab next) {
+        tab = next;
+        if (tab == Tab.VERSIONS && projectVersions == null) loadVersions();
+    }
+
+    private void contentAction(Input.Action a) {
+        switch (tab) {
+            case DESCRIPTION -> {
+                switch (a) {
+                    case UP -> {
+                        if (descriptionScroll.atTop()) zone = Zone.TABS;
+                        else descriptionScroll.by(-90 * r.s);
+                    }
+                    case DOWN -> descriptionScroll.by(90 * r.s);
+                    case LEFT -> descriptionScroll.by(-descriptionView * 0.9f);
+                    case RIGHT -> descriptionScroll.by(descriptionView * 0.9f);
+                    default -> { }
+                }
+            }
+            case GALLERY -> {
+                int n = project == null ? 0 : project.gallery().size();
+                if (n == 0) { if (a == Input.Action.UP) zone = Zone.TABS; return; }
+                switch (a) {
+                    case LEFT -> gallerySelected = Math.max(0, gallerySelected - 1);
+                    case RIGHT -> gallerySelected = Math.min(n - 1, gallerySelected + 1);
+                    case UP -> { if (gallerySelected < GALLERY_COLUMNS) zone = Zone.TABS; else gallerySelected -= GALLERY_COLUMNS; }
+                    case DOWN -> gallerySelected = Math.min(n - 1, gallerySelected + GALLERY_COLUMNS);
+                    case CONFIRM -> galleryOpen = Math.min(gallerySelected, n - 1);
+                    default -> { }
+                }
+            }
+            case VERSIONS -> {
+                int rows = 1 + (projectVersions == null ? 0 : projectVersions.size());
+                if (versionSelected >= rows) versionSelected = rows - 1;
+                switch (a) {
+                    case UP -> { if (versionSelected == 0) zone = Zone.TABS; else versionSelected--; }
+                    case DOWN -> versionSelected = Math.min(rows - 1, versionSelected + 1);
+                    case LEFT, RIGHT -> { if (versionSelected == 0) toggleAllVersions(); }
+                    case CONFIRM -> {
+                        if (versionSelected == 0) toggleAllVersions();
+                        else installVersion(projectVersions.get(versionSelected - 1));
+                    }
+                    default -> { }
+                }
+            }
+        }
+    }
+
+    private void toggleAllVersions() {
+        versionsAll = !versionsAll;
+        versionSelected = 0;
+        loadVersions();
+    }
+
+    private void loadVersions() {
+        ModrinthClient.Hit hit = chosen;
+        ModrinthClient.Type type = projectType();
+        boolean all = versionsAll;
+        ModrinthClient client = modrinth;
+        projectVersions = null;
+        background("Loading versions...", true, () -> client.projectVersions(hit.projectId(), type, !all), found -> {
+            if (chosen != hit || versionsAll != all) return;
+            projectVersions = found;
+            versionSelected = Math.min(versionSelected, found.size());
+            setStatus(found.isEmpty() ? (all ? "No versions published." : "No version for " + target(type)
+                    + ". Choose \"All versions\" to see the rest.") : found.size() + " versions.", found.isEmpty() ? WARN : DIM);
+        });
+    }
+
+    /** Install: the newest version that fits (mods), or the newest compatible pack version. */
+    private void installLatest() {
+        if (chosen == null) return;
+        if (projectType() == ModrinthClient.Type.MOD) planMod(null);
+        else installPack(null);
+    }
+
+    private void installVersion(ModrinthClient.VersionInfo version) {
+        if (projectType() == ModrinthClient.Type.MOD) planMod(version);
+        else installPack(version);
+    }
+
+    // ------------------------------------------------------------------ mod install
+
+    private void planMod(ModrinthClient.VersionInfo version) {
+        if (config.loader() == VersionStore.Loader.VANILLA) {
+            setStatus("Vanilla instances do not load mods. Create a Fabric or Quilt instance first.", WARN);
+            return;
+        }
+        ModrinthClient.Hit hit = chosen;
         ModInstaller target = installer;
-        background("Downloading and checking " + hit.title() + "...", true,
-                () -> target.plan(hit.projectId(), hit.title()),
+        String title = hit.title();
+        background("Downloading and checking " + title + (version != null ? " " + version.number() : "") + "...", true,
+                () -> target.plan(hit.projectId(), title, version == null ? null : version.version()),
                 result -> {
                     plan = result;
-                    selected = 0;
+                    planTitle = title + (version != null ? " " + version.number() : "");
+                    dialogChoice = result.installable() ? 0 : 1;
                     setStatus(result.installable() ? "Ready to install." : "This cannot be installed.",
                             result.installable() ? ACCENT : ERROR);
+                    input.releaseBarrier();
                 });
+    }
+
+    private void planAction(Input.Action action) {
+        switch (action) {
+            case LEFT, UP -> dialogChoice = plan.installable() ? 0 : 1;
+            case RIGHT, DOWN -> dialogChoice = 1;
+            case BACK -> { plan = null; input.releaseBarrier(); }
+            case CONFIRM -> {
+                if (dialogChoice == 0 && plan.installable()) install();
+                else { plan = null; setStatus("", DIM); }
+                input.releaseBarrier();
+            }
+            default -> { }
+        }
     }
 
     private void install() {
         ModInstaller.Plan current = plan;
         ModInstaller target = installer;
-        String into = config.selectedInstance().name();
+        String into = config.selectedInstance().name(), title = planTitle;
+        plan = null;
         background("Installing " + current.entries().size() + " file(s) into " + into + "...", () -> {
             target.install(current);
             return current.entries().size();
         }, count -> {
             refreshMods();
-            plan = null;
-            go(Page.MODS, 0);
-            setStatus("Installed " + chosen.title() + (count > 1 ? " and " + (count - 1) + " dependenc"
-                    + (count == 2 ? "y" : "ies") : "") + ". Applies when you press Play.", ACCENT);
+            setStatus("Installed " + title + (count > 1 ? " and " + (count - 1) + " dependenc"
+                    + (count == 2 ? "y" : "ies") : "") + " into " + into + ". Applies when you press Play.", ACCENT);
         });
+    }
+
+    // ------------------------------------------------------------------ modpack install
+
+    /** Downloads the chosen pack version (or the newest compatible one) and shows what installing it means. */
+    private void installPack(ModrinthClient.VersionInfo version) {
+        ModrinthClient.Hit hit = chosen;
+        ModrinthClient client = modrinth;
+        PackInstaller packs = packInstaller();
+        Path folder = config.home.resolve("cache/packs");
+        background("Downloading modpack " + hit.title() + "...", true, () -> {
+            ModrinthClient.VersionInfo v = version;
+            if (v == null) {
+                List<ModrinthClient.VersionInfo> compatible = client.projectVersions(hit.projectId(), ModrinthClient.Type.MODPACK, true);
+                if (compatible.isEmpty()) throw new IOException("no version of this pack runs Fabric or Quilt on Minecraft 1.14 to 1.20.4");
+                v = compatible.get(0);
+            }
+            return packs.download(v.file(), folder, new InstanceStore.Operation());
+        }, read -> {
+            pack = read;
+            dialogChoice = read.installable() ? 0 : 1;
+            setStatus(read.installable() ? "Ready to create the instance." : "This pack cannot be installed.",
+                    read.installable() ? ACCENT : ERROR);
+            input.releaseBarrier();
+        });
+    }
+
+    private void packAction(Input.Action action) {
+        switch (action) {
+            case LEFT, UP -> dialogChoice = pack.installable() ? 0 : 1;
+            case RIGHT, DOWN -> dialogChoice = 1;
+            case BACK -> closePack();
+            case CONFIRM -> {
+                if (dialogChoice == 0 && pack.installable()) startPackInstall(pack);
+                else closePack();
+            }
+            default -> { }
+        }
+    }
+
+    private void closePack() {
+        PackInstaller.Pack closing = pack;
+        pack = null;
+        deleteArchive(closing);
+        setStatus("", DIM);
+        input.releaseBarrier();
+    }
+
+    private static void deleteArchive(PackInstaller.Pack p) {
+        if (p == null) return;
+        try { Files.deleteIfExists(p.archive()); } catch (IOException ignored) { /* the cache is pruned later */ }
+    }
+
+    /** Creates the instance in the background, like a clone: cancellable, with progress, selected when done. */
+    private void startPackInstall(PackInstaller.Pack chosenPack) {
+        pack = null;
+        input.releaseBarrier();
+        InstanceStore.Operation operation = new InstanceStore.Operation();
+        PackInstaller packs = packInstaller();
+        long started = ++generation;
+        instanceOperation = operation;
+        busy = true;
+        setStatus("Installing modpack " + chosenPack.name() + "...", DIM);
+        worker.execute(() -> {
+            PackInstaller.Installed done = null;
+            Exception error = null;
+            try { done = packs.install(chosenPack, chosenPack.name(), operation); }
+            catch (Exception failure) { error = failure; }
+            finally { deleteArchive(chosenPack); }
+            PackInstaller.Installed result = done;
+            Exception failed = error;
+            results.add(() -> {
+                if (instanceOperation == operation) { instanceOperation = null; busy = false; }
+                if (failed != null || result == null) {
+                    setStatus(operation.cancelled() || failed instanceof CancellationException ? "Modpack install cancelled."
+                            : "Modpack install failed: " + (failed == null ? "unknown" : failed.getMessage()),
+                            operation.cancelled() || failed instanceof CancellationException ? WARN : ERROR);
+                    return;
+                }
+                if (started == generation) {
+                    try { chooseInstance(result.instance().id()); }
+                    catch (IOException failure) { setStatus("Installed, but could not select: " + failure.getMessage(), ERROR); return; }
+                    go(Page.INSTANCES, -1);
+                }
+                setStatus("Installed " + chosenPack.name() + " as a new instance." + (result.disabled().isEmpty() ? ""
+                        : " Disabled (native code): " + String.join(", ", result.disabled()) + "."),
+                        result.disabled().isEmpty() ? ACCENT : WARN);
+            });
+        });
+    }
+
+    /** Seams for tests: where pack files come from, and the profile a pack's version runs. */
+    protected byte[] fetchPackFile(String url, long max) throws IOException {
+        return VersionStore.fetch(url, max);
+    }
+
+    PackInstaller packInstaller() {
+        return new PackInstaller(this::fetchPackFile, this::packProfile, config.instances);
+    }
+
+    /** An installed profile for the pack's Minecraft and loader, no older than its loader; else a fresh install. */
+    private Path packProfile(String minecraft, VersionStore.Loader loader, String loaderVersion, InstanceStore.Operation op)
+            throws IOException {
+        int[] wanted = VersionStore.parts(loaderVersion);
+        if (loader == VersionStore.Loader.FABRIC && minecraft.equals(config.builtInGameVersion())
+                && !config.loaderVersion.isEmpty() && VersionStore.compare(VersionStore.parts(config.loaderVersion), wanted) >= 0)
+            return config.metadata;
+        for (VersionStore.Installed installed : config.versions.list())
+            if (installed.minecraft().equals(minecraft) && installed.loader() == loader
+                    && VersionStore.compare(VersionStore.parts(installed.loaderVersion()), wanted) >= 0)
+                return installed.gameProfile();
+        op.progress("Finding Minecraft " + minecraft + "...");
+        for (VersionStore.GameVersion version : fetchCatalog(loader))
+            if (version.id().equals(minecraft)) {
+                VersionStore.Installed fresh = installVersion(version, loader, op);
+                if (VersionStore.compare(VersionStore.parts(fresh.loaderVersion()), wanted) < 0)
+                    throw new IOException("the pack needs " + loader.title + " loader " + loaderVersion + "; the newest is "
+                            + fresh.loaderVersion());
+                return fresh.gameProfile();
+            }
+        throw new IOException(loader.title + " does not offer Minecraft " + minecraft);
     }
 
     private void setStatus(String text, int color) {
@@ -1111,7 +1675,7 @@ class LauncherScreen {
         float s = r.s;
         r.text("ORBIS LAUNCHER", 120 * s, 70 * s, 6 * s, TEXT);
         r.text("Minecraft for PlayStation 4", 124 * s, 130 * s, 2.5f * s, DIM);
-        r.text("INSTANCES    MODS    ACCOUNTS    SETTINGS", 120 * s, 168 * s, 2.5f * s, DIM);
+        drawSections(s);
         InstanceStore.Instance active = config.selectedInstance();
         r.text(r.fit("Selected: " + active.name() + "  |  Account: " + effectiveAccount(active), 750 * s, 2.2f * s),
                 1050 * s, 130 * s, 2.2f * s, DIM);
@@ -1121,15 +1685,18 @@ class LauncherScreen {
             case SETTINGS -> drawSettings(s);
             case MODS -> drawMods(s);
             case BROWSE -> drawBrowse(s);
-            case DETAIL -> drawDetail(s);
+            case PROJECT -> drawProject(s);
             case VERSIONS -> drawVersions(s);
         }
+        r.unclip();
 
         if (removePending != null) drawRemoveDialog(s);
         if (instanceRemovePending != null) drawInstanceRemoveDialog(s);
         if (accountRemovePending != null) drawAccountRemoveDialog(s);
         if (login != null) drawLoginDialog(s);
         if (cloneOptions) drawCloneOptions(s);
+        if (plan != null) drawPlanDialog(s);
+        if (pack != null) drawPackDialog(s);
         if (editor.active() && editingField == Field.INSTANCE_NAME) drawNameDialog(s);
         String shownStatus = instanceOperation == null ? status : instanceOperation.progress();
         if (instanceOperation != null && instanceOperation.destination() != null)
@@ -1137,23 +1704,62 @@ class LauncherScreen {
                     120 * s, r.height - 188 * s, 2.2f * s, DIM);
         if (!shownStatus.isEmpty())
             r.text(r.fit(shownStatus, r.width - 240 * s, 3 * s), 120 * s, r.height - 150 * s, 3 * s, statusColor);
-        r.text(hint(), 120 * s, r.height - 90 * s, 2.5f * s, DIM);
+        String hint = hint();
+        r.text(r.fit(hint, r.width - 240 * s, 2.5f * s), 120 * s, r.height - 90 * s, 2.5f * s, DIM);
+        // Clicking the hint line while something can be cancelled cancels it.
+        if (busy && (cancellable || instanceOperation != null))
+            hit(120 * s, r.height - 100 * s, r.width(hint, 2.5f * s), 40 * s, null, Input.Action.BACK);
+        reveal = false;
+    }
+
+    private static final Page[] SECTIONS = {Page.INSTANCES, Page.MODS, Page.ACCOUNTS, Page.SETTINGS};
+    private static final String[] SECTION_TITLES = {"INSTANCES", "MODS", "ACCOUNTS", "SETTINGS"};
+
+    private int section() {
+        return switch (page) {
+            case INSTANCES, VERSIONS -> 0;
+            case MODS, BROWSE, PROJECT -> 1;
+            case ACCOUNTS -> 2;
+            case SETTINGS -> 3;
+        };
+    }
+
+    /** The section names under the title; clicking one opens it. */
+    private void drawSections(float s) {
+        float x = 120 * s, scale = 2.5f * s;
+        int current = section();
+        for (int i = 0; i < SECTIONS.length; i++) {
+            float w = r.width(SECTION_TITLES[i], scale);
+            r.text(SECTION_TITLES[i], x, 168 * s, scale, i == current ? TEXT : DIM);
+            if (i == current) r.rect(x, 192 * s, w, 3 * s, ACCENT);
+            int index = i;
+            clicks.add(x - 10 * s, 160 * s, w + 20 * s, 40 * s, null, () -> {
+                if (!idle()) return;
+                go(SECTIONS[index], -1);
+                if (SECTIONS[index] == Page.MODS) refreshMods();
+                setStatus("", DIM);
+            });
+            x += w + 60 * s;
+        }
     }
 
     private String hint() {
         if (removePending != null) return "Left/Right: choice   Cross/Enter: accept   Circle/Escape: cancel";
         if (instanceRemovePending != null) return "Left/Right: choice   Cross/Enter: accept   Circle/Escape: cancel";
         if (accountRemovePending != null) return "Left/Right: choice   Cross/Enter: accept   Circle/Escape: cancel";
+        if (plan != null || pack != null) return "Left/Right: choice   Cross/Enter: accept   Circle/Escape: cancel";
         if (login != null) return "Circle/Escape: cancel sign-in";
-        if (busy && cancellable) return "Circle/Escape: cancel";
+        if (busy && cancellable) return "Circle/Escape or click here: cancel";
         if (cloneOptions) return "Up/Down: choice   Cross/Enter: toggle or continue   Circle/Escape: cancel";
-        if (instanceOperation != null) return "Copying files   Circle/Escape: cancel";
+        if (instanceOperation != null) return "Working   Circle/Escape or click here: cancel";
         if (systemKeyboardOpen) return systemKeyboard.cancelling()
                 ? "Closing system keyboard..." : "System keyboard: confirm or cancel";
         if (editor.active()) return "Type: edit   Arrows/Home/End: caret   Enter: accept   Escape: cancel";
         return switch (page) {
             case MODS -> "Cross: open / enable-disable   Triangle: remove   Circle: back   L1/R1: section";
-            case BROWSE -> "Cross/Enter: edit search / details   Circle/Escape: back   L1/R1: section";
+            case BROWSE -> "Cross: open   Left/Right: tabs and sort   Start: search   Circle: back";
+            case PROJECT -> galleryOpen >= 0 ? "Left/Right: previous / next image   Circle: close"
+                    : "Up/Down: buttons, tabs, content   Left/Right: choose   Cross: select   Circle: back";
             case VERSIONS -> "Left/Right: loader   Cross/Enter: choose version   Circle/Escape: back";
             case INSTANCES -> "Cross/Enter: select   Left/Right or Tab: focus   L1/R1: section";
             case ACCOUNTS -> "Cross: make default / choose   Triangle: rename or sign out   Circle: back   L1/R1: section";
@@ -1165,17 +1771,15 @@ class LauncherScreen {
         r.text("INSTANCES", 120 * s, 215 * s, 4 * s, TEXT);
         List<InstanceStore.Instance> values = config.instances.list();
         if (selected >= values.size()) selected = values.size() - 1;
-        int visible = 10;
-        if (selected < scroll) scroll = selected;
-        if (selected >= scroll + visible) scroll = selected - visible + 1;
-        for (int i = scroll; i < Math.min(values.size(), scroll + visible); i++) {
+        scrollList(scrollers[Page.INSTANCES.ordinal()], values.size(), focus == Focus.LIST ? selected : -1,
+                120 * s, 272 * s, 750 * s, 600 * s, 60 * s, (i, y) -> {
             InstanceStore.Instance value = values.get(i);
-            float y = (280 + (i - scroll) * 60) * s;
             boolean highlighted = focus == Focus.LIST && selected == i && !editor.active();
-            if (highlighted) r.rect(120 * s, y - 8 * s, 750 * s, 53 * s, ACCENT);
+            if (highlighted) r.rect(120 * s, y, 750 * s, 53 * s, ACCENT);
             String label = (value.id().equals(config.selectedInstance().id()) ? "* " : "  ") + value.name();
-            r.text(r.fit(label, 710 * s, 3 * s), 140 * s, y, 3 * s, highlighted ? DARK : TEXT);
-        }
+            r.text(r.fit(label, 710 * s, 3 * s), 140 * s, y + 8 * s, 3 * s, highlighted ? DARK : TEXT);
+            hit(120 * s, y, 750 * s, 53 * s, () -> { focus = Focus.LIST; selected = i; }, Input.Action.CONFIRM);
+        });
         InstanceStore.Instance active = config.selectedInstance();
         float x = 930 * s;
         r.rect(x, 205 * s, 870 * s, 250 * s, PANEL);
@@ -1188,13 +1792,13 @@ class LauncherScreen {
                 x + 35 * s, 375 * s, 2.5f * s, DIM);
         if (crash != null) r.text(r.fit("Last session: " + crash.title(), 790 * s, 2.2f * s),
                 x + 35 * s, 410 * s, 2.2f * s, WARN);
-        List<String> actions = List.of("Play", "Create instance", "Clone selected", "Rename selected",
-                "Remove selected", "Mods", "Settings", "Quit");
-        for (int i = 0; i < actions.size(); i++) {
-            float y = (480 + i * 52) * s;
+        for (int i = 0; i < HOME_ACTIONS.size(); i++) {
+            float y = (475 + i * 47) * s;
             boolean highlighted = focus == Focus.DETAIL && detailSelected == i && !editor.active();
-            if (highlighted) r.rect(x, y - 7 * s, 870 * s, 48 * s, ACCENT);
-            r.text(actions.get(i), x + 30 * s, y, 3 * s, highlighted ? DARK : i == 0 ? ACCENT : TEXT);
+            if (highlighted) r.rect(x, y - 7 * s, 870 * s, 44 * s, ACCENT);
+            r.text(HOME_ACTIONS.get(i), x + 30 * s, y, 3 * s, highlighted ? DARK : i == 0 ? ACCENT : TEXT);
+            int index = i;
+            hit(x, y - 7 * s, 870 * s, 44 * s, () -> { focus = Focus.DETAIL; detailSelected = index; }, Input.Action.CONFIRM);
         }
     }
 
@@ -1217,41 +1821,74 @@ class LauncherScreen {
         list(rows, colors, 120 * s, 280 * s, 1680 * s, 12);
     }
 
+    // ------------------------------------------------------------------ dialogs
+
+    /** A dialog panel; everything drawn before it stops answering the mouse. */
+    private void dialog(float x, float y, float w, float h) {
+        clicks.modal();
+        r.rect(0, 0, r.width, r.height, 0x80000000);
+        r.rect(x, y, w, h, PANEL_HI);
+        r.rect(x, y, w, 6 * r.s, ACCENT);
+    }
+
+    /** A two-way choice's buttons: "no" first (selected while yes is false), then "yes". */
+    private void choice(float x, float y, String no, String yes, boolean yesChosen, int yesColor,
+                        Runnable chooseNo, Runnable chooseYes) {
+        float s = r.s;
+        r.rect(x, y, 360 * s, 60 * s, yesChosen ? PANEL : ACCENT);
+        r.text(no, x + 25 * s, y + 12 * s, 3 * s, yesChosen ? TEXT : DARK);
+        hit(x, y, 360 * s, 60 * s, chooseNo, Input.Action.CONFIRM);
+        r.rect(x + 410 * s, y, 360 * s, 60 * s, yesChosen ? yesColor : PANEL);
+        r.text(yes, x + 435 * s, y + 12 * s, 3 * s, yesChosen ? (yesColor == ACCENT ? DARK : TEXT) : DIM);
+        hit(x + 410 * s, y, 360 * s, 60 * s, chooseYes, Input.Action.CONFIRM);
+    }
+
     private void drawNameDialog(float s) {
         float x = 350 * s, y = 330 * s;
-        r.rect(x, y, 1220 * s, 320 * s, PANEL_HI);
+        dialog(x, y, 1220 * s, 320 * s);
         r.text(nameMode == NameMode.CREATE ? "CREATE INSTANCE" : nameMode == NameMode.CLONE
                 ? "CLONE INSTANCE" : "RENAME INSTANCE", x + 40 * s, y + 35 * s, 3.5f * s, TEXT);
         String value = editor.value();
         String caret = value.substring(0, editor.caret()) + "|" + value.substring(editor.caret());
-        r.text(r.fit(caret, 1120 * s, 3.5f * s), x + 40 * s, y + 115 * s, 3.5f * s, ACCENT);
-        r.text("Enter/Cross: accept     Escape/Circle: cancel", x + 40 * s, y + 230 * s, 2.5f * s, DIM);
+        r.rect(x + 30 * s, y + 100 * s, 1160 * s, 60 * s, PANEL);
+        r.text(r.fit(caret, 1120 * s, 3.5f * s), x + 40 * s, y + 113 * s, 3.5f * s, ACCENT);
+        r.rect(x + 40 * s, y + 220 * s, 260 * s, 60 * s, ACCENT);
+        r.text("Accept", x + 70 * s, y + 232 * s, 3 * s, DARK);
+        hit(x + 40 * s, y + 220 * s, 260 * s, 60 * s, null, Input.Action.CONFIRM);
+        r.rect(x + 340 * s, y + 220 * s, 260 * s, 60 * s, PANEL);
+        r.text("Cancel", x + 370 * s, y + 232 * s, 3 * s, TEXT);
+        hit(x + 340 * s, y + 220 * s, 260 * s, 60 * s, null, Input.Action.BACK);
+        r.text("Enter/Cross: accept   Escape/Circle: cancel", x + 650 * s, y + 240 * s, 2.2f * s, DIM);
     }
 
     private void drawCloneOptions(float s) {
         float x = 410 * s, y = 350 * s;
-        r.rect(x, y, 1100 * s, 340 * s, PANEL_HI);
+        dialog(x, y, 1100 * s, 340 * s);
         r.text("CLONE " + pendingCloneName, x + 35 * s, y + 30 * s, 3.5f * s, TEXT);
         List<String> rows = List.of("Copy worlds: " + (copyWorlds ? "[x]" : "[ ]"), "Create clone", "Cancel");
         for (int i = 0; i < rows.size(); i++) {
             float rowY = y + (100 + i * 70) * s;
             if (i == cloneOptionSelected) r.rect(x + 30 * s, rowY - 8 * s, 900 * s, 55 * s, ACCENT);
             r.text(rows.get(i), x + 55 * s, rowY, 3 * s, i == cloneOptionSelected ? DARK : TEXT);
+            int index = i;
+            hit(x + 30 * s, rowY - 8 * s, 900 * s, 55 * s, () -> cloneOptionSelected = index, Input.Action.CONFIRM);
         }
     }
 
     private void drawInstanceRemoveDialog(float s) {
         InstanceStore.Instance value = config.instances.get(instanceRemovePending);
-        if (value == null) return;
+        if (value == null) {
+            // Removed meanwhile (a failed modpack install cleans up after itself): nothing left to ask about.
+            instanceRemovePending = null;
+            return;
+        }
         float x = 380 * s, y = 340 * s;
-        r.rect(x, y, 1160 * s, 350 * s, PANEL_HI);
+        dialog(x, y, 1160 * s, 350 * s);
         r.text(r.fit("Remove " + value.name() + "?", 1080 * s, 3.5f * s), x + 35 * s, y + 35 * s, 3.5f * s, TEXT);
         r.text(value.imported() ? "Only its registration will be removed. Game files stay in place."
                 : "Its mods, configuration, and worlds will be deleted.", x + 35 * s, y + 115 * s, 2.5f * s, WARN);
-        r.rect(x + 35 * s, y + 235 * s, 360 * s, 60 * s, removeConfirmed ? PANEL : ACCENT);
-        r.text("Cancel", x + 60 * s, y + 245 * s, 3 * s, removeConfirmed ? TEXT : DARK);
-        r.rect(x + 445 * s, y + 235 * s, 360 * s, 60 * s, removeConfirmed ? ERROR : PANEL);
-        r.text("Remove", x + 470 * s, y + 245 * s, 3 * s, removeConfirmed ? TEXT : DIM);
+        choice(x + 35 * s, y + 235 * s, "Cancel", "Remove", removeConfirmed, ERROR,
+                () -> removeConfirmed = false, () -> removeConfirmed = true);
     }
 
     private void drawAccounts(float s) {
@@ -1283,7 +1920,7 @@ class LauncherScreen {
     private void drawLoginDialog(float s) {
         MicrosoftAuthClient.DeviceSession session = login;
         float x = 260 * s, y = 230 * s, w = 1400 * s, h = 640 * s;
-        r.rect(x, y, w, h, PANEL_HI);
+        dialog(x, y, w, h);
         r.text("SIGN IN WITH MICROSOFT", x + 40 * s, y + 35 * s, 3.5f * s, TEXT);
         if (loginQr != null) LoginQr.draw(r, loginQr, x + 40 * s, y + 100 * s, 480 * s);
         float tx = x + 580 * s;
@@ -1295,20 +1932,107 @@ class LauncherScreen {
         r.text(String.format("Code expires in %d:%02d", left / 60, left % 60), tx, y + 400 * s, 2.6f * s,
                 left < 60 ? WARN : DIM);
         r.text("3. Sign in with the account that owns Minecraft.", tx, y + 450 * s, 2.6f * s, DIM);
-        r.text("Circle/Escape: cancel", tx, y + 560 * s, 2.6f * s, DIM);
+        r.rect(tx, y + 545 * s, 260 * s, 60 * s, PANEL);
+        r.text("Cancel", tx + 30 * s, y + 557 * s, 3 * s, TEXT);
+        hit(tx, y + 545 * s, 260 * s, 60 * s, null, Input.Action.BACK);
     }
 
     private void drawAccountRemoveDialog(float s) {
         float x = 380 * s, y = 340 * s;
-        r.rect(x, y, 1160 * s, 350 * s, PANEL_HI);
+        dialog(x, y, 1160 * s, 350 * s);
         r.text(r.fit("Sign out " + accountName(accountRemovePending) + "?", 1080 * s, 3.5f * s),
                 x + 35 * s, y + 35 * s, 3.5f * s, TEXT);
         r.text("The saved sign-in is deleted. Instances set to it will ask for another.", x + 35 * s, y + 115 * s,
                 2.5f * s, WARN);
-        r.rect(x + 35 * s, y + 235 * s, 360 * s, 60 * s, removeConfirmed ? PANEL : ACCENT);
-        r.text("Cancel", x + 60 * s, y + 245 * s, 3 * s, removeConfirmed ? TEXT : DARK);
-        r.rect(x + 445 * s, y + 235 * s, 360 * s, 60 * s, removeConfirmed ? ERROR : PANEL);
-        r.text("Sign out", x + 470 * s, y + 245 * s, 3 * s, removeConfirmed ? TEXT : DIM);
+        choice(x + 35 * s, y + 235 * s, "Cancel", "Sign out", removeConfirmed, ERROR,
+                () -> removeConfirmed = false, () -> removeConfirmed = true);
+    }
+
+    private void drawRemoveDialog(float s) {
+        float x = 400 * s, y = 350 * s;
+        dialog(x, y, 1120 * s, 320 * s);
+        String name = removePending.getFileName().toString();
+        ModInspector.LocalMod info = modInfo.get(canonicalMod(removePending));
+        r.text(r.fit("Remove " + (info != null ? info.name() : name) + "?", 1040 * s, 3.5f * s), x + 40 * s, y + 50 * s,
+                3.5f * s, TEXT);
+        r.text(r.fit("The mod file " + name + " will be deleted.", 1040 * s, 2.6f * s), x + 40 * s, y + 125 * s,
+                2.6f * s, WARN);
+        choice(x + 40 * s, y + 220 * s, "Cancel", "Remove", removeConfirmed, ERROR,
+                () -> removeConfirmed = false, () -> removeConfirmed = true);
+    }
+
+    /** What installing a mod brings, what stops it, and Install / Cancel. */
+    private void drawPlanDialog(float s) {
+        ModInstaller.Plan p = plan;
+        float x = 260 * s, w = 1400 * s, scale = 2.5f * s, lw = w - 80 * s;
+        List<String> lines = new ArrayList<>();
+        List<Integer> colors = new ArrayList<>();
+        for (ModInstaller.Entry e : p.entries()) {
+            lines.add("+ " + e.title() + "  " + e.version().versionNumber() + "  (" + e.version().file().filename() + ")");
+            colors.add(TEXT);
+        }
+        for (String b : p.blockers()) for (String l : r.wrap("x " + b, lw, scale)) { lines.add(l); colors.add(ERROR); }
+        for (String wn : p.warnings()) for (String l : r.wrap("! " + wn, lw, scale)) { lines.add(l); colors.add(WARN); }
+        int max = 13;
+        float h = (135 + Math.min(max + 1, lines.size()) * 31 + 140) * s, y = (r.height - 170 * s - h) / 2 + 60 * s;
+        dialog(x, y, w, h);
+        r.text(r.fit("INSTALL " + planTitle.toUpperCase(java.util.Locale.ROOT), lw, 3.5f * s), x + 40 * s, y + 35 * s,
+                3.5f * s, TEXT);
+        r.text(r.fit("Into " + config.selectedInstance().name() + "  (" + config.describe(config.selectedInstance()) + ")",
+                lw, 2.3f * s), x + 40 * s, y + 85 * s, 2.3f * s, DIM);
+        float ly = y + 135 * s;
+        for (int i = 0; i < Math.min(max, lines.size()); i++) {
+            r.text(r.fit(lines.get(i), lw, scale), x + 40 * s, ly, scale, colors.get(i));
+            ly += 31 * s;
+        }
+        if (lines.size() > max) r.text("... and " + (lines.size() - max) + " more lines", x + 40 * s, ly, scale, DIM);
+        if (p.installable()) choice(x + 40 * s, y + h - 90 * s, "Install", "Cancel", dialogChoice == 1, PANEL_HI,
+                () -> dialogChoice = 0, () -> dialogChoice = 1);
+        else {
+            r.rect(x + 40 * s, y + h - 90 * s, 360 * s, 60 * s, ACCENT);
+            r.text("Close", x + 65 * s, y + h - 78 * s, 3 * s, DARK);
+            hit(x + 40 * s, y + h - 90 * s, 360 * s, 60 * s, () -> dialogChoice = 1, Input.Action.CONFIRM);
+        }
+    }
+
+    /** What a modpack is, what installing it makes, and Create instance / Cancel. */
+    private void drawPackDialog(float s) {
+        PackInstaller.Pack p = pack;
+        float x = 260 * s, w = 1400 * s, scale = 2.5f * s, lw = w - 80 * s;
+        List<String> lines = new ArrayList<>();
+        List<Integer> colors = new ArrayList<>();
+        if (!p.summary().isEmpty()) for (String l : r.wrap(p.summary(), lw, scale)) { lines.add(l); colors.add(DIM); }
+        lines.add("Minecraft " + p.minecraft() + (p.loader() == null ? "" : "  with " + p.loader().title + " loader "
+                + p.loaderVersion()));
+        colors.add(TEXT);
+        long mods = p.files().stream().filter(f -> f.path().startsWith("mods/")).count();
+        lines.add(p.files().size() + " files to download (" + mods + " mods, "
+                + String.format("%.1f MiB", p.downloadBytes() / 1048576.0) + "), " + p.overrides() + " files from the pack itself");
+        colors.add(TEXT);
+        lines.add("Creates a new instance named \"" + p.name() + "\" and selects it.");
+        colors.add(TEXT);
+        lines.add("Mods with native libraries are installed but disabled; they cannot load on the console.");
+        colors.add(DIM);
+        for (String b : p.blockers()) for (String l : r.wrap("x " + b, lw, scale)) { lines.add(l); colors.add(ERROR); }
+        for (String wn : p.warnings()) for (String l : r.wrap("! " + wn, lw, scale)) { lines.add(l); colors.add(WARN); }
+        int max = 14;
+        float h = (100 + Math.min(max + 1, lines.size()) * 31 + 140) * s, y = (r.height - 170 * s - h) / 2 + 60 * s;
+        dialog(x, y, w, h);
+        r.text(r.fit("MODPACK  " + p.name() + (p.versionId().isEmpty() ? "" : "  " + p.versionId()), lw, 3.5f * s),
+                x + 40 * s, y + 35 * s, 3.5f * s, TEXT);
+        float ly = y + 100 * s;
+        for (int i = 0; i < Math.min(max, lines.size()); i++) {
+            r.text(r.fit(lines.get(i), lw, scale), x + 40 * s, ly, scale, colors.get(i));
+            ly += 31 * s;
+        }
+        if (lines.size() > max) r.text("... and " + (lines.size() - max) + " more lines", x + 40 * s, ly, scale, DIM);
+        if (p.installable()) choice(x + 40 * s, y + h - 90 * s, "Create instance", "Cancel", dialogChoice == 1, PANEL_HI,
+                () -> dialogChoice = 0, () -> dialogChoice = 1);
+        else {
+            r.rect(x + 40 * s, y + h - 90 * s, 360 * s, 60 * s, ACCENT);
+            r.text("Close", x + 65 * s, y + h - 78 * s, 3 * s, DARK);
+            hit(x + 40 * s, y + h - 90 * s, 360 * s, 60 * s, () -> dialogChoice = 1, Input.Action.CONFIRM);
+        }
     }
 
     private void drawSettings(float s) {
@@ -1319,74 +2043,505 @@ class LauncherScreen {
                 120 * s, 280 * s, 760 * s);
     }
 
+    // ------------------------------------------------------------------ mods page
+
     private void drawMods(float s) {
         long on = mods.stream().filter(LauncherScreen::enabled).count();
         r.text(r.fit("MODS  (" + on + " enabled, " + (mods.size() - on) + " disabled)  -  "
                 + config.selectedInstance().name(), 1680 * s, 4 * s), 120 * s, 210 * s, 4 * s, TEXT);
-        List<String> rows = new ArrayList<>();
-        List<Integer> colors = new ArrayList<>();
-        rows.add("Browse Modrinth...");
-        colors.add(ACCENT);
-        for (Path mod : mods) {
+        int count = 1 + mods.size();
+        if (selected >= count) selected = count - 1;
+        float x = 120 * s, w = 880 * s, rowH = 66 * s;
+        scrollList(scrollers[Page.MODS.ordinal()], count, selected, x, 270 * s, w, 9 * rowH, rowH, (i, y) -> {
+            boolean on2 = i == selected && !editor.active() && !systemKeyboardOpen;
+            r.rect(x, y, w, rowH - 6 * s, on2 ? PANEL_HI : PANEL);
+            if (on2) r.rect(x, y, 6 * s, rowH - 6 * s, ACCENT);
+            hit(x, y, w, rowH - 6 * s, () -> selected = i, Input.Action.CONFIRM);
+            if (i == 0) {
+                r.text("+ Browse Modrinth for mods and modpacks", x + 30 * s, y + 18 * s, 3 * s, ACCENT);
+                return;
+            }
+            Path mod = mods.get(i - 1);
+            ModInspector.LocalMod info = modInfo.get(canonicalMod(mod));
+            boolean enabledMod = enabled(mod);
+            drawModIcon(mod, info, x + 14 * s, y + 7 * s, 46 * s, enabledMod);
             String n = mod.getFileName().toString();
-            rows.add(enabled(mod) ? n.substring(0, n.length() - 4) : n.substring(0, n.length() - 13) + "   (disabled)");
-            colors.add(enabled(mod) ? TEXT : DIM);
-        }
-        list(rows, colors, 120 * s, 280 * s, 1680 * s, 12);
-    }
+            String name = info != null ? info.name() : enabledMod ? n.substring(0, n.length() - 4)
+                    : n.substring(0, n.length() - 13);
+            r.text(r.fit(name, w - 330 * s, 2.8f * s), x + 76 * s, y + 9 * s, 2.8f * s, enabledMod ? TEXT : DIM);
+            String version = info != null ? info.version() : "";
+            r.text(r.fit(version, w - 330 * s, 2.1f * s), x + 76 * s, y + 38 * s, 2.1f * s, DIM);
+            String state = enabledMod ? "enabled" : "disabled";
+            r.text(state, x + w - r.width(state, 2.3f * s) - 24 * s, y + 20 * s, 2.3f * s, enabledMod ? ACCENT : WARN);
+        });
 
-    private void drawBrowse(float s) {
-        r.text("BROWSE MODRINTH  -  Fabric, " + config.gameVersion(), 120 * s, 210 * s, 4 * s, TEXT);
-        List<String> rows = new ArrayList<>();
-        List<Integer> colors = new ArrayList<>();
-        String shown = editor.active() && editingField == Field.SEARCH ? editor.value() : query.toString();
-        if (editor.active() && editingField == Field.SEARCH)
-            shown = shown.substring(0, editor.caret()) + "|" + shown.substring(editor.caret());
-        rows.add("Search: " + shown);
-        colors.add(ACCENT);
-        for (ModrinthClient.Hit h : hits) {
-            rows.add(h.title() + "  -  " + h.description());
-            colors.add(TEXT);
-        }
-        list(rows, colors, 120 * s, 280 * s, 1680 * s, 12);
-    }
-
-    private void drawDetail(float s) {
-        if (chosen == null) return;
-        r.text(r.fit(chosen.title(), 1680 * s, 4 * s), 120 * s, 210 * s, 4 * s, TEXT);
-        float y = 270 * s, scale = 2.5f * s, w = 1680 * s;
-        for (String line : r.wrap(chosen.description() + "  (" + chosen.downloads() + " downloads, by "
-                + chosen.author() + ")", w, scale)) {
-            r.text(line, 120 * s, y, scale, DIM);
-            y += 30 * s;
-        }
-        y += 20 * s;
-        if (plan == null) {
-            r.text(busy ? "Checking..." : "", 120 * s, y, 3 * s, DIM);
+        // The selected mod's details, with Enable/Disable and Remove.
+        float px = 1040 * s, py = 270 * s, pw = 760 * s, ph = 585 * s;
+        r.rect(px, py, pw, ph, PANEL);
+        if (selected == 0 || selected > mods.size()) {
+            r.text("MODRINTH", px + 35 * s, py + 30 * s, 3.5f * s, TEXT);
+            float ty = py + 90 * s;
+            for (String line : r.wrap("Search Modrinth for mods that run on " + target(ModrinthClient.Type.MOD)
+                    + ", read their descriptions, look through their screenshots and pick a version. Every install is "
+                    + "checked for the console first. Modpacks create a new instance of their own.", pw - 70 * s, 2.5f * s)) {
+                r.text(line, px + 35 * s, ty, 2.5f * s, DIM);
+                ty += 32 * s;
+            }
             return;
         }
-        for (ModInstaller.Entry e : plan.entries()) {
-            r.text("+ " + e.title() + "  " + e.version().versionNumber() + "  (" + e.version().file().filename() + ")",
-                    120 * s, y, scale, TEXT);
-            y += 32 * s;
+        Path mod = mods.get(selected - 1);
+        ModInspector.LocalMod info = modInfo.get(canonicalMod(mod));
+        boolean enabledMod = enabled(mod);
+        drawModIcon(mod, info, px + 35 * s, py + 35 * s, 110 * s, true);
+        String n = mod.getFileName().toString();
+        r.text(r.fit(info != null ? info.name() : n, pw - 200 * s, 3.5f * s), px + 170 * s, py + 40 * s, 3.5f * s, TEXT);
+        if (info != null) {
+            r.text(r.fit(info.version(), pw - 200 * s, 2.4f * s), px + 170 * s, py + 90 * s, 2.4f * s, DIM);
+            if (!info.authors().isEmpty())
+                r.text(r.fit("by " + String.join(", ", info.authors()), pw - 200 * s, 2.3f * s), px + 170 * s,
+                        py + 122 * s, 2.3f * s, DIM);
         }
-        for (String b : plan.blockers())
-            for (String line : r.wrap("x " + b, w, scale)) { r.text(line, 120 * s, y, scale, ERROR); y += 30 * s; }
-        for (String warning : plan.warnings())
-            for (String line : r.wrap("! " + warning, w, scale)) { r.text(line, 120 * s, y, scale, WARN); y += 30 * s; }
-        y += 20 * s;
-        menu(plan.installable() ? List.of("Install", "Back") : List.of("Back"), 120 * s, y, 760 * s);
+        float ty = py + 175 * s;
+        long size;
+        try { size = Files.size(mod); } catch (IOException gone) { size = 0; }
+        r.text(r.fit(n + "   " + String.format("%.1f KiB", size / 1024.0), pw - 70 * s, 2.2f * s), px + 35 * s, ty,
+                2.2f * s, DIM);
+        ty += 45 * s;
+        String text = info == null ? "Reading the mod..." : info.description().isBlank() ? "No description." : info.description();
+        int lines = 0;
+        for (String line : r.wrap(text.replace('\n', ' '), pw - 70 * s, 2.5f * s)) {
+            if (++lines > 9) break;
+            r.text(line, px + 35 * s, ty, 2.5f * s, TEXT);
+            ty += 32 * s;
+        }
+        float by = py + ph - 85 * s;
+        r.rect(px + 35 * s, by, 300 * s, 58 * s, enabledMod ? PANEL_HI : ACCENT);
+        r.text(enabledMod ? "Disable" : "Enable", px + 60 * s, by + 12 * s, 3 * s, enabledMod ? TEXT : DARK);
+        hit(px + 35 * s, by, 300 * s, 58 * s, null, Input.Action.CONFIRM);
+        r.rect(px + 365 * s, by, 300 * s, 58 * s, ERROR);
+        r.text("Remove", px + 390 * s, by + 12 * s, 3 * s, TEXT);
+        hit(px + 365 * s, by, 300 * s, 58 * s, null, Input.Action.ALT2);
     }
 
-    private void drawRemoveDialog(float s) {
-        float x = 400 * s, y = 350 * s;
-        r.rect(x, y, 1120 * s, 320 * s, PANEL_HI);
-        r.text("Remove " + removePending.getFileName() + "?", x + 40 * s, y + 50 * s, 3.5f * s, TEXT);
-        r.text("The mod file will be deleted.", x + 40 * s, y + 125 * s, 3 * s, WARN);
-        r.rect(x + 40 * s, y + 220 * s, 340 * s, 60 * s, removeConfirmed ? PANEL : ACCENT);
-        r.text("Cancel", x + 70 * s, y + 230 * s, 3.5f * s, removeConfirmed ? TEXT : DARK);
-        r.rect(x + 420 * s, y + 220 * s, 340 * s, 60 * s, removeConfirmed ? ERROR : PANEL);
-        r.text("Remove", x + 450 * s, y + 230 * s, 3.5f * s, removeConfirmed ? TEXT : DIM);
+    /** A mod's own icon from its JAR, else a tile with its first letter. */
+    private void drawModIcon(Path mod, ModInspector.LocalMod info, float x, float y, float size, boolean bright) {
+        ImageCache.Picture icon = info == null || info.icon() == null ? null
+                : images.get(canonicalMod(mod).toString(), info.icon(), ImageCache.Size.ICON);
+        if (icon != null) {
+            r.image(icon.texture(), x, y, size, size, bright ? WHITE : 0x80ffffff);
+            return;
+        }
+        r.rect(x, y, size, size, CHIP);
+        String n = info != null && !info.name().isEmpty() ? info.name() : mod.getFileName().toString();
+        String letter = n.substring(0, 1).toUpperCase(java.util.Locale.ROOT);
+        float scale = size / 16f;
+        r.text(letter, x + (size - r.width(letter, scale)) / 2, y + size / 4, scale, DIM);
+    }
+
+    // ------------------------------------------------------------------ browse page
+
+    private void drawBrowse(float s) {
+        boolean editing = editor.active() && editingField == Field.SEARCH;
+        // Row 0: the Mods / Modpacks tabs.
+        float tx = 120 * s, ty = 210 * s;
+        for (ModrinthClient.Type type : ModrinthClient.Type.values()) {
+            boolean current = type == browseType;
+            r.rect(tx, ty, 230 * s, 56 * s, current ? ACCENT : PANEL);
+            r.text(type.title, tx + (230 * s - r.width(type.title, 3 * s)) / 2, ty + 14 * s, 3 * s, current ? DARK : TEXT);
+            ModrinthClient.Type target = type;
+            clicks.add(tx, ty, 230 * s, 56 * s, () -> selected = 0, () -> {
+                selected = 0;
+                if (!idle() || browseType == target) return;
+                if (target == ModrinthClient.Type.MOD && config.loader() == VersionStore.Loader.VANILLA) {
+                    setStatus("Vanilla instances do not load mods. Create a Fabric or Quilt instance, or get a modpack.", WARN);
+                    return;
+                }
+                browseType = target;
+                search(false);
+            });
+            tx += 240 * s;
+        }
+        if (selected == 0 && !editing) r.frame(120 * s - 4 * s, ty - 4 * s, 478 * s, 64 * s, 3 * s, WHITE);
+        // Row 1: the search box.
+        float sx = 640 * s, sw = 740 * s;
+        r.rect(sx, ty, sw, 56 * s, PANEL_HI);
+        if (selected == 1 || editing) r.frame(sx, ty, sw, 56 * s, 3 * s, editing ? ACCENT : WHITE);
+        String shown;
+        int shownColor = TEXT;
+        if (editing) {
+            String v = editor.value();
+            shown = v.substring(0, editor.caret()) + "|" + v.substring(editor.caret());
+        } else if (query.length() > 0) shown = query.toString();
+        else { shown = "Search " + browseType.title.toLowerCase(java.util.Locale.ROOT) + "..."; shownColor = DIM; }
+        r.text(r.fit(shown, sw - 40 * s, 3 * s), sx + 20 * s, ty + 14 * s, 3 * s, shownColor);
+        hit(sx, ty, sw, 56 * s, () -> selected = 1, Input.Action.CONFIRM);
+        // Row 2: the sort.
+        float ox = 1400 * s, ow = 400 * s;
+        r.rect(ox, ty, ow, 56 * s, PANEL);
+        if (selected == 2 && !editing) r.frame(ox, ty, ow, 56 * s, 3 * s, WHITE);
+        r.text(r.fit("Sort: < " + sort.title + " >", ow - 30 * s, 2.6f * s), ox + 18 * s, ty + 16 * s, 2.6f * s, TEXT);
+        hit(ox, ty, ow, 56 * s, () -> selected = 2, Input.Action.CONFIRM);
+
+        r.text(r.fit((browseType == ModrinthClient.Type.MOD ? "Mods for " : "Modpacks for ") + target(browseType)
+                + (searched && !busy ? String.format("   |   %,d found", totalHits) : ""), 1680 * s, 2.3f * s),
+                120 * s, 282 * s, 2.3f * s, DIM);
+
+        // The results, as cards, and "load more" after them, in a smoothly scrolled view.
+        int cards = hits.size() + (hits.size() < totalHits ? 1 : 0);
+        float cy = 318 * s, cardH = 106 * s, gap = 10 * s, cw = 1680 * s;
+        if (hits.isEmpty() && !busy && searched)
+            r.text("Nothing found. Try other words or another sort.", 140 * s, cy + 20 * s, 3 * s, DIM);
+        scrollList(scrollers[Page.BROWSE.ordinal()], cards, selected >= 3 ? selected - 3 : -1, 120 * s, cy, cw,
+                5 * (cardH + gap) - gap, cardH + gap, (i, y) -> {
+            boolean on = selected == 3 + i && !editing;
+            int index = 3 + i;
+            if (i == hits.size()) {
+                r.rect(120 * s, y, cw, 60 * s, on ? ACCENT : PANEL);
+                String more = String.format("Load more  (%,d of %,d shown)", hits.size(), totalHits);
+                r.text(more, 120 * s + (cw - r.width(more, 3 * s)) / 2, y + 15 * s, 3 * s, on ? DARK : TEXT);
+                hit(120 * s, y, cw, 60 * s, () -> selected = index, Input.Action.CONFIRM);
+                return;
+            }
+            drawCard(hits.get(i), 120 * s, y, cw, cardH, on);
+            hit(120 * s, y, cw, cardH, () -> selected = index, Input.Action.CONFIRM);
+        });
+    }
+
+    private void drawCard(ModrinthClient.Hit h, float x, float y, float w, float ch, boolean on) {
+        float s = r.s;
+        r.rect(x, y, w, ch, on ? PANEL_HI : PANEL);
+        if (on) r.rect(x, y, 6 * s, ch, ACCENT);
+        picture(h.iconUrl(), ImageCache.Size.ICON, x + 16 * s, y + 13 * s, 80 * s, 80 * s, false, h.title());
+        float tx = x + 116 * s, right = x + w - 24 * s;
+        String stats = compact(h.downloads()) + " downloads   " + compact(h.follows()) + " followers";
+        float statsW = r.width(stats, 2.2f * s);
+        r.text(stats, right - statsW, y + 16 * s, 2.2f * s, DIM);
+        String title = r.fit(h.title(), right - statsW - tx - 260 * s, 3.2f * s);
+        r.text(title, tx, y + 12 * s, 3.2f * s, TEXT);
+        float aw = tx + r.width(title, 3.2f * s) + 16 * s;
+        r.text(r.fit("by " + h.author(), right - statsW - aw - 20 * s, 2.2f * s), aw, y + 20 * s, 2.2f * s, DIM);
+        r.text(r.fit(h.description(), right - tx, 2.4f * s), tx, y + 48 * s, 2.4f * s, TEXT);
+        float cx = tx;
+        for (String c : h.categories()) {
+            if (LOADERS.contains(c)) continue;
+            String label = c.replace('-', ' ');
+            float cw = r.width(label, 2 * s) + 20 * s;
+            if (cx + cw > right - 260 * s) break;
+            r.rect(cx, y + 76 * s, cw, 24 * s, CHIP);
+            r.text(label, cx + 10 * s, y + 80 * s, 2 * s, DIM);
+            cx += cw + 8 * s;
+        }
+        if (!h.updated().isEmpty()) {
+            String updated = "Updated " + date(h.updated());
+            r.text(updated, right - r.width(updated, 2 * s), y + 80 * s, 2 * s, DIM);
+        }
+    }
+
+    /**
+     * A picture fitted into the box (contain) or filling it (cover, cropped); a tile while it loads, or
+     * the name's first letter when there is none.
+     */
+    private boolean picture(String url, ImageCache.Size size, float x, float y, float w, float h, boolean cover, String name) {
+        ImageCache.Picture p = images.get(url, size);
+        if (p == null) {
+            r.rect(x, y, w, h, CHIP);
+            if (name != null && !name.isEmpty() && !images.loading(url, size)) {
+                String letter = name.substring(0, 1).toUpperCase(java.util.Locale.ROOT);
+                float scale = Math.min(w, h) / 16f;
+                r.text(letter, x + (w - r.width(letter, scale)) / 2, y + (h - 8 * scale) / 2, scale, DIM);
+            }
+            return false;
+        }
+        float ratio = (float) p.width() / p.height(), box = w / h;
+        if (cover) {
+            float u0 = 0, v0 = 0, u1 = 1, v1 = 1;
+            if (ratio > box) { float keep = box / ratio; u0 = (1 - keep) / 2; u1 = u0 + keep; }
+            else { float keep = ratio / box; v0 = (1 - keep) / 2; v1 = v0 + keep; }
+            r.image(p.texture(), x, y, w, h, u0, v0, u1, v1, WHITE);
+        } else {
+            float dw = w, dh = h;
+            if (ratio > box) dh = w / ratio; else dw = h * ratio;
+            r.image(p.texture(), x + (w - dw) / 2, y + (h - dh) / 2, dw, dh, WHITE);
+        }
+        return true;
+    }
+
+    /** Loader names Modrinth lists among a project's categories; the cards show only real categories. */
+    private static final java.util.Set<String> LOADERS = java.util.Set.of("fabric", "quilt", "forge", "neoforge",
+            "liteloader", "rift", "modloader", "minecraft", "datapack", "iris", "optifine", "canvas", "vanilla");
+
+    private static String compact(long n) {
+        if (n >= 1_000_000) return String.format("%.1fM", n / 1e6);
+        if (n >= 1_000) return String.format("%.1fk", n / 1e3);
+        return Long.toString(n);
+    }
+
+    private static String date(String iso) {
+        return iso.length() >= 10 ? iso.substring(0, 10) : iso;
+    }
+
+    // ------------------------------------------------------------------ project page
+
+    private static final int GALLERY_COLUMNS = 4;
+    /** Wrapped description text, per block, for the width it was wrapped at. */
+    private final Map<Markdown.Block, List<String>> wrapped = new java.util.IdentityHashMap<>();
+    private float wrappedWidth;
+    private List<Markdown.Block> wrappedFor;
+
+    private void drawProject(float s) {
+        ModrinthClient.Hit h = chosen;
+        if (h == null) return;
+        ModrinthClient.Project p = project;
+        ModrinthClient.GalleryImage banner = p == null ? null : p.banner();
+        float x = 120 * s, w = 1680 * s, top = 205 * s;
+        float headerY;
+        if (banner != null) {
+            float bh = 170 * s;
+            picture(banner.rawUrl(), ImageCache.Size.BANNER, x, top, w, bh, true, null);
+            r.rect(x, top + bh - 60 * s, w, 60 * s, 0x90101216);
+            headerY = top + bh + 12 * s;
+            picture(p.iconUrl(), ImageCache.Size.ICON, x + 24 * s, top + bh - 70 * s, 110 * s, 110 * s, false, h.title());
+        } else {
+            headerY = top;
+            picture(h.iconUrl(), ImageCache.Size.ICON, x + 24 * s, top, 110 * s, 110 * s, false, h.title());
+        }
+        float textX = x + 160 * s;
+        float titleY = banner != null ? headerY - 4 * s : headerY + 6 * s;
+        r.text(r.fit(h.title(), x + w - 590 * s - textX, 4 * s), textX, titleY, 4 * s, TEXT);
+        String meta = "by " + h.author() + "   |   " + compact(p != null ? p.downloads() : h.downloads()) + " downloads   |   "
+                + compact(p != null ? p.followers() : h.follows()) + " followers"
+                + (p != null && !p.license().isEmpty() ? "   |   " + p.license() : "")
+                + (p != null && !p.updated().isEmpty() ? "   |   updated " + date(p.updated()) : "");
+        // Install and Back, on the right of the header; the text to their left stops short of them.
+        boolean pack2 = projectType() == ModrinthClient.Type.MODPACK;
+        String installLabel = pack2 ? "Create instance" : "Install";
+        float bx = x + w - 560 * s, by = banner != null ? headerY - 6 * s : headerY + 4 * s;
+        float textW = bx - textX - 30 * s;
+        r.text(r.fit(meta, textW, 2.2f * s), textX, titleY + 46 * s, 2.2f * s, DIM);
+        if (banner == null) r.text(r.fit(h.description(), textW, 2.4f * s), textX, titleY + 78 * s, 2.4f * s, TEXT);
+
+        boolean actions = zone == Zone.ACTIONS && galleryOpen < 0;
+        r.rect(bx, by, 340 * s, 58 * s, actions && actionSelected == 0 ? ACCENT : PANEL_HI);
+        r.text(installLabel, bx + (340 * s - r.width(installLabel, 3 * s)) / 2, by + 14 * s, 3 * s,
+                actions && actionSelected == 0 ? DARK : ACCENT);
+        hit(bx, by, 340 * s, 58 * s, () -> { zone = Zone.ACTIONS; actionSelected = 0; }, Input.Action.CONFIRM);
+        r.rect(bx + 360 * s, by, 200 * s, 58 * s, actions && actionSelected == 1 ? ACCENT : PANEL_HI);
+        r.text("Back", bx + 360 * s + (200 * s - r.width("Back", 3 * s)) / 2, by + 14 * s, 3 * s,
+                actions && actionSelected == 1 ? DARK : TEXT);
+        hit(bx + 360 * s, by, 200 * s, 58 * s, () -> { zone = Zone.ACTIONS; actionSelected = 1; }, Input.Action.CONFIRM);
+
+        // Tabs.
+        float tabsY = (banner != null ? headerY + 70 * s : headerY + 125 * s);
+        String[] titles = {"Description", "Gallery" + (p != null ? " (" + p.gallery().size() + ")" : ""), "Versions"};
+        float tx = x;
+        for (Tab t : Tab.values()) {
+            String label = titles[t.ordinal()];
+            float tw = r.width(label, 3 * s) + 50 * s;
+            boolean current = t == tab;
+            r.rect(tx, tabsY, tw, 52 * s, current ? PANEL_HI : PANEL);
+            if (current) r.rect(tx, tabsY + 48 * s, tw, 4 * s, ACCENT);
+            r.text(label, tx + 25 * s, tabsY + 12 * s, 3 * s, current ? TEXT : DIM);
+            if (zone == Zone.TABS && current && galleryOpen < 0) r.frame(tx, tabsY, tw, 52 * s, 3 * s, WHITE);
+            Tab target = t;
+            clicks.add(tx, tabsY, tw, 52 * s, null, () -> {
+                if (busy && !cancellable) return;
+                zone = Zone.TABS;
+                selectTab(target);
+            });
+            tx += tw + 10 * s;
+        }
+
+        float cy = tabsY + 70 * s, cb = r.height - 175 * s, ch = cb - cy;
+        r.rect(x, cy, w, ch, PANEL);
+        if (zone == Zone.CONTENT && galleryOpen < 0) r.rect(x, cy, 4 * s, ch, ACCENT);
+        if (p == null) {
+            r.text(busy ? "Loading..." : "Could not load the project.", x + 30 * s, cy + 30 * s, 3 * s, DIM);
+            return;
+        }
+        switch (tab) {
+            case DESCRIPTION -> drawDescription(x, cy, w, ch);
+            case GALLERY -> drawGallery(p, x, cy, w, ch);
+            case VERSIONS -> drawVersionList(x, cy, w, ch);
+        }
+        if (galleryOpen >= 0 && galleryOpen < p.gallery().size()) drawViewer(p);
+    }
+
+    private void drawDescription(float x, float y, float w, float h) {
+        float s = r.s, pad = 30 * s, width = w - 2 * pad;
+        if (wrappedFor != description || wrappedWidth != width) {
+            wrapped.clear();
+            wrappedFor = description;
+            wrappedWidth = width;
+        }
+        descriptionView = h;
+        // The text's height is known once it is laid out; last frame's is used for the limit.
+        float offset = descriptionScroll.update(descriptionHeight, h, frameSeconds);
+        clicks.wheel(x, y, w, h, amount -> descriptionScroll.wheel(amount, 120 * s));
+        clicks.add(x, y, w, h, null, () -> { if (galleryOpen < 0) zone = Zone.CONTENT; });
+        r.clip(x, y, w, h);
+        float cy = y + pad - offset;
+        if (description.isEmpty()) r.text("No description.", x + pad, cy, 3 * s, DIM);
+        for (Markdown.Block b : description) {
+            switch (b.kind()) {
+                case HEADING -> {
+                    float scale = (b.level() <= 1 ? 4f : b.level() == 2 ? 3.4f : 3f) * s;
+                    cy += 14 * s;
+                    for (String line : lines(b, width, scale)) {
+                        if (visible(cy, 10 * scale, y, h)) r.text(line, x + pad, cy, scale, TEXT);
+                        cy += 10 * scale;
+                    }
+                    cy += 8 * s;
+                }
+                case TEXT, QUOTE -> {
+                    float scale = 2.5f * s, indent = b.kind() == Markdown.Kind.QUOTE ? 30 * s : 0;
+                    float start = cy;
+                    for (String line : lines(b, width - indent, scale)) {
+                        if (visible(cy, 32 * s, y, h)) r.text(line, x + pad + indent, cy, scale, b.kind() == Markdown.Kind.QUOTE ? DIM : TEXT);
+                        cy += 32 * s;
+                    }
+                    if (indent > 0) r.rect(x + pad, start - 4 * s, 5 * s, cy - start, CHIP);
+                    cy += 14 * s;
+                }
+                case BULLET -> {
+                    float scale = 2.5f * s, indent = (Math.abs(b.level() + (b.level() < 0 ? 1 : 0)) + 1) * 30 * s;
+                    boolean first = true;
+                    for (String line : lines(b, width - indent, scale)) {
+                        if (visible(cy, 32 * s, y, h)) {
+                            if (first && b.level() >= 0) r.text("*", x + pad + indent - 22 * s, cy, scale, ACCENT);
+                            r.text(line, x + pad + indent, cy, scale, TEXT);
+                        }
+                        first = false;
+                        cy += 32 * s;
+                    }
+                    cy += 4 * s;
+                }
+                case CODE -> {
+                    float scale = 2.2f * s;
+                    if (visible(cy, 28 * s, y, h)) {
+                        r.rect(x + pad, cy - 3 * s, width, 28 * s, DARK);
+                        r.text(r.fit(b.text(), width - 20 * s, scale), x + pad + 10 * s, cy, scale, DIM);
+                    }
+                    cy += 28 * s;
+                }
+                case RULE -> {
+                    cy += 12 * s;
+                    if (visible(cy, 4 * s, y, h)) r.rect(x + pad, cy, width, 2 * s, CHIP);
+                    cy += 18 * s;
+                }
+                case IMAGE -> {
+                    // Pictures load only when near the view; until then they hold a placeholder's height.
+                    boolean near = cy < y + h * 2 && cy > y - h * 2;
+                    ImageCache.Picture pic = near ? images.get(b.text(), ImageCache.Size.BANNER) : null;
+                    float iw, ih;
+                    if (pic != null) {
+                        iw = Math.min(width, pic.width() * s * 1.2f);
+                        ih = iw * pic.height() / pic.width();
+                        if (visible(cy, ih, y, h)) r.image(pic.texture(), x + pad, cy, iw, ih, WHITE);
+                    } else {
+                        boolean failed = near && !images.loading(b.text(), ImageCache.Size.BANNER);
+                        iw = width;
+                        ih = failed ? 0 : 160 * s;
+                        if (!failed && visible(cy, ih, y, h)) r.rect(x + pad, cy, Math.min(width, 480 * s), ih, CHIP);
+                    }
+                    cy += ih + (ih > 0 ? 14 * s : 0);
+                }
+            }
+        }
+        r.unclip();
+        descriptionHeight = cy + offset - y + pad;
+        scrollbar(descriptionScroll, descriptionHeight, x + w - 12 * s, y, h);
+    }
+
+    private List<String> lines(Markdown.Block b, float width, float scale) {
+        return wrapped.computeIfAbsent(b, k -> r.wrap(k.text(), width, scale));
+    }
+
+    private static boolean visible(float top, float height, float viewTop, float viewHeight) {
+        return top + height >= viewTop && top <= viewTop + viewHeight;
+    }
+
+    private void drawGallery(ModrinthClient.Project p, float x, float y, float w, float h) {
+        float s = r.s, pad = 24 * s;
+        List<ModrinthClient.GalleryImage> gallery = p.gallery();
+        if (gallery.isEmpty()) {
+            r.text("This project has no gallery.", x + 30 * s, y + 30 * s, 3 * s, DIM);
+            return;
+        }
+        float tileW = (w - pad * (GALLERY_COLUMNS + 1)) / GALLERY_COLUMNS, tileH = tileW * 9 / 16, rowH = tileH + 46 * s + pad;
+        int rows = (gallery.size() + GALLERY_COLUMNS - 1) / GALLERY_COLUMNS;
+        scrollList(galleryScroll, rows, zone == Zone.CONTENT ? gallerySelected / GALLERY_COLUMNS : -1,
+                x, y + pad, w - 14 * s, h - pad, rowH, (row, ty) -> {
+            for (int col = 0; col < GALLERY_COLUMNS; col++) {
+                int i = row * GALLERY_COLUMNS + col;
+                if (i >= gallery.size()) break;
+                float tx = x + pad + col * (tileW + pad);
+                boolean on = i == gallerySelected && zone == Zone.CONTENT;
+                picture(gallery.get(i).url(), ImageCache.Size.THUMB, tx, ty, tileW, tileH, true, null);
+                if (on) r.frame(tx - 4 * s, ty - 4 * s, tileW + 8 * s, tileH + 8 * s, 4 * s, ACCENT);
+                r.text(r.fit(gallery.get(i).title().isEmpty() ? "Image " + (i + 1) : gallery.get(i).title(), tileW, 2.2f * s),
+                        tx, ty + tileH + 10 * s, 2.2f * s, on ? TEXT : DIM);
+                hit(tx, ty, tileW, tileH + 40 * s, () -> { zone = Zone.CONTENT; gallerySelected = i; }, Input.Action.CONFIRM);
+            }
+        });
+    }
+
+    /** One gallery image over the whole screen, with its title and description. */
+    private void drawViewer(ModrinthClient.Project p) {
+        float s = r.s;
+        ModrinthClient.GalleryImage g = p.gallery().get(galleryOpen);
+        clicks.modal();
+        r.rect(0, 0, r.width, r.height, 0xf00b0c10);
+        float bw = r.width - 240 * s, bh = r.height - 260 * s;
+        if (!picture(g.rawUrl(), ImageCache.Size.FULL, 120 * s, 60 * s, bw, bh, false, null))
+            picture(g.url(), ImageCache.Size.THUMB, 120 * s, 60 * s, bw, bh, false, null);
+        String counter = (galleryOpen + 1) + " / " + p.gallery().size();
+        r.text(counter, r.width - 120 * s - r.width(counter, 2.6f * s), r.height - 180 * s, 2.6f * s, DIM);
+        r.text(r.fit(g.title(), bw - 300 * s, 3.2f * s), 120 * s, r.height - 185 * s, 3.2f * s, TEXT);
+        r.text(r.fit(g.description(), bw, 2.4f * s), 120 * s, r.height - 140 * s, 2.4f * s, DIM);
+        // Left and right thirds step through the images; the middle closes.
+        clicks.add(0, 0, r.width / 3, r.height - 120 * s, null, () -> press(Input.Action.LEFT));
+        clicks.add(r.width * 2 / 3, 0, r.width / 3, r.height - 120 * s, null, () -> press(Input.Action.RIGHT));
+        clicks.add(r.width / 3, 0, r.width / 3, r.height - 120 * s, null, () -> press(Input.Action.CONFIRM));
+        r.text("<", 40 * s, r.height / 2 - 30 * s, 7 * s, DIM);
+        r.text(">", r.width - 80 * s, r.height / 2 - 30 * s, 7 * s, DIM);
+    }
+
+    private void drawVersionList(float x, float y, float w, float h) {
+        float s = r.s, rowH = 54 * s;
+        boolean content = zone == Zone.CONTENT && galleryOpen < 0;
+        String filter = versionsAll ? "Showing all versions   < Only for this instance >"
+                : "Showing versions for " + target(projectType()) + "   < All versions >";
+        boolean filterOn = content && versionSelected == 0;
+        r.rect(x + 20 * s, y + 16 * s, w - 40 * s, rowH - 8 * s, filterOn ? ACCENT : PANEL_HI);
+        r.text(r.fit(filter, w - 80 * s, 2.6f * s), x + 40 * s, y + 27 * s, 2.6f * s, filterOn ? DARK : TEXT);
+        hit(x + 20 * s, y + 16 * s, w - 40 * s, rowH - 8 * s, () -> { zone = Zone.CONTENT; versionSelected = 0; },
+                Input.Action.CONFIRM);
+        List<ModrinthClient.VersionInfo> list = projectVersions;
+        float ly = y + 16 * s + rowH;
+        if (list == null) {
+            r.text(busy ? "Loading versions..." : "Versions could not be loaded.", x + 40 * s, ly + 10 * s, 2.6f * s, DIM);
+            return;
+        }
+        scrollList(versionScroll, list.size(), content && versionSelected > 0 ? versionSelected - 1 : -1,
+                x, ly, w - 14 * s, y + h - ly - 10 * s, rowH, (i, ry) -> {
+            ModrinthClient.VersionInfo v = list.get(i);
+            boolean on = content && versionSelected == i + 1;
+            r.rect(x + 20 * s, ry, w - 40 * s, rowH - 6 * s, on ? PANEL_HI : PANEL);
+            if (on) r.rect(x + 20 * s, ry, 6 * s, rowH - 6 * s, ACCENT);
+            int typeColor = "release".equals(v.type()) ? ACCENT : "beta".equals(v.type()) ? WARN : ERROR;
+            r.rect(x + 40 * s, ry + 11 * s, 110 * s, 28 * s, typeColor);
+            r.text(v.type(), x + 50 * s, ry + 16 * s, 2.1f * s, DARK);
+            r.text(r.fit(v.number(), 470 * s, 2.7f * s), x + 170 * s, ry + 12 * s, 2.7f * s, TEXT);
+            String games = String.join(", ", v.gameVersions().size() > 4
+                    ? List.of(v.gameVersions().get(0), "...", v.gameVersions().get(v.gameVersions().size() - 1)) : v.gameVersions());
+            r.text(r.fit(games, 400 * s, 2.3f * s), x + 670 * s, ry + 15 * s, 2.3f * s, DIM);
+            r.text(r.fit(String.join(", ", v.loaders()), 220 * s, 2.3f * s), x + 1090 * s, ry + 15 * s, 2.3f * s, DIM);
+            r.text(date(v.published()), x + 1320 * s, ry + 15 * s, 2.3f * s, DIM);
+            String dl = compact(v.downloads());
+            r.text(dl, x + w - 50 * s - r.width(dl, 2.3f * s), ry + 15 * s, 2.3f * s, DIM);
+            hit(x + 20 * s, ry, w - 40 * s, rowH - 6 * s, () -> { zone = Zone.CONTENT; versionSelected = i + 1; },
+                    Input.Action.CONFIRM);
+        });
     }
 
     private void drawCrash(float s) {
@@ -1412,24 +2567,21 @@ class LauncherScreen {
             boolean on = i == selected && !editor.active() && !systemKeyboardOpen;
             if (on) r.rect(x, y - 10 * s, w, 60 * s, ACCENT);
             r.text(items.get(i), x + 30 * s, y, 4 * s, on ? DARK : TEXT);
+            int index = i;
+            hit(x, y - 10 * s, w, 60 * s, () -> selected = index, Input.Action.CONFIRM);
             y += 70 * s;
         }
     }
 
-    /** A scrolling list of rows showing at most visible rows around the selection. */
+    /** A smoothly scrolled list of rows, at most visible rows high, following the selection on key moves. */
     private void list(List<String> rows, List<Integer> colors, float x, float y, float w, int visible) {
-        float s = r.s, scale = 3 * s;
-        if (selected < scroll) scroll = selected;
-        if (selected >= scroll + visible) scroll = selected - visible + 1;
-        for (int i = scroll; i < Math.min(rows.size(), scroll + visible); i++) {
+        float s = r.s, scale = 3 * s, rowH = 52 * s;
+        scrollList(scrollers[page.ordinal()], rows.size(), selected, x, y - 8 * s, w, visible * rowH, rowH, (i, ry) -> {
             boolean on = i == selected && !editor.active() && !systemKeyboardOpen;
-            if (on) r.rect(x, y - 8 * s, w, 46 * s, ACCENT);
-            r.text(r.fit(rows.get(i), w - 40 * s, scale), x + 20 * s, y, scale, on ? DARK : colors.get(i));
-            y += 52 * s;
-        }
-        if (rows.size() > visible)
-            r.text((scroll + 1) + "-" + Math.min(rows.size(), scroll + visible) + " of " + rows.size(),
-                    x + w - 260 * s, y + 10 * s, 2.5f * s, DIM);
+            if (on) r.rect(x, ry, w, 46 * s, ACCENT);
+            r.text(r.fit(rows.get(i), w - 40 * s, scale), x + 20 * s, ry + 8 * s, scale, on ? DARK : colors.get(i));
+            hit(x, ry, w, 46 * s, () -> selected = i, Input.Action.CONFIRM);
+        });
     }
 
     private static int clamp(int value, int min, int max) {
