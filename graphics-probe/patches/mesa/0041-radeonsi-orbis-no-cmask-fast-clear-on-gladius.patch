@@ -1,26 +1,47 @@
 diff --git a/src/gallium/drivers/radeonsi/si_clear.c b/src/gallium/drivers/radeonsi/si_clear.c
-index 73bb30b..4537858 100644
+index 73bb30b..c803e6d 100644
 --- a/src/gallium/drivers/radeonsi/si_clear.c
 +++ b/src/gallium/drivers/radeonsi/si_clear.c
-@@ -107,6 +107,17 @@ static bool si_alloc_separate_cmask(struct si_screen *sscreen, struct si_texture
+@@ -96,9 +96,27 @@ static bool si_alloc_separate_cmask(struct si_screen *sscreen, struct si_texture
+    if (!tex->surface.cmask_size)
+       return false;
+ 
++#ifdef HAVE_ORBIS_PLATFORM
++   /* ORBIS_CMASK_ADDR_TYPE=0|1|2 (with ORBIS_FAST_CLEAR=1): on Gladius, CB_COLOR_INFO.CMASK_ADDR_TYPE (bits 29-30:
++    * tiled, linear, TC-compatible), the field GFX8's colour block chooses its CMASK addressing by - Mesa sets it
++    * for TC-compatible CMASK. CMASK_IS_LINEAR (bit 19), the older field, made no difference to the half-lost
++    * tiles. Whether another mode needs more than the 8-pipe size computed here is unknown, so the buffer is
++    * allocated twice as large while this is set. ComputeProbe 2026-10-07: 1 and 2 both still lose half the tiles. */
++   int orbis_addr_type = -1;
++   if (sscreen->info.family == CHIP_GLADIUS) {
++      const char *env = getenv("ORBIS_CMASK_ADDR_TYPE");
++      if (env && env[0] >= '0' && env[0] <= '2' && env[1] == '\0')
++         orbis_addr_type = env[0] - '0';
++   }
++   tex->cmask_buffer =
++      si_aligned_buffer_create(&sscreen->b, PIPE_RESOURCE_FLAG_UNMAPPABLE, PIPE_USAGE_DEFAULT,
++                               tex->surface.cmask_size * (orbis_addr_type >= 0 ? 2 : 1),
++                               1 << tex->surface.cmask_alignment_log2);
++#else
+    tex->cmask_buffer =
+       si_aligned_buffer_create(&sscreen->b, PIPE_RESOURCE_FLAG_UNMAPPABLE, PIPE_USAGE_DEFAULT,
+                                tex->surface.cmask_size, 1 << tex->surface.cmask_alignment_log2);
++#endif
+    if (tex->cmask_buffer == NULL)
+       return false;
+ 
+@@ -107,6 +125,10 @@ static bool si_alloc_separate_cmask(struct si_screen *sscreen, struct si_texture
      */
     tex->cmask_base_address_reg = tex->cmask_buffer->gpu_address >> 8;
     tex->cb_color_info |= S_028C70_FAST_CLEAR(1);
 +#ifdef HAVE_ORBIS_PLATFORM
-+   /* ORBIS_CMASK_LINEAR=1 (with ORBIS_FAST_CLEAR=1): on Gladius, CB_COLOR_INFO.CMASK_IS_LINEAR (bit 19), so the
-+    * colour block addresses CMASK as a plain array instead of interleaving it across pipes - the 8- versus
-+    * 16-pipe question that loses half the tiles. A linear CMASK is no larger than the tiled one allocated here,
-+    * and radeonsi only ever clears the whole buffer. An experiment. */
-+   if (sscreen->info.family == CHIP_GLADIUS) {
-+      const char *env = getenv("ORBIS_CMASK_LINEAR");
-+      if (env && env[0] == '1' && env[1] == '\0')
-+         tex->cb_color_info |= 1u << 19;
-+   }
++   if (orbis_addr_type >= 0)
++      tex->cb_color_info |= S_028C70_CMASK_ADDR_TYPE(orbis_addr_type);
 +#endif
  
     p_atomic_inc(&sscreen->compressed_colortex_counter);
     return true;
-@@ -507,6 +518,24 @@ static void si_fast_clear(struct si_context *sctx, unsigned *buffers,
+@@ -507,6 +529,24 @@ static void si_fast_clear(struct si_context *sctx, unsigned *buffers,
     if (sctx->screen->debug_flags & (DBG(FORCE_GFX_BLIT) | DBG(FORCE_COMPUTE_BLIT)))
        return;
  
@@ -45,3 +66,15 @@ index 73bb30b..4537858 100644
     /* Gather information about what to clear. */
     unsigned color_buffer_mask = (*buffers & PIPE_CLEAR_COLOR) >> util_logbase2(PIPE_CLEAR_COLOR0);
     while (color_buffer_mask) {
+@@ -695,6 +735,11 @@ static void si_fast_clear(struct si_context *sctx, unsigned *buffers,
+             /* GFX6-8: This only covers mipmap level 0. */
+             cmask_offset = tex->surface.cmask_offset;
+             clear_size = tex->surface.cmask_size;
++#ifdef HAVE_ORBIS_PLATFORM
++            /* The whole separate CMASK, including the ORBIS_CMASK_ADDR_TYPE padding (si_alloc_separate_cmask). */
++            if (sctx->screen->info.family == CHIP_GLADIUS && tex->cmask_buffer != &tex->buffer)
++               clear_size = tex->cmask_buffer->b.b.width0 - cmask_offset;
++#endif
+          }
+ 
+          /* Do the fast clear. */

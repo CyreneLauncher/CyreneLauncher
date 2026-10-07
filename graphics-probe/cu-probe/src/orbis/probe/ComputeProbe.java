@@ -45,7 +45,15 @@ public final class ComputeProbe {
             if (!GL.createCapabilities().GL_ARB_shader_clock) throw new IllegalStateException("no GL_ARB_shader_clock");
             say("renderer=%s version=%s", glGetString(GL_RENDERER), glGetString(GL_VERSION));
             say("AMD_DEBUG=%s", System.getProperty("orbis.graphics.env.AMD_DEBUG", "(unset)"));
+            say("ORBIS_FAST_CLEAR=%s ORBIS_CMASK_ADDR_TYPE=%s", System.getProperty("orbis.graphics.env.ORBIS_FAST_CLEAR", "(unset)"),
+                    System.getProperty("orbis.graphics.env.ORBIS_CMASK_ADDR_TYPE", "(unset)"));
+            // orbis.probe.only=color runs just the colour-block tests (fast clears).
+            boolean colorOnly = "color".equals(System.getProperty("orbis.probe.only", ""));
             for (int run = 0; run < 3; run++) {
+                if (colorOnly) {
+                    colorBlock(run);
+                    continue;
+                }
                 buffers(64, 1024, false, run);
                 buffers(64, 16384, false, run);
                 buffers(256, 4096, false, run);
