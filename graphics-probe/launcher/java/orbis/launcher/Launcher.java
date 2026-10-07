@@ -29,6 +29,7 @@ public final class Launcher {
         }
         keepLog(config.home.resolve("launcher.log"));
         String notice = null;
+        boolean gameStarted = false;
         try {
             String intent = null;
             java.util.List<String> base = new java.util.ArrayList<>();
@@ -55,6 +56,7 @@ public final class Launcher {
                 config.recordPlay(instance);
                 System.out.println("launcher: starting instance " + instance.id() + " ("
                         + config.describe(instance) + ")");
+                gameStarted = true;
                 startGame(version != null ? version.mainClass() : config.gameMainClass, gameArgs);
                 return;
             }
@@ -64,6 +66,8 @@ public final class Launcher {
             // Authentication errors are sanitized by its backend. Never print arguments or tokens.
             notice = "Cannot start: " + failed.getMessage();
             System.err.println("launcher: launch preparation failed");
+            // Past authentication: the game's own failure, whose causes name what went wrong.
+            if (gameStarted) failed.printStackTrace();
         }
         LauncherScreen screen = new LauncherScreen(config);
         if (notice != null) screen.showLaunchError(notice);
