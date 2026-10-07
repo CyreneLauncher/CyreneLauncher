@@ -48,5 +48,14 @@ int main(void) {
     set_changes_flags = 1;
     assert(orbis_configure_blocking(7, 1) == 0);
     assert((current_flags & O_NONBLOCK) == 0);
+
+    /* Receive paths add FreeBSD's MSG_DONTWAIT (0x80, not the SDK's Linux 0x40) only on a
+     * non-blocking descriptor, and nothing when its flags cannot be read. */
+    current_flags = O_RDWR | O_NONBLOCK;
+    assert(orbis_nonblocking_flags(7) == 0x80);
+    current_flags = O_RDWR;
+    assert(orbis_nonblocking_flags(7) == 0);
+    current_flags = -1;
+    assert(orbis_nonblocking_flags(7) == 0);
     return 0;
 }

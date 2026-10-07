@@ -21,7 +21,12 @@ assert clock_id(toolchain_time) == 1
 assert clock_id(orbis_time) == 4
 assert "static const clockid_t hotspot_monotonic_clock = (clockid_t)4;" in source
 assert "static const clockid_t hotspot_monotonic_clock = CLOCK_MONOTONIC;" in source
-assert "clock_gettime(hotspot_monotonic_clock, &tp)" in source
+# HotSpot reads its clocks through orbis_read_clock, with libkernel's entry as the fallback.
+assert "orbis_read_clock(hotspot_monotonic_clock, &tp)" in source
+assert '__asm__("sceKernelClockGettime")' in source
+# Every other module gets the shared runtime's clock_gettime, which maps Linux ids to FreeBSD's.
+runtime = (root / "orbis-java-app/tools/orbis_runtime.c").read_text()
+assert "case 1: case 4: case 6: case 7: native = 4; break;" in runtime
 assert "clockid_t clock = hotspot_monotonic_clock;" in source
 assert "_pthread_condattr_setclock(_condAttr, hotspot_monotonic_clock)" in source
 print("Orbis monotonic clock ABI contract passed")

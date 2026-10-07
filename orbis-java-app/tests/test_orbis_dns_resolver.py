@@ -7,7 +7,7 @@ import re
 
 SOURCE = (Path(__file__).resolve().parents[2] /
           "src/java.base/unix/native/libnet/net_util_md.c").read_text()
-start = SOURCE.index("static pthread_once_t orbis_net_init_once")
+start = SOURCE.index("static OrbisNetOnce orbis_net_init_once")
 end = SOURCE.index("\n#endif", start)
 resolver = SOURCE[start:end]
 

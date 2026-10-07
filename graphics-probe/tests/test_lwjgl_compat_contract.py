@@ -8,7 +8,7 @@ import tempfile
 import unittest
 import zipfile
 from pathlib import Path
-from host_diagnostics import unexpected_host_stderr
+from host_diagnostics import GLFW_INPUT_UNAVAILABLE, GLFW_POLICY_ERRORS, unexpected_host_stderr
 
 ROOT = Path(__file__).resolve().parents[1]
 JAVA = Path('/usr/lib/jvm/java-17-openjdk-amd64/bin')
@@ -94,7 +94,9 @@ class CompatibilityContract(unittest.TestCase):
                                     capture_output=True, text=True)
             lines = [line for line in result.stdout.splitlines() if line.startswith('COMPAT ')]
             self.assertNotEqual(0, result.returncode, stage + result.stdout + result.stderr)
-            self.assertEqual('', unexpected_host_stderr(result.stderr, expected_probe_failure=True),
+            deliberate = (GLFW_POLICY_ERRORS,) if stage == 'glfw-policy' else ()
+            self.assertEqual('', unexpected_host_stderr(result.stderr, expected_probe_failure=True,
+                                                        expected_errors=deliberate),
                              stage + '\n' + result.stderr)
             self.assertTrue(any(f'stage={stage} result=ok' in line for line in lines),
                             stage + '\n' + result.stdout + result.stderr)
@@ -135,7 +137,8 @@ class CompatibilityContract(unittest.TestCase):
                               MAIN, str(self.out / 'runner/fixtures')], capture_output=True, text=True)
         lines = [line for line in run.stdout.splitlines() if line.startswith('COMPAT ')]
         self.assertNotEqual(0, run.returncode)
-        self.assertEqual('', unexpected_host_stderr(run.stderr, expected_probe_failure=True), run.stderr)
+        self.assertEqual('', unexpected_host_stderr(run.stderr, expected_probe_failure=True,
+                                                    expected_errors=(GLFW_INPUT_UNAVAILABLE,)), run.stderr)
         self.assertTrue(any('stage=glfw-error result=fail' in line and 'input service unavailable' in line
                             for line in lines), lines)
         self.assertTrue(any('stage=run result=fail' in line and 'unexpected GLFW error callback' in line
