@@ -1,0 +1,253 @@
+diff --git a/src/amd/addrlib/src/r800/ciaddrlib.cpp b/src/amd/addrlib/src/r800/ciaddrlib.cpp
+index 4ebcd3c..b08b13d 100644
+--- a/src/amd/addrlib/src/r800/ciaddrlib.cpp
++++ b/src/amd/addrlib/src/r800/ciaddrlib.cpp
+@@ -1572,6 +1572,16 @@ VOID CiLib::ReadGbTileMode(
+     if (AltTilingEnabled() == TRUE)
+     {
+         pCfg->info.pipeConfig = static_cast<AddrPipeCfg>(gbTileMode.f.alt_pipe_config + 1);
++#ifdef HAVE_ORBIS_PLATFORM
++        // The PS4 Pro's driver writes 18 here, one past the last value AMD's numbering defines (17,
++        // P16_32x32_16x16 as a hardware value). It is a 16-pipe layout; read it as P16_32x32_8x16, as the
++        // shadPS4 project's tiling does for Neo surfaces (ac_orbis_alt_tiling).
++        if (gbTileMode.f.alt_pipe_config == 18)
++        {
++            // P16_32x32_16x16 was tried as well and made no visible difference in the game.
++            pCfg->info.pipeConfig = ADDR_PIPECFG_P16_32x32_8x16;
++        }
++#endif
+     }
+     else
+     {
+diff --git a/src/amd/common/ac_descriptors.c b/src/amd/common/ac_descriptors.c
+index 9e12b68..d99095a 100644
+--- a/src/amd/common/ac_descriptors.c
++++ b/src/amd/common/ac_descriptors.c
+@@ -6,6 +6,9 @@
+  */
+ 
+ #include "ac_descriptors.h"
++#ifdef HAVE_ORBIS_PLATFORM
++bool ac_orbis_alt_tiling(void); /* ac_orbis_drm.c */
++#endif
+ #include "ac_gpu_info.h"
+ #include "ac_formats.h"
+ #include "ac_surface.h"
+@@ -969,6 +972,19 @@ ac_init_gfx6_ds_surface(const struct radeon_info *info, const struct ac_ds_state
+                                   S_02803C_NUM_BANKS(G_009990_NUM_BANKS(macro_mode));
+       ds->db_z_info |= S_028040_TILE_SPLIT(G_009910_TILE_SPLIT(tile_mode));
+       ds->db_stencil_info |= S_028044_TILE_SPLIT(G_009910_TILE_SPLIT(stencil_tile_mode));
++#ifdef HAVE_ORBIS_PLATFORM
++      /* With the Pro's alternate tiling the DB is told the alternate layout, as Sony's driver does: pipe config
++       * from GB_TILE_MODE bits 27-31, bank height / aspect / count from GB_MACROTILE_MODE bits 8-13 (the bank
++       * width is shared). See ac_orbis_alt_tiling. */
++      if (info->family == CHIP_GLADIUS && ac_orbis_alt_tiling()) {
++         ds->u.gfx6.db_depth_info &= C_02803C_PIPE_CONFIG & C_02803C_BANK_HEIGHT & C_02803C_MACRO_TILE_ASPECT &
++                                     C_02803C_NUM_BANKS;
++         ds->u.gfx6.db_depth_info |= S_02803C_PIPE_CONFIG(tile_mode >> 27) |
++                                     S_02803C_BANK_HEIGHT((macro_mode >> 8) & 3) |
++                                     S_02803C_MACRO_TILE_ASPECT((macro_mode >> 10) & 3) |
++                                     S_02803C_NUM_BANKS((macro_mode >> 12) & 3);
++      }
++#endif
+    } else {
+       uint32_t tile_mode_index = ac_tile_mode_index(surf, state->level, false);
+       ds->db_z_info |= S_028040_TILE_MODE_INDEX(tile_mode_index);
+diff --git a/src/amd/common/ac_gpu_info.c b/src/amd/common/ac_gpu_info.c
+index d8ac96b..1c608c4 100644
+--- a/src/amd/common/ac_gpu_info.c
++++ b/src/amd/common/ac_gpu_info.c
+@@ -463,6 +463,14 @@ ac_fill_tiling_info(struct radeon_info *info, const struct amdgpu_gpu_info *amdi
+    } else {
+       unsigned pipe_config = G_009910_PIPE_CONFIG(amdinfo->gb_tile_mode[CIK_TILE_MODE_COLOR_2D]);
+       info->num_tile_pipes = ac_pipe_config_to_num_pipes(pipe_config);
++#ifdef HAVE_ORBIS_PLATFORM
++      /* The Pro's alternate tiling is a 16-pipe layout (ac_orbis_alt_tiling), and the metadata this count sizes
++       * (ac_compute_cmask's cache lines among it) follows the layout. It does not cure the colour fast-clear
++       * losses - measured, they are unchanged with it - but metadata sized for 8 pipes over a 16-pipe layout
++       * would be wrong regardless. */
++      if (info->family == CHIP_GLADIUS && ac_orbis_alt_tiling())
++         info->num_tile_pipes = 16;
++#endif
+       assert((256 << G_0098F8_PIPE_INTERLEAVE_SIZE_GFX6(info->gb_addr_config)) ==
+              AMD_MEMCHANNEL_INTERLEAVE_BYTES);
+    }
+diff --git a/src/amd/common/ac_linux_drm.h b/src/amd/common/ac_linux_drm.h
+index 0d9cc70..400ff93 100644
+--- a/src/amd/common/ac_linux_drm.h
++++ b/src/amd/common/ac_linux_drm.h
+@@ -578,6 +578,11 @@ bool ac_orbis_gpu_seq_reached(uint64_t seq);
+  * and "the newest submission" would by then include the next frame. Zero before anything has finished. */
+ uint64_t ac_orbis_gpu_seq_retired(void);
+ 
++/* On a console in Neo mode (unless ORBIS_ALT_TILING=0): the tile tables carry the Pro's ALTERNATE fields (Sony's
++ * pipe config 18, its bank shapes), addrlib reads them, and DB_DEPTH_INFO is programmed from them - which is what
++ * makes HTILE work on the Pro. See the definition. */
++bool ac_orbis_alt_tiling(void);
++
+ /* Whether a device address lies inside this arm's single arena. See the definition for why descriptor
+  * construction asks. */
+ bool ac_orbis_va_is_ours(uint64_t va, uint64_t size);
+diff --git a/src/amd/common/ac_orbis_drm.c b/src/amd/common/ac_orbis_drm.c
+index b77fcc3..b8a7f7d 100644
+--- a/src/amd/common/ac_orbis_drm.c
++++ b/src/amd/common/ac_orbis_drm.c
+@@ -6769,6 +6769,26 @@ ac_drm_query_gpu_info(ac_drm_device *dev, struct amdgpu_gpu_info *info)
+       memcpy(info->gb_macro_tile_mode, orbis_gb_macro_tile_mode_2kb, sizeof(orbis_gb_macro_tile_mode_2kb));
+    }
+ 
++   /* ⚠ THE PRO's ALTERNATE TILING, AS SONY'S OWN DRIVER WRITES IT. Gnm (read out of a retail title's static
++    * libSceGnm) keeps the same 32 tile modes with the Pro's pipe config in GB_TILE_MODE bits 27-31 - AMD's
++    * ALT_PIPE_CONFIG field - set to 18 in every entry, and the Pro's bank shape in GB_MACROTILE_MODE bits 8-13:
++    * ALT_BANK_HEIGHT, ALT_MACRO_TILE_ASPECT, ALT_NUM_BANKS. Its low bits are this table's. addrlib already
++    * knows the fields (CiLib, enableAltTiling); 18 itself is Sony's name for a 16-pipe layout, which ciaddrlib
++    * maps to P16_32x32_8x16, the reading shadPS4 uses.
++    *
++    * MEASURED (graphics-probe GeometryProbe, then Minecraft): it is what makes HTILE work on the Pro - without it
++    * HiZ corrupts most of the frame, with it depth testing is exact and Complementary went from 29-32 to 40 fps.
++    * It does NOT fix colour fast clears, which still lose half their drawn tiles with it (patch 0041 stays). */
++   if (ac_orbis_alt_tiling()) {
++      static const uint32_t gnm_macro_alt[16] = {0x26e8, 0x26d4, 0x21d0, 0x21d0, 0x2080, 0x2040, 0x1000, 0,
++                                                0x36ec, 0x26e8, 0x21d4, 0x20d0, 0x1080, 0x1040, 0, 0};
++      for (unsigned i = 0; i < 32; i++)
++         if (info->gb_tile_mode[i])
++            info->gb_tile_mode[i] |= 18u << 27;
++      for (unsigned i = 0; i < 16; i++)
++         info->gb_macro_tile_mode[i] |= gnm_macro_alt[i] & 0x3f00u;
++   }
++
+    /* Last, because by here every number it prints has been computed by the code above rather than restated. */
+    orbis_dump_shim_device();
+ 
+@@ -9525,6 +9545,27 @@ ac_orbis_wait_gpu_seq(uint64_t want, uint64_t timeout_ns)
+    return true;
+ }
+ 
++bool
++ac_orbis_alt_tiling(void)
++{
++   static int alt = -1;
++   if (alt < 0) {
++      const char *const e = getenv("ORBIS_ALT_TILING");
++      alt = 0;
++#if defined(__PS4__)
++      /* On in Neo mode; ORBIS_ALT_TILING=0 turns it off, which also turns HTILE off (si_pipe.c). */
++      if (sceKernelIsNeoMode() == 1 && !(e != NULL && strcmp(e, "0") == 0))
++         alt = 1;
++#else
++      (void)e;
++#endif
++      if (alt)
++         mesa_logi("orbis-drm: the Pro's alternate tiling (pipe config 18, Gnm's bank shapes) in the tile tables, "
++                   "addrlib and DB_DEPTH_INFO; ORBIS_ALT_TILING=0 turns it off");
++   }
++   return alt == 1;
++}
++
+ bool
+ ac_orbis_gpu_seq_reached(uint64_t seq)
+ {
+diff --git a/src/amd/common/ac_surface.c b/src/amd/common/ac_surface.c
+index 40c815d..806cc1d 100644
+--- a/src/amd/common/ac_surface.c
++++ b/src/amd/common/ac_surface.c
+@@ -16,6 +16,9 @@
+ #include "amdgfxregs.h"
+ #include "util/macros.h"
+ #include "util/simple_mtx.h"
++#ifdef HAVE_ORBIS_PLATFORM
++bool ac_orbis_alt_tiling(void); /* ac_orbis_drm.c */
++#endif
+ #include "util/u_atomic.h"
+ #include "util/format/u_format.h"
+ #include "util/u_math.h"
+@@ -838,6 +841,11 @@ struct ac_addrlib *ac_addrlib_create(const struct radeon_info *info,
+ 
+       createFlags.useTileIndex = 1;
+       createFlags.useHtileSliceAlign = 1;
++#ifdef HAVE_ORBIS_PLATFORM
++      /* The Pro's alternate tiling fields, when the shim put them in the tables (ac_orbis_alt_tiling). */
++      if (info->family == CHIP_GLADIUS && ac_orbis_alt_tiling())
++         createFlags.enableAltTiling = 1;
++#endif
+ 
+       addrCreateInput.chipEngine = CIASICIDGFXENGINE_SOUTHERNISLAND;
+    }
+diff --git a/src/gallium/drivers/radeonsi/si_pipe.c b/src/gallium/drivers/radeonsi/si_pipe.c
+index 7dce599..e7eabf6 100644
+--- a/src/gallium/drivers/radeonsi/si_pipe.c
++++ b/src/gallium/drivers/radeonsi/si_pipe.c
+@@ -6,6 +6,9 @@
+  */
+ 
+ #include "si_pipe.h"
++#ifdef HAVE_ORBIS_PLATFORM
++bool ac_orbis_alt_tiling(void); /* ac_orbis_drm.c */
++#endif
+ #include "gfx/si_gfx.h"
+ #include "mm/si_mm.h"
+ #include "tests/si_tests.h"
+@@ -217,7 +220,11 @@ static struct pipe_screen *radeonsi_screen_create_impl(struct radeon_winsys *ws,
+ #ifdef HAVE_ORBIS_PLATFORM
+    /* No HTILE on a PS4 Pro: Sony enables it in Neo mode only for its own 16-pipe depth layout, and with
+     * ours depth tests fail tile by tile (see RADV's radv_physical_device.c). */
+-   if (sscreen->info.family == CHIP_GLADIUS)
++   /* ...UNLESS the depth layout is that 16-pipe one: the Pro's alternate tiling (ac_orbis_alt_tiling, on by
++    * default in Neo mode) programs DB_DEPTH_INFO with Sony's pipe config 18 as Gnm does, and then HTILE is
++    * exact (GeometryProbe) and worth ~30% in Minecraft with shaders. ORBIS_HTILE=0 turns it off anyway. */
++   if (sscreen->info.family == CHIP_GLADIUS &&
++       (!ac_orbis_alt_tiling() || !debug_get_bool_option("ORBIS_HTILE", true)))
+       sscreen->debug_flags |= DBG(NO_HYPERZ);
+ #endif
+ 
+diff --git a/src/gallium/drivers/radeonsi/si_texture.c b/src/gallium/drivers/radeonsi/si_texture.c
+index ed70120..be35674 100644
+--- a/src/gallium/drivers/radeonsi/si_texture.c
++++ b/src/gallium/drivers/radeonsi/si_texture.c
+@@ -17,6 +17,10 @@
+ #include "util/u_transfer.h"
+ 
+ #include <inttypes.h>
++#include "util/log.h"
++#ifdef HAVE_ORBIS_PLATFORM
++bool ac_orbis_alt_tiling(void); /* ac_orbis_drm.c */
++#endif
+ 
+ #include "ac_formats.h"
+ 
+@@ -1217,6 +1221,17 @@ static struct si_texture *si_texture_create_object(struct pipe_screen *screen,
+          tex->can_sample_z = !tex->surface.u.legacy.depth_adjusted;
+          tex->can_sample_s = !tex->surface.u.legacy.stencil_adjusted;
+       }
++#ifdef HAVE_ORBIS_PLATFORM
++      /* With the Pro's alternate tiling the DB addresses depth through DB_DEPTH_INFO's pipe config 18 while the
++       * texture unit reads the standard layout, and past 1024 pixels wide the two disagree: GeometryProbe read
++       * 0.4 for 0.3 in alternating 4-pixel groups across half of a 2048x1024 depth texture (Fabulous graphics
++       * and Iris show it as dot grids). The DB-to-CB copy into the flushed texture reads through the DB and was
++       * exact, so depth is sampled through that copy, as for a layout addrlib had to adjust. */
++      if (sscreen->info.family == CHIP_GLADIUS && ac_orbis_alt_tiling()) {
++         tex->can_sample_z = false;
++         tex->can_sample_s = false;
++      }
++#endif
+ 
+       const bool need_htile_stencil_mipmap_bug_workaround =
+          sscreen->info.has_htile_stencil_mipmap_bug && base->last_level > 0;
+@@ -1261,6 +1276,17 @@ static struct si_texture *si_texture_create_object(struct pipe_screen *screen,
+                            CMASK_MSAA_FMASK_CLEAR_0_COLOR_EXPANDED);
+    }
+    if (tex->is_depth && tex->surface.meta_offset) {
++#ifdef HAVE_ORBIS_PLATFORM
++      /* Which depth targets got HTILE on the Pro, the first few by size - proof that HiZ is live. */
++      if (sscreen->info.family == CHIP_GLADIUS) {
++         static unsigned said;
++         if (said < 8) {
++            said++;
++            mesa_logi("radeonsi/orbis: HTILE allocated for a %ux%u depth target (%" PRIu64 " bytes of metadata)",
++                      base->width0, base->height0, (uint64_t)tex->surface.meta_size);
++         }
++      }
++#endif
+       assert(num_clears < ARRAY_SIZE(clears));
+       si_init_buffer_clear(&clears[num_clears++], &tex->buffer.b.b, tex->surface.meta_offset,
+                            tex->surface.meta_size,
