@@ -25,6 +25,7 @@ public final class LauncherLogicTest {
         versionPredicates();
         lwjglSelection();
         runtimeSelection();
+        consoleModSettings();
         scroller();
         packRules();
         packInstall();
@@ -65,6 +66,27 @@ public final class LauncherLogicTest {
         check(VersionStore.requiredJava("1.21.1") == 21 && VersionStore.requiredJava("1.20.5") == 21
                 && VersionStore.requiredJava("1.20.4") == 17 && VersionStore.requiredJava("1.16.5") == 8,
                 "required Java for records without one");
+    }
+
+    /** Ixeris is switched off through its own per-platform keys; nothing else in its config changes. */
+    private static void consoleModSettings() throws IOException {
+        String shipped = "#Specifies whether to enable the mod on Linux\nenabledOnLinux = true\n"
+                + "#Specifies whether to enable the mod on other platforms\nenabledOnOtherPlatforms = true # note\n"
+                + "flexibleThreading = true\n\n[bufferedRawInput]\n\tmouse = true\n";
+        String off = ConsoleModSettings.switchOff(shipped, "enabledOnLinux", "enabledOnOtherPlatforms");
+        check(off.equals(shipped.replace("enabledOnLinux = true", "enabledOnLinux = false")
+                .replace("enabledOnOtherPlatforms = true # note", "enabledOnOtherPlatforms = false # note")),
+                "both switches off, comments and other keys kept: " + off);
+        check(ConsoleModSettings.switchOff(off, "enabledOnLinux", "enabledOnOtherPlatforms").equals(off), "idempotent");
+        String added = ConsoleModSettings.switchOff("[bufferedRawInput]\n\tmouse = true\n", "enabledOnLinux");
+        check(added.startsWith("enabledOnLinux = false\n") && added.contains("[bufferedRawInput]"),
+                "a missing key goes ahead of the first table: " + added);
+        check(ConsoleModSettings.switchOff("", "enabledOnLinux").equals("enabledOnLinux = false\n"), "a new file gets the key");
+
+        Path game = Files.createTempDirectory("console-mods");
+        Files.createDirectories(game.resolve("mods"));
+        check(!ConsoleModSettings.apply(game), "no Ixeris, nothing written");
+        check(!Files.exists(game.resolve("config/ixeris.toml")), "no config created without Ixeris");
     }
 
     /** JDK 17 stays the default runner; a version needing Java 21 starts on the JDK 21 export, if one is there. */

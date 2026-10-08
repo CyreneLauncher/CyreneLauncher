@@ -3,6 +3,7 @@ import java.util.List;
 
 import org.lwjgl.PointerBuffer;
 import org.lwjgl.glfw.Callbacks;
+import org.lwjgl.glfw.GLFWCursorPosCallback;
 import org.lwjgl.glfw.GLFWErrorCallback;
 import org.lwjgl.glfw.GLFWImage;
 import org.lwjgl.glfw.GLFWKeyCallback;
@@ -92,6 +93,17 @@ public final class FacadeBehaviorTest {
         check(errors.size() == errorsBefore, "Minecraft 1.21.2+ window size limits accepted");
         glfwSetWindowSizeLimits(window, 320, 240, 100, 100);
         check(lastError() == GLFW_INVALID_VALUE, "maximum below minimum rejected");
+        // Mods that hook input set their own callback and chain to the one they replace (LWJGL hands
+        // back a callable callback even for a lambda); a null there cut Minecraft off from the cursor.
+        double[] seen = new double[2];
+        glfwSetCursorPosCallback(window, (w, x, y) -> { seen[0] = x; seen[1] = y; });
+        GLFWCursorPosCallback chained = glfwSetCursorPosCallback(window, (w, x, y) -> { });
+        check(chained != null, "the previous lambda comes back as a callback");
+        chained.invoke(window, 12, 34);
+        check(seen[0] == 12 && seen[1] == 34, "the returned callback reaches the lambda it wraps");
+        chained.free();
+        GLFWKeyCallback keyChain = glfwSetKeyCallback(window, (w, k, sc, a2, m) -> { });
+        glfwSetKeyCallback(window, keyChain);
         // Minecraft 1.21.9+ picks a standard pointer shape per widget.
         errorsBefore = errors.size();
         long ibeam = glfwCreateStandardCursor(GLFW_IBEAM_CURSOR), notAllowed = glfwCreateStandardCursor(0x3600A);

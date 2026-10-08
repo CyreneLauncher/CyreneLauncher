@@ -136,6 +136,174 @@ final class OrbisGLFW {
         @Override public void free() { }
     }
 
+    // Every setter returns the previous callback the way LWJGL does, wrapped when it was set as a lambda:
+    // mods that hook input (cursor movement, keys) chain to it, and a null here cut Minecraft off.
+
+    private static final class JavaKeyCallback extends GLFWKeyCallback {
+        private final GLFWKeyCallbackI delegate;
+        JavaKeyCallback(GLFWKeyCallbackI delegate) { super(JAVA_ONLY); this.delegate = delegate; }
+        @Override public void invoke(long window, int key, int scancode, int action, int mods) { delegate.invoke(window, key, scancode, action, mods); }
+        @Override public void free() { }
+    }
+
+    private static GLFWKeyCallback asCallback(GLFWKeyCallbackI callback) {
+        return callback == null || callback instanceof GLFWKeyCallback ? (GLFWKeyCallback) callback : new JavaKeyCallback(callback);
+    }
+
+    private static final class JavaCharCallback extends GLFWCharCallback {
+        private final GLFWCharCallbackI delegate;
+        JavaCharCallback(GLFWCharCallbackI delegate) { super(JAVA_ONLY); this.delegate = delegate; }
+        @Override public void invoke(long window, int codepoint) { delegate.invoke(window, codepoint); }
+        @Override public void free() { }
+    }
+
+    private static GLFWCharCallback asCallback(GLFWCharCallbackI callback) {
+        return callback == null || callback instanceof GLFWCharCallback ? (GLFWCharCallback) callback : new JavaCharCallback(callback);
+    }
+
+    private static final class JavaCharModsCallback extends GLFWCharModsCallback {
+        private final GLFWCharModsCallbackI delegate;
+        JavaCharModsCallback(GLFWCharModsCallbackI delegate) { super(JAVA_ONLY); this.delegate = delegate; }
+        @Override public void invoke(long window, int codepoint, int mods) { delegate.invoke(window, codepoint, mods); }
+        @Override public void free() { }
+    }
+
+    private static GLFWCharModsCallback asCallback(GLFWCharModsCallbackI callback) {
+        return callback == null || callback instanceof GLFWCharModsCallback ? (GLFWCharModsCallback) callback : new JavaCharModsCallback(callback);
+    }
+
+    private static final class JavaMouseButtonCallback extends GLFWMouseButtonCallback {
+        private final GLFWMouseButtonCallbackI delegate;
+        JavaMouseButtonCallback(GLFWMouseButtonCallbackI delegate) { super(JAVA_ONLY); this.delegate = delegate; }
+        @Override public void invoke(long window, int button, int action, int mods) { delegate.invoke(window, button, action, mods); }
+        @Override public void free() { }
+    }
+
+    private static GLFWMouseButtonCallback asCallback(GLFWMouseButtonCallbackI callback) {
+        return callback == null || callback instanceof GLFWMouseButtonCallback ? (GLFWMouseButtonCallback) callback : new JavaMouseButtonCallback(callback);
+    }
+
+    private static final class JavaCursorPosCallback extends GLFWCursorPosCallback {
+        private final GLFWCursorPosCallbackI delegate;
+        JavaCursorPosCallback(GLFWCursorPosCallbackI delegate) { super(JAVA_ONLY); this.delegate = delegate; }
+        @Override public void invoke(long window, double xpos, double ypos) { delegate.invoke(window, xpos, ypos); }
+        @Override public void free() { }
+    }
+
+    private static GLFWCursorPosCallback asCallback(GLFWCursorPosCallbackI callback) {
+        return callback == null || callback instanceof GLFWCursorPosCallback ? (GLFWCursorPosCallback) callback : new JavaCursorPosCallback(callback);
+    }
+
+    private static final class JavaCursorEnterCallback extends GLFWCursorEnterCallback {
+        private final GLFWCursorEnterCallbackI delegate;
+        JavaCursorEnterCallback(GLFWCursorEnterCallbackI delegate) { super(JAVA_ONLY); this.delegate = delegate; }
+        @Override public void invoke(long window, boolean entered) { delegate.invoke(window, entered); }
+        @Override public void free() { }
+    }
+
+    private static GLFWCursorEnterCallback asCallback(GLFWCursorEnterCallbackI callback) {
+        return callback == null || callback instanceof GLFWCursorEnterCallback ? (GLFWCursorEnterCallback) callback : new JavaCursorEnterCallback(callback);
+    }
+
+    private static final class JavaScrollCallback extends GLFWScrollCallback {
+        private final GLFWScrollCallbackI delegate;
+        JavaScrollCallback(GLFWScrollCallbackI delegate) { super(JAVA_ONLY); this.delegate = delegate; }
+        @Override public void invoke(long window, double xoffset, double yoffset) { delegate.invoke(window, xoffset, yoffset); }
+        @Override public void free() { }
+    }
+
+    private static GLFWScrollCallback asCallback(GLFWScrollCallbackI callback) {
+        return callback == null || callback instanceof GLFWScrollCallback ? (GLFWScrollCallback) callback : new JavaScrollCallback(callback);
+    }
+
+    private static final class JavaDropCallback extends GLFWDropCallback {
+        private final GLFWDropCallbackI delegate;
+        JavaDropCallback(GLFWDropCallbackI delegate) { super(JAVA_ONLY); this.delegate = delegate; }
+        @Override public void invoke(long window, int count, long names) { delegate.invoke(window, count, names); }
+        @Override public void free() { }
+    }
+
+    private static GLFWDropCallback asCallback(GLFWDropCallbackI callback) {
+        return callback == null || callback instanceof GLFWDropCallback ? (GLFWDropCallback) callback : new JavaDropCallback(callback);
+    }
+
+    private static final class JavaFramebufferSizeCallback extends GLFWFramebufferSizeCallback {
+        private final GLFWFramebufferSizeCallbackI delegate;
+        JavaFramebufferSizeCallback(GLFWFramebufferSizeCallbackI delegate) { super(JAVA_ONLY); this.delegate = delegate; }
+        @Override public void invoke(long window, int width, int height) { delegate.invoke(window, width, height); }
+        @Override public void free() { }
+    }
+
+    private static GLFWFramebufferSizeCallback asCallback(GLFWFramebufferSizeCallbackI callback) {
+        return callback == null || callback instanceof GLFWFramebufferSizeCallback ? (GLFWFramebufferSizeCallback) callback : new JavaFramebufferSizeCallback(callback);
+    }
+
+    private static final class JavaWindowSizeCallback extends GLFWWindowSizeCallback {
+        private final GLFWWindowSizeCallbackI delegate;
+        JavaWindowSizeCallback(GLFWWindowSizeCallbackI delegate) { super(JAVA_ONLY); this.delegate = delegate; }
+        @Override public void invoke(long window, int width, int height) { delegate.invoke(window, width, height); }
+        @Override public void free() { }
+    }
+
+    private static GLFWWindowSizeCallback asCallback(GLFWWindowSizeCallbackI callback) {
+        return callback == null || callback instanceof GLFWWindowSizeCallback ? (GLFWWindowSizeCallback) callback : new JavaWindowSizeCallback(callback);
+    }
+
+    private static final class JavaWindowPosCallback extends GLFWWindowPosCallback {
+        private final GLFWWindowPosCallbackI delegate;
+        JavaWindowPosCallback(GLFWWindowPosCallbackI delegate) { super(JAVA_ONLY); this.delegate = delegate; }
+        @Override public void invoke(long window, int xpos, int ypos) { delegate.invoke(window, xpos, ypos); }
+        @Override public void free() { }
+    }
+
+    private static GLFWWindowPosCallback asCallback(GLFWWindowPosCallbackI callback) {
+        return callback == null || callback instanceof GLFWWindowPosCallback ? (GLFWWindowPosCallback) callback : new JavaWindowPosCallback(callback);
+    }
+
+    private static final class JavaWindowFocusCallback extends GLFWWindowFocusCallback {
+        private final GLFWWindowFocusCallbackI delegate;
+        JavaWindowFocusCallback(GLFWWindowFocusCallbackI delegate) { super(JAVA_ONLY); this.delegate = delegate; }
+        @Override public void invoke(long window, boolean focused) { delegate.invoke(window, focused); }
+        @Override public void free() { }
+    }
+
+    private static GLFWWindowFocusCallback asCallback(GLFWWindowFocusCallbackI callback) {
+        return callback == null || callback instanceof GLFWWindowFocusCallback ? (GLFWWindowFocusCallback) callback : new JavaWindowFocusCallback(callback);
+    }
+
+    private static final class JavaWindowCloseCallback extends GLFWWindowCloseCallback {
+        private final GLFWWindowCloseCallbackI delegate;
+        JavaWindowCloseCallback(GLFWWindowCloseCallbackI delegate) { super(JAVA_ONLY); this.delegate = delegate; }
+        @Override public void invoke(long window) { delegate.invoke(window); }
+        @Override public void free() { }
+    }
+
+    private static GLFWWindowCloseCallback asCallback(GLFWWindowCloseCallbackI callback) {
+        return callback == null || callback instanceof GLFWWindowCloseCallback ? (GLFWWindowCloseCallback) callback : new JavaWindowCloseCallback(callback);
+    }
+
+    private static final class JavaWindowIconifyCallback extends GLFWWindowIconifyCallback {
+        private final GLFWWindowIconifyCallbackI delegate;
+        JavaWindowIconifyCallback(GLFWWindowIconifyCallbackI delegate) { super(JAVA_ONLY); this.delegate = delegate; }
+        @Override public void invoke(long window, boolean iconified) { delegate.invoke(window, iconified); }
+        @Override public void free() { }
+    }
+
+    private static GLFWWindowIconifyCallback asCallback(GLFWWindowIconifyCallbackI callback) {
+        return callback == null || callback instanceof GLFWWindowIconifyCallback ? (GLFWWindowIconifyCallback) callback : new JavaWindowIconifyCallback(callback);
+    }
+
+    private static final class JavaJoystickCallback extends GLFWJoystickCallback {
+        private final GLFWJoystickCallbackI delegate;
+        JavaJoystickCallback(GLFWJoystickCallbackI delegate) { super(JAVA_ONLY); this.delegate = delegate; }
+        @Override public void invoke(int jid, int event) { delegate.invoke(jid, event); }
+        @Override public void free() { }
+    }
+
+    private static GLFWJoystickCallback asCallback(GLFWJoystickCallbackI callback) {
+        return callback == null || callback instanceof GLFWJoystickCallback ? (GLFWJoystickCallback) callback : new JavaJoystickCallback(callback);
+    }
+
     private static GLFWErrorCallback asCallback(GLFWErrorCallbackI callback) {
         return callback == null || callback instanceof GLFWErrorCallback ? (GLFWErrorCallback) callback
                 : new JavaErrorCallback(callback);
@@ -810,87 +978,87 @@ final class OrbisGLFW {
     static GLFWKeyCallback glfwSetKeyCallback(long handle, GLFWKeyCallbackI cbfun) {
         if (!requireWindow(handle)) return null;
         GLFWKeyCallbackI previous = keyCallback; keyCallback = cbfun;
-        return previous instanceof GLFWKeyCallback ? (GLFWKeyCallback) previous : null;
+        return asCallback(previous);
     }
 
     static GLFWCharCallback glfwSetCharCallback(long handle, GLFWCharCallbackI cbfun) {
         if (!requireWindow(handle)) return null;
         GLFWCharCallbackI previous = charCallback; charCallback = cbfun;
-        return previous instanceof GLFWCharCallback ? (GLFWCharCallback) previous : null;
+        return asCallback(previous);
     }
 
     static GLFWCharModsCallback glfwSetCharModsCallback(long handle, GLFWCharModsCallbackI cbfun) {
         if (!requireWindow(handle)) return null;
         GLFWCharModsCallbackI previous = charModsCallback; charModsCallback = cbfun;
-        return previous instanceof GLFWCharModsCallback ? (GLFWCharModsCallback) previous : null;
+        return asCallback(previous);
     }
 
     static GLFWMouseButtonCallback glfwSetMouseButtonCallback(long handle, GLFWMouseButtonCallbackI cbfun) {
         if (!requireWindow(handle)) return null;
         GLFWMouseButtonCallbackI previous = mouseButtonCallback; mouseButtonCallback = cbfun;
-        return previous instanceof GLFWMouseButtonCallback ? (GLFWMouseButtonCallback) previous : null;
+        return asCallback(previous);
     }
 
     static GLFWCursorPosCallback glfwSetCursorPosCallback(long handle, GLFWCursorPosCallbackI cbfun) {
         if (!requireWindow(handle)) return null;
         GLFWCursorPosCallbackI previous = cursorPosCallback; cursorPosCallback = cbfun;
-        return previous instanceof GLFWCursorPosCallback ? (GLFWCursorPosCallback) previous : null;
+        return asCallback(previous);
     }
 
     static GLFWCursorEnterCallback glfwSetCursorEnterCallback(long handle, GLFWCursorEnterCallbackI cbfun) {
         if (!requireWindow(handle)) return null;
         GLFWCursorEnterCallbackI previous = cursorEnterCallback; cursorEnterCallback = cbfun;
-        return previous instanceof GLFWCursorEnterCallback ? (GLFWCursorEnterCallback) previous : null;
+        return asCallback(previous);
     }
 
     static GLFWScrollCallback glfwSetScrollCallback(long handle, GLFWScrollCallbackI cbfun) {
         if (!requireWindow(handle)) return null;
         GLFWScrollCallbackI previous = scrollCallback; scrollCallback = cbfun;
-        return previous instanceof GLFWScrollCallback ? (GLFWScrollCallback) previous : null;
+        return asCallback(previous);
     }
 
     /** Stored for API compatibility; there is no drag-and-drop source on the console. */
     static GLFWDropCallback glfwSetDropCallback(long handle, GLFWDropCallbackI cbfun) {
         if (!requireWindow(handle)) return null;
         GLFWDropCallbackI previous = dropCallback; dropCallback = cbfun;
-        return previous instanceof GLFWDropCallback ? (GLFWDropCallback) previous : null;
+        return asCallback(previous);
     }
 
     static GLFWFramebufferSizeCallback glfwSetFramebufferSizeCallback(long handle, GLFWFramebufferSizeCallbackI cbfun) {
         if (!requireWindow(handle)) return null;
         GLFWFramebufferSizeCallbackI previous = framebufferSizeCallback; framebufferSizeCallback = cbfun;
-        return previous instanceof GLFWFramebufferSizeCallback ? (GLFWFramebufferSizeCallback) previous : null;
+        return asCallback(previous);
     }
 
     static GLFWWindowSizeCallback glfwSetWindowSizeCallback(long handle, GLFWWindowSizeCallbackI cbfun) {
         if (!requireWindow(handle)) return null;
         GLFWWindowSizeCallbackI previous = windowSizeCallback; windowSizeCallback = cbfun;
-        return previous instanceof GLFWWindowSizeCallback ? (GLFWWindowSizeCallback) previous : null;
+        return asCallback(previous);
     }
 
     static GLFWWindowPosCallback glfwSetWindowPosCallback(long handle, GLFWWindowPosCallbackI cbfun) {
         if (!requireWindow(handle)) return null;
         GLFWWindowPosCallbackI previous = windowPosCallback; windowPosCallback = cbfun;
-        return previous instanceof GLFWWindowPosCallback ? (GLFWWindowPosCallback) previous : null;
+        return asCallback(previous);
     }
 
     static GLFWWindowFocusCallback glfwSetWindowFocusCallback(long handle, GLFWWindowFocusCallbackI cbfun) {
         if (!requireWindow(handle)) return null;
         GLFWWindowFocusCallbackI previous = windowFocusCallback; windowFocusCallback = cbfun;
-        return previous instanceof GLFWWindowFocusCallback ? (GLFWWindowFocusCallback) previous : null;
+        return asCallback(previous);
     }
 
     static GLFWWindowCloseCallback glfwSetWindowCloseCallback(long handle, GLFWWindowCloseCallbackI cbfun) {
         if (!requireWindow(handle)) return null;
         GLFWWindowCloseCallbackI previous = windowCloseCallback; windowCloseCallback = cbfun;
-        return previous instanceof GLFWWindowCloseCallback ? (GLFWWindowCloseCallback) previous : null;
+        return asCallback(previous);
     }
 
     /** Stored for API compatibility; the full-screen console window is never iconified. */
     static GLFWWindowIconifyCallback glfwSetWindowIconifyCallback(long handle, GLFWWindowIconifyCallbackI cbfun) {
         if (!requireWindow(handle)) return null;
         GLFWWindowIconifyCallbackI previous = windowIconifyCallback; windowIconifyCallback = cbfun;
-        return previous instanceof GLFWWindowIconifyCallback ? (GLFWWindowIconifyCallback) previous : null;
+        return asCallback(previous);
     }
 
     static void freeWindowCallbacks(long handle) {
@@ -1156,7 +1324,7 @@ final class OrbisGLFW {
     static GLFWJoystickCallback glfwSetJoystickCallback(GLFWJoystickCallbackI cbfun) {
         if (!requireInit()) return null;
         GLFWJoystickCallbackI previous = joystickCallback; joystickCallback = cbfun;
-        return previous instanceof GLFWJoystickCallback ? (GLFWJoystickCallback) previous : null;
+        return asCallback(previous);
     }
 
     // ---------------------------------------------------------------- events

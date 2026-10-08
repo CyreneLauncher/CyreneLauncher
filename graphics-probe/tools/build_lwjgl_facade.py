@@ -299,6 +299,8 @@ allowed = set(official) | {'org/lwjgl/system/Platform.class', 'orbis/graphics/Na
                            'org/lwjgl/glfw/OrbisKeys.class', 'org/lwjgl/glfw/OrbisGLFW$JavaErrorCallback.class',
                            'org/lwjgl/glfw/OrbisGLFW$JavaMonitorCallback.class'}
 allowed |= {n for n in built if n.startswith('org/lwjgl/system/Platform$')}
+# OrbisGLFW's nested classes: the EGL function provider and the Java-only callback wrappers.
+allowed |= {n for n in built if n.startswith('org/lwjgl/glfw/OrbisGLFW$')}
 problems += [f'unexpected class {name}' for name in sorted(set(built) - allowed)]
 exported = {f'{m.name} {m.descriptor}' for m in glfw.methods if m.exported and m.name != '<init>'}
 exported |= {f'{name} {descriptor}' for name, descriptor in ADDITIONS}

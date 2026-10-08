@@ -40,6 +40,11 @@ final class LaunchPreparation {
         rollback(); // A previous interrupted transaction cannot contaminate this one.
         validateInstance(instance);
         VersionStore.Installed version = config.installed(instance);
+        try {
+            ConsoleModSettings.apply(instance.gameDir());
+        } catch (IOException failure) {
+            System.err.println("launcher: console mod settings not applied: " + failure.getMessage());
+        }
         LaunchRequest request = LaunchRequest.create(instance.id(), accountId);
         byte[] originalOptions = LauncherFiles.read(optionsFile, MAX_FILE_BYTES);
         byte[] originalConf = LauncherFiles.read(confFile, MAX_FILE_BYTES);
