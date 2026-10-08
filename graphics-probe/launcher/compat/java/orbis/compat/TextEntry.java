@@ -14,8 +14,9 @@ import java.util.Objects;
  *
  * Minecraft is reached by its intermediary names, the same from 1.18.2 to 1.21.11 except where both
  * spellings are listed. 1.21.6 rebuilt the book: its page is an EditBoxWidget and signing moved to its
- * own screen, whose title box is an ordinary text field. Anything missing switches the feature off with
- * one log line.
+ * own screen, whose title box is an ordinary text field. 26.1 and later ship with Mojang's names, which
+ * Fabric runs as they are: the intermediary names translate through MOJANG. Anything missing switches
+ * the feature off with one log line.
  */
 public final class TextEntry {
     private static final String TEXT_FIELD = "net.minecraft.class_342";      // TextFieldWidget / EditBox
@@ -29,6 +30,47 @@ public final class TextEntry {
     private static final int ENTER = 257;
     private static final int SIGN_ROWS = 4;
 
+    /**
+     * Intermediary name to Mojang name, for 26.1+: Mojang's 1.21.11 mappings joined with Fabric's
+     * intermediary ones by obfuscated name and descriptor, each checked in the 26.1.2 client. Names only
+     * older releases have are not listed; they are simply not found there.
+     */
+    private static final java.util.Map<String, String> MOJANG = new java.util.HashMap<>();
+    static {
+        MOJANG.put("net.minecraft.class_342", "net.minecraft.client.gui.components.EditBox");
+        MOJANG.put("net.minecraft.class_4069", "net.minecraft.client.gui.components.events.ContainerEventHandler");
+        MOJANG.put("net.minecraft.class_408", "net.minecraft.client.gui.screens.ChatScreen");
+        MOJANG.put("net.minecraft.class_7743", "net.minecraft.client.gui.screens.inventory.AbstractSignEditScreen");
+        MOJANG.put("net.minecraft.class_473", "net.minecraft.client.gui.screens.inventory.BookEditScreen");
+        MOJANG.put("field_1755", "screen");
+        MOJANG.put("field_17116", "pages");
+        MOJANG.put("field_2840", "currentPage");
+        MOJANG.put("field_39509", "textField");
+        MOJANG.put("field_40425", "messages");
+        MOJANG.put("field_40428", "line");
+        MOJANG.put("field_40429", "signField");
+        MOJANG.put("field_60462", "page");
+        MOJANG.put("method_16204", "setCursorToEnd");
+        MOJANG.put("method_17046", "getNumPages");
+        MOJANG.put("method_1852", "setValue");
+        MOJANG.put("method_1861", "getMaxLength");
+        MOJANG.put("method_1882", "getValue");
+        MOJANG.put("method_20316", "isEditable");
+        MOJANG.put("method_2436", "appendPageToBook");
+        MOJANG.put("method_25370", "isFocused");
+        MOJANG.put("method_25399", "getFocused");
+        MOJANG.put("method_25404", "keyPressed");
+        MOJANG.put("method_44405", "getValue");
+        MOJANG.put("method_44409", "characterLimit");
+        MOJANG.put("method_44418", "hasCharacterLimit");
+        MOJANG.put("method_49913", "setMessage");
+        MOJANG.put("method_71519", "overflowsLineLimit");
+        MOJANG.put("method_71537", "updatePageContent");
+        MOJANG.put("method_71538", "updateButtonVisibility");
+    }
+    /** The intermediary name of the sign screen's line-width check, a lambda found by its shape on 26.1+. */
+    private static final String SIGN_FITS = "method_45658";
+    private static boolean mojang;      // the game runs by Mojang's names (26.1+)
     private static Class<?> input;      // orbis.graphics.TextInput, absent off the console
     private static boolean disabled;
     private static Object lastSeen;     // the field, sign screen or book page focused at the previous tick
@@ -45,6 +87,7 @@ public final class TextEntry {
                 // Through the game's loader: Fabric's Knot loads the graphics adapter itself, and the
                 // GLFW facade notes the last input in that copy of TextInput, not the system loader's.
                 input = Class.forName("orbis.graphics.TextInput", true, client.getClass().getClassLoader());
+                mojang = client.getClass().getName().equals("net.minecraft.client.Minecraft");
                 System.out.println("orbis-compat: system keyboard for text fields ready");
             }
             step(client);
@@ -330,13 +373,21 @@ public final class TextEntry {
 
     private static boolean isA(Object value, String className, ClassLoader game) {
         try {
-            return Class.forName(className, false, game).isInstance(value);
+            return Class.forName(name(className), false, game).isInstance(value);
         } catch (ClassNotFoundException absent) {
             return false;
         }
     }
 
-    private static Object call(Object owner, String name, Object... arguments) throws ReflectiveOperationException {
+    /** The name to look up in the running game: the intermediary one, or its Mojang name on 26.1+. */
+    private static String name(String intermediary) {
+        if (!mojang) return intermediary;
+        String mapped = MOJANG.get(intermediary);
+        return mapped != null ? mapped : intermediary;
+    }
+
+    private static Object call(Object owner, String intermediary, Object... arguments) throws ReflectiveOperationException {
+        String name = name(intermediary);
         Class<?> type = owner instanceof Class ? (Class<?>) owner : owner.getClass();
         Object receiver = owner instanceof Class ? null : owner;
         for (Class<?> c = type; c != null; c = c.getSuperclass())
@@ -351,7 +402,9 @@ public final class TextEntry {
     }
 
     private static Method method(Class<?> type, String... names) {
-        for (String name : names) {
+        for (String intermediary : names) {
+            if (mojang && intermediary.equals(SIGN_FITS)) return signFits(type);
+            String name = name(intermediary);
             for (Class<?> c = type; c != null; c = c.getSuperclass())
                 for (Method m : c.getDeclaredMethods())
                     if (m.getName().equals(name)) {
@@ -364,11 +417,23 @@ public final class TextEntry {
         return null;
     }
 
+    /** 26.1+: the sign screen's width check is its one private boolean lambda taking a String. */
+    private static Method signFits(Class<?> type) {
+        for (Class<?> c = type; c != null; c = c.getSuperclass())
+            for (Method m : c.getDeclaredMethods())
+                if (m.getName().startsWith("lambda$init$") && m.getReturnType() == boolean.class
+                        && m.getParameterCount() == 1 && m.getParameterTypes()[0] == String.class) {
+                    m.setAccessible(true);
+                    return m;
+                }
+        return null;
+    }
+
     private static Field field(Class<?> type, String... names) {
-        for (String name : names)
+        for (String intermediary : names)
             for (Class<?> c = type; c != null; c = c.getSuperclass())
                 try {
-                    Field f = c.getDeclaredField(name);
+                    Field f = c.getDeclaredField(name(intermediary));
                     f.setAccessible(true);
                     return f;
                 } catch (NoSuchFieldException next) {

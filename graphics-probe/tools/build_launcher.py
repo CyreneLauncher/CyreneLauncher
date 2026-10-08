@@ -29,6 +29,9 @@ parser.add_argument('--gson', default=str(ROOT / 'build/minecraft-1.18.2/librari
 # The Mixin API Fabric and Quilt bundle; the compatibility mod compiles against it.
 parser.add_argument('--mixin', default=str(ROOT / 'build/minecraft-1.18.2-fabric/libraries/net/fabricmc/sponge-mixin/'
                                            '0.17.4+mixin.0.8.7/sponge-mixin-0.17.4+mixin.0.8.7.jar'))
+# ASM's tree API, which Fabric and Quilt also ship; the mixin config plugin's interface names ClassNode.
+parser.add_argument('--asm-tree', default=str(ROOT / 'build/minecraft-1.18.2-fabric/libraries/org/ow2/asm/asm-tree/'
+                                              '9.10.1/asm-tree-9.10.1.jar'))
 arguments = parser.parse_args()
 out = Path(arguments.output).resolve()
 classes = out / 'classes'
@@ -58,7 +61,7 @@ if compat_classes.exists():
     shutil.rmtree(compat_classes)
 compat_classes.mkdir(parents=True)
 subprocess.run([str(Path(arguments.boot_jdk) / 'bin/javac'), '--release', '8', '-encoding', 'UTF-8',
-                '-Xlint:all,-options', '-Werror', '-proc:none', '-cp', arguments.mixin, '-d', str(compat_classes),
+                '-Xlint:all,-options', '-Werror', '-proc:none', '-cp', arguments.mixin + ':' + arguments.asm_tree, '-d', str(compat_classes),
                 *map(str, sorted((ROOT / 'launcher/compat/java').rglob('*.java')))], check=True)
 compat_jar = out / 'orbis-compat.jar'
 with zipfile.ZipFile(compat_jar, 'w', zipfile.ZIP_DEFLATED) as archive:

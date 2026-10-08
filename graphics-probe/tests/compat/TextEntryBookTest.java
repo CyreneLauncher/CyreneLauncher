@@ -63,6 +63,50 @@ public final class TextEntryBookTest {
         void method_16204() { ++ends; }
     }
 
+    // 26.1+: Mojang's names, as Fabric runs them there.
+    static final class FakeMojangBook {
+        List<String> pages = new ArrayList<>(List.of("old first page", ""));
+        int currentPage;
+        FakeMojangBox page = new FakeMojangBox();
+        int pageUpdates, arrowUpdates;
+        void appendPageToBook() { if (pages.size() < 4) pages.add(""); }
+        void updatePageContent() { page.text = pages.get(currentPage); ++pageUpdates; }
+        void updateButtonVisibility() { ++arrowUpdates; }
+    }
+
+    static final class FakeMojangBox {
+        String text = "";
+        FakeMojangField textField = new FakeMojangField();
+        String getValue() { return text; }
+    }
+
+    static final class FakeMojangField {
+        boolean hasCharacterLimit() { return true; }
+        int characterLimit() { return 40; }
+        boolean overflowsLineLimit(String text) { return text.split("\n", -1).length > 3; }
+    }
+
+    record FakeKeyEvent(int key, int scancode, int modifiers) { }
+
+    static final class FakeMojangChat {
+        FakeKeyEvent pressed;
+        boolean keyPressed(FakeKeyEvent event) { pressed = event; return true; }
+    }
+
+    static final class FakeMojangSign {
+        String[] messages = {"", "", "", ""};
+        int line;
+        FakeMojangSelection signField = new FakeMojangSelection();
+        void setMessage(String text) { messages[line] = text; }
+        // The width check is a lambda whose number may change between releases.
+        private boolean lambda$init$2(String text) { return text.length() <= 12; }
+    }
+
+    static final class FakeMojangSelection {
+        int ends;
+        void setCursorToEnd() { ++ends; }
+    }
+
     static int failures;
 
     static void check(boolean ok, String what) {
@@ -131,6 +175,28 @@ public final class TextEntryBookTest {
         FakeChat1219 chat1219 = new FakeChat1219();
         enter.invoke(null, chat1219);
         check(chat1219.pressed != null && chat1219.pressed.key() == 257, "chat sends with keyPressed(KeyInput) (1.21.9+)");
+
+        java.lang.reflect.Field mojang = entry.getDeclaredField("mojang");
+        mojang.setAccessible(true);
+        mojang.setBoolean(null, true);
+        FakeMojangBook current = new FakeMojangBook();
+        pages.invoke(null, current, 0, text);
+        check(current.pages.size() == 2 && current.pages.get(1).startsWith("golf")
+              && String.join(" ", current.pages).trim().replaceAll("\\s+", " ").equals(text),
+              "26.1+: the book is written through Mojang's names: " + current.pages);
+        check(current.page.text.equals(current.pages.get(0)) && current.pageUpdates == 1 && current.arrowUpdates == 1,
+              "26.1+: the page shown is reloaded into the edit box");
+        FakeMojangChat mojangChat = new FakeMojangChat();
+        enter.invoke(null, mojangChat);
+        check(mojangChat.pressed != null && mojangChat.pressed.key() == 257, "26.1+: chat sends with keyPressed(KeyEvent)");
+        Method sign = entry.getDeclaredMethod("writeSign", Object.class, String.class);
+        sign.setAccessible(true);
+        FakeMojangSign signScreen = new FakeMojangSign();
+        sign.invoke(null, signScreen, "one two three four five six");
+        check(java.util.Arrays.asList(signScreen.messages).equals(List.of("one two", "three four", "five six", ""))
+              && signScreen.signField.ends == 1, "26.1+: a sign wraps by its own width check: "
+              + java.util.Arrays.toString(signScreen.messages));
+        mojang.setBoolean(null, false);
 
         if (failures > 0) System.exit(1);
         System.out.println("TextEntry book writing passed");

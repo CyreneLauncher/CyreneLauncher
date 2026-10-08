@@ -515,6 +515,11 @@ final class OrbisGLFW {
             // LWJGL 3.4's GLFW_SOFT_FULLSCREEN (borderless; Minecraft 26.1): the one window is fullscreen.
             case 0x20010:
                 break;
+            // Other platforms' hints, which GLFW accepts everywhere and ignores where they do not apply
+            // (Cubes Without Borders sets the Cocoa Retina one): Cocoa Retina framebuffer and graphics
+            // switching, Win32 keyboard menu and show-default.
+            case 0x23001: case 0x23003: case 0x25001: case 0x25002:
+                break;
             default:
                 error(GLFW_INVALID_ENUM, "Unsupported window hint 0x" + Integer.toHexString(hint));
                 break;
@@ -744,6 +749,21 @@ final class OrbisGLFW {
             return;
         }
         cursorShape = (int) cursor;
+    }
+
+    /** String hints: other platforms' names (Cocoa frame, X11 class and instance, Wayland app id), ignored as GLFW does. */
+    static void glfwWindowHintString(int hint, CharSequence value) {
+        if (!requireInit()) return;
+        switch (hint) {
+            case 0x23002: case 0x24001: case 0x24002: case 0x26001:
+                break;
+            default:
+                error(GLFW_INVALID_ENUM, "Unsupported window hint string 0x" + Integer.toHexString(hint));
+        }
+    }
+
+    static void glfwWindowHintString(int hint, ByteBuffer value) {
+        glfwWindowHintString(hint, (CharSequence) null);
     }
 
     /** Minecraft 1.21.2+ sets a minimum window size; the one fullscreen window never resizes, so it has no effect. */

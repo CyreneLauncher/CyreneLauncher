@@ -1,6 +1,9 @@
 package orbis.compat;
 
-/** The LINUX constant of Minecraft's Util.OS (intermediary class_156$class_158.field_1135), on Orbis only. */
+/**
+ * The LINUX constant of Minecraft's Util.OS (intermediary class_156$class_158.field_1135; Util$OS.LINUX from
+ * 26.1, which ships with Mojang's names), on Orbis only.
+ */
 public final class OrbisPlatform {
     private static volatile boolean resolved;
     private static volatile Object linux;
@@ -10,14 +13,18 @@ public final class OrbisPlatform {
     public static Object linux() {
         if (!System.getProperty("os.name", "").startsWith("Orbis")) return null;
         if (!resolved) {
-            try {
-                Class<?> os = Class.forName("net.minecraft.class_156$class_158", false, OrbisPlatform.class.getClassLoader());
-                linux = os.getField("field_1135").get(null);
-            } catch (ReflectiveOperationException | RuntimeException | LinkageError unavailable) {
-                linux = null;
-            }
+            linux = constant("net.minecraft.class_156$class_158", "field_1135");
+            if (linux == null) linux = constant("net.minecraft.util.Util$OS", "LINUX");   // 26.1+: Mojang's names
             resolved = true;
         }
         return linux;
+    }
+
+    private static Object constant(String className, String field) {
+        try {
+            return Class.forName(className, false, OrbisPlatform.class.getClassLoader()).getField(field).get(null);
+        } catch (ReflectiveOperationException | RuntimeException | LinkageError unavailable) {
+            return null;
+        }
     }
 }

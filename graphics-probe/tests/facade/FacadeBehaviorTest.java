@@ -40,6 +40,11 @@ public final class FacadeBehaviorTest {
         check(glfwGetError(null) == GLFW_INVALID_ENUM, "unknown init hint rejected");
 
         check(glfwInit(), "glfwInit");
+        // Other platforms' hints are accepted and ignored (Cubes Without Borders sets the Cocoa Retina one).
+        int hintErrors = errors.size();
+        glfwWindowHint(0x23001, GLFW_TRUE);
+        glfwWindowHintString(0x24001, "minecraft");
+        check(errors.size() == hintErrors, "Cocoa and X11 hints accepted");
         check(!glfwExtensionSupported("GL_ARB_texture_storage") && glfwGetError(null) == GLFW_NO_CURRENT_CONTEXT,
             "extension query needs a current context");
         check(NativePlatform.mesaLogFile != null && NativePlatform.mesaLogFile.endsWith("/mesa.log")
