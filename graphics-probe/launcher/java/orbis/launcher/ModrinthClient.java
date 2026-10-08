@@ -23,8 +23,9 @@ class ModrinthClient {
     private static final String USER_AGENT = "orbis-launcher (Minecraft on PlayStation 4)";
     /** Results per search page. */
     static final int PAGE = 20;
-    /** Releases the Java 21 runner adds (VersionStore's 1.20.5 to 1.21.4). */
-    private static final List<String> JAVA_21_RELEASES = List.of("1.21.4", "1.21.3", "1.21.2", "1.21.1", "1.21",
+    /** Releases the Java 21 runner adds (VersionStore's 1.20.5 to 1.21.11). */
+    private static final List<String> JAVA_21_RELEASES = List.of("1.21.11", "1.21.10", "1.21.9", "1.21.8",
+            "1.21.7", "1.21.6", "1.21.5", "1.21.4", "1.21.3", "1.21.2", "1.21.1", "1.21",
             "1.20.6", "1.20.5");
     /** The releases the launcher can install on Java 17 (VersionStore's 1.14 to 1.20.4). */
     private static final List<String> JAVA_17_RELEASES = List.of("1.20.4", "1.20.3", "1.20.2", "1.20.1", "1.20",

@@ -92,6 +92,17 @@ public final class FacadeBehaviorTest {
         check(errors.size() == errorsBefore, "Minecraft 1.21.2+ window size limits accepted");
         glfwSetWindowSizeLimits(window, 320, 240, 100, 100);
         check(lastError() == GLFW_INVALID_VALUE, "maximum below minimum rejected");
+        // Minecraft 1.21.9+ picks a standard pointer shape per widget.
+        errorsBefore = errors.size();
+        long ibeam = glfwCreateStandardCursor(GLFW_IBEAM_CURSOR), notAllowed = glfwCreateStandardCursor(0x3600A);
+        check(ibeam != 0 && notAllowed != 0 && ibeam != notAllowed, "standard cursors created");
+        glfwSetCursor(window, ibeam);
+        glfwSetCursor(window, 0);
+        glfwDestroyCursor(ibeam);
+        check(errors.size() == errorsBefore, "standard cursors set, reset and destroyed");
+        check(glfwCreateStandardCursor(0x3600B) == 0 && lastError() == GLFW_INVALID_ENUM, "unknown shape rejected");
+        glfwSetCursor(window, 12345);
+        check(lastError() == GLFW_INVALID_VALUE, "foreign cursor handle rejected");
 
         int[] w = new int[1], h = new int[1];
         glfwGetFramebufferSize(window, w, h);

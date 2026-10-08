@@ -18,7 +18,7 @@ Upload an export's contents to `/data/orbis-jdk/<name>/release-desktop/`.
 - JDK 17 (`/data/orbis-jdk/jdk/release-desktop`) is the default runner: `runner.conf`'s
   `java_home` names it, and the launcher always starts on it.
 - JDK 21 (`/data/orbis-jdk/jdk21/release-desktop`) is an optional runner. When it is installed,
-  the launcher also offers Minecraft 1.20.5 to 1.21.4 (Java 21, LWJGL 3.3.3), and a launch of such a
+  the launcher also offers Minecraft 1.20.5 to 1.21.11 (Java 21, LWJGL 3.3.3), and a launch of such a
   version writes its `java_home` for that one start; the game restores `runner.conf` as it starts,
   so the next start is on JDK 17 again.
 

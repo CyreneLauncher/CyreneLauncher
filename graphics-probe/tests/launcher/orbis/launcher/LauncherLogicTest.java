@@ -56,7 +56,8 @@ public final class LauncherLogicTest {
             check(VersionStore.inRange("1.20.4") && !VersionStore.inRange("1.20.5"), "Java 17 runner: up to 1.20.4");
             check(!ModrinthClient.supportedReleases().contains("1.21.1"), "Java 17 runner: no 1.21 packs");
             VersionStore.offeredJava = 21;
-            check(VersionStore.inRange("1.21.4") && !VersionStore.inRange("1.21.5"), "Java 21 runner: up to 1.21.4");
+            check(VersionStore.inRange("1.21.11") && !VersionStore.inRange("1.21.12") && !VersionStore.inRange("26.1"),
+                    "Java 21 runner: up to 1.21.11");
             check(ModrinthClient.supportedReleases().contains("1.21.1"), "Java 21 runner: 1.21 packs");
         } finally {
             VersionStore.offeredJava = offered;

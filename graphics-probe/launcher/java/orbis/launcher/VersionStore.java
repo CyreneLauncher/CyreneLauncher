@@ -34,7 +34,7 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 
 /**
- * Downloads Minecraft releases 1.14 to 1.20.4 (to 1.21.4 when a Java 21 runner is installed), with Fabric, Quilt or no loader, into the shared
+ * Downloads Minecraft releases 1.14 to 1.20.4 (to 1.21.11 when a Java 21 runner is installed), with Fabric, Quilt or no loader, into the shared
  * libraries and assets the installed 1.18.2 already uses. Each version gets
  * launcher/versions/&lt;id&gt;/ holding its client JAR, a flattened profile the runner accepts
  * (game.json), the same profile booting the launcher (boot.json), and install.json, written last.
@@ -72,10 +72,10 @@ final class VersionStore {
     static final String VANILLA_MAIN = "net.minecraft.client.main.Main";
     /** The runner's own JAR stays a system library: the GLFW adapter reaches runner.gpu.NativeInput in it. */
     static final String SYSTEM_LIBRARIES = "/app0/app.jar";
-    private static final int[] OLDEST = {1, 14}, NEWEST_17 = {1, 20, 4}, NEWEST_21 = {1, 21, 4};
+    private static final int[] OLDEST = {1, 14}, NEWEST_17 = {1, 20, 4}, NEWEST_21 = {1, 21, 11};
     /**
      * The newest Java a runner on the console provides (Runtimes.newest()); LauncherConfig sets it.
-     * A Java 21 runner adds Minecraft 1.20.5 to 1.21.4 (LWJGL 3.3.3); Java 17 stops at 1.20.4.
+     * A Java 21 runner adds Minecraft 1.20.5 to 1.21.11 (LWJGL 3.3.3); Java 17 stops at 1.20.4.
      */
     static volatile int offeredJava = Runtime.version().feature();
     /** The LWJGL release whose Java artifacts a version keeps (the runner has a profile and natives for it). */
@@ -101,7 +101,7 @@ final class VersionStore {
 
     // ------------------------------------------------------------------ catalog
 
-    /** Releases in range (1.14 to 1.20.4, or 1.21.4 on Java 21) the loader supports, newest first. */
+    /** Releases in range (1.14 to 1.20.4, or 1.21.11 on Java 21) the loader supports, newest first. */
     List<GameVersion> catalog(Loader loader) throws IOException {
         JsonObject manifest = json(fetch(MANIFEST_URL, MAX_JSON));
         Set<String> supported = switch (loader) {
@@ -139,7 +139,7 @@ final class VersionStore {
 
     /** The newest release offered, for messages. */
     static String newest() {
-        return offeredJava >= 21 ? "1.21.4" : "1.20.4";
+        return offeredJava >= 21 ? "1.21.11" : "1.20.4";
     }
 
     static boolean inRange(String id) {

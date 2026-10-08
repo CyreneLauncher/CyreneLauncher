@@ -513,6 +513,43 @@ final class OrbisGLFW {
 
     static void glfwSetWindowPos(long handle, int xpos, int ypos) { requireWindow(handle); }
 
+    /** GLFW 3.4's standard shapes run from GLFW_ARROW_CURSOR (0x36001) to GLFW_NOT_ALLOWED_CURSOR (0x3600A). */
+    private static final int FIRST_STANDARD_CURSOR = 0x36001, LAST_STANDARD_CURSOR = 0x3600A;
+    /** The shape last selected (0: the default arrow); the drawn pointer is the same for every shape. */
+    private static int cursorShape;
+
+    private static boolean standardCursor(long cursor) {
+        return cursor >= FIRST_STANDARD_CURSOR && cursor <= LAST_STANDARD_CURSOR;
+    }
+
+    /** Minecraft 1.21.9+ switches the pointer shape per widget; a standard cursor's handle is its shape. */
+    static long glfwCreateStandardCursor(int shape) {
+        if (!requireInit()) return NULL;
+        if (!standardCursor(shape)) {
+            error(GLFW_INVALID_ENUM, "Invalid standard cursor 0x" + Integer.toHexString(shape));
+            return NULL;
+        }
+        return shape;
+    }
+
+    static void glfwDestroyCursor(long cursor) {
+        if (!requireInit() || cursor == NULL) return;
+        if (!standardCursor(cursor)) {
+            error(GLFW_INVALID_VALUE, "Invalid cursor handle 0x" + Long.toHexString(cursor));
+            return;
+        }
+        if (cursorShape == cursor) cursorShape = 0;
+    }
+
+    static void glfwSetCursor(long handle, long cursor) {
+        if (!requireWindow(handle)) return;
+        if (cursor != NULL && !standardCursor(cursor)) {
+            error(GLFW_INVALID_VALUE, "Invalid cursor handle 0x" + Long.toHexString(cursor));
+            return;
+        }
+        cursorShape = (int) cursor;
+    }
+
     /** Minecraft 1.21.2+ sets a minimum window size; the one fullscreen window never resizes, so it has no effect. */
     static void glfwSetWindowSizeLimits(long handle, int minwidth, int minheight, int maxwidth, int maxheight) {
         if (!requireWindow(handle)) return;

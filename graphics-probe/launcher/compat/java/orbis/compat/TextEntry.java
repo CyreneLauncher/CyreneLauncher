@@ -12,8 +12,10 @@ import java.util.Objects;
  * use nothing opens. Chat sends what was accepted. Driven once per client tick (ClientTickMixin), on
  * the render thread.
  *
- * Minecraft is reached by its intermediary names, the same from 1.18.2 to 1.20.4 except where both
- * spellings are listed. Anything missing switches the feature off with one log line.
+ * Minecraft is reached by its intermediary names, the same from 1.18.2 to 1.21.11 except where both
+ * spellings are listed. 1.21.6 rebuilt the book: its page is an EditBoxWidget and signing moved to its
+ * own screen, whose title box is an ordinary text field. Anything missing switches the feature off with
+ * one log line.
  */
 public final class TextEntry {
     private static final String TEXT_FIELD = "net.minecraft.class_342";      // TextFieldWidget / EditBox
@@ -23,6 +25,7 @@ public final class TextEntry {
     private static final String SIGN_SCREEN_1_18 = "net.minecraft.class_498";  // SignEditScreen
     private static final String BOOK_SCREEN = "net.minecraft.class_473";      // BookEditScreen
     private static final int BOOK_TITLE_LENGTH = 15;                          // vanilla: length < 16
+    private static final String BOOK_PAGE_BOX = "field_60462";                // 1.21.6+: BookEditScreen.editBox
     private static final int ENTER = 257;
     private static final int SIGN_ROWS = 4;
 
@@ -112,8 +115,10 @@ public final class TextEntry {
     /** The focused, editable text field of the screen, the screen itself for a sign, or a book page. */
     private static Object findTarget(Object screen, ClassLoader game) throws ReflectiveOperationException {
         if (isA(screen, SIGN_SCREEN_1_20, game) || isA(screen, SIGN_SCREEN_1_18, game)) return screen;
-        if (isA(screen, BOOK_SCREEN, game))
-            return new BookTarget(screen, (Boolean) field(screen, "field_2828"), (Integer) field(screen, "field_2840"));
+        if (isA(screen, BOOK_SCREEN, game)) {
+            boolean signing = field(screen.getClass(), BOOK_PAGE_BOX) == null && (Boolean) field(screen, "field_2828");
+            return new BookTarget(screen, signing, (Integer) field(screen, "field_2840"));
+        }
         Object focused = screen;
         for (int depth = 0; depth < 8 && focused != null; ++depth) {
             if (isA(focused, TEXT_FIELD, game)) {
@@ -136,7 +141,9 @@ public final class TextEntry {
                 return (Boolean) call(input, "begin", (String) field(screen, "field_2847"), "Book title",
                                       BOOK_TITLE_LENGTH, false, 0);
             int pages = (Integer) call(screen, "method_17046");
-            return (Boolean) call(input, "begin", (String) call(screen, "method_2427"),
+            Object box = field(screen, BOOK_PAGE_BOX);
+            String shown = (String) (box != null ? call(box, "method_44405") : call(screen, "method_2427"));
+            return (Boolean) call(input, "begin", shown,
                                   "Page " + (book.page + 1) + " of " + Math.max(1, pages), 1024, true, 0);
         }
         if (found == screen) {
@@ -163,7 +170,20 @@ public final class TextEntry {
         }
         call(target, "method_1852", text);
         // Chat sends what was accepted, as the dialog's Send label says.
-        if (isA(screen, CHAT_SCREEN, game)) call(screen, "method_25404", ENTER, 0, 0);
+        if (isA(screen, CHAT_SCREEN, game)) pressEnter(screen);
+    }
+
+    /** keyPressed(key, scancode, modifiers), or from 1.21.9 keyPressed(KeyInput), a record of the same three. */
+    private static void pressEnter(Object screen) throws ReflectiveOperationException {
+        Method pressed = method(screen.getClass(), "method_25404");
+        if (pressed == null) throw new NoSuchMethodException("keyPressed");
+        if (pressed.getParameterCount() == 3) {
+            pressed.invoke(screen, ENTER, 0, 0);
+        } else {
+            java.lang.reflect.Constructor<?> key = pressed.getParameterTypes()[0].getDeclaredConstructor(int.class, int.class, int.class);
+            key.setAccessible(true);
+            pressed.invoke(screen, key.newInstance(ENTER, 0, 0));
+        }
     }
 
     private static String[] signRows(Object screen) throws ReflectiveOperationException {
@@ -225,21 +245,43 @@ public final class TextEntry {
      * characters and 14 lines) continues on the following pages, which are added as needed up to the
      * game's page limit, broken between words where a word fits.
      */
+    /** Whether a text fits on one book page, by the game's own check. */
+    private interface PageCheck {
+        boolean fits(String text) throws ReflectiveOperationException;
+    }
+
+    /** The book's page check: its edit box's length and line limits (1.21.6+), else the screen's own. */
+    private static PageCheck pageCheck(Object screen) throws ReflectiveOperationException {
+        Object widget = field(screen, BOOK_PAGE_BOX);
+        if (widget != null) {
+            Object box = field(widget, "field_39509");                  // EditBoxWidget.editBox
+            Method exceeds = box == null ? null : method(box.getClass(), "method_71519");  // exceedsMaxLines
+            if (exceeds == null) throw new NoSuchMethodException("book page check");
+            boolean limited = (Boolean) call(box, "method_44418");      // hasMaxLength
+            int maxLength = (Integer) call(box, "method_44409");        // getMaxLength
+            return text -> (!limited || text.length() <= maxLength) && !(Boolean) exceeds.invoke(box, text);
+        }
+        Method fits = method(screen.getClass(), "method_27593");
+        if (fits == null) throw new NoSuchMethodException("book page check");
+        return text -> (Boolean) fits.invoke(screen, text);
+    }
+
     @SuppressWarnings("unchecked")
     private static void writeBookPages(Object screen, int page, String text) throws ReflectiveOperationException {
-        Method fits = method(screen.getClass(), "method_27593");
+        PageCheck fits = pageCheck(screen);
+        boolean pageBox = field(screen.getClass(), BOOK_PAGE_BOX) != null;
         List<String> pages = (List<String>) field(screen, "field_17116");
-        if (fits == null || pages == null) throw new NoSuchMethodException("book page check");
+        if (pages == null) throw new NoSuchFieldException("book pages");
         String rest = text.replace("\r", "");
         int index = page;
         while (true) {
             // The longest prefix that fits: a longer prefix never takes fewer lines, so a binary search.
             int cut = rest.length();
-            if (!(Boolean) fits.invoke(screen, rest)) {
+            if (!fits.fits(rest)) {
                 int low = 0, high = rest.length();
                 while (low < high) {
                     int middle = (low + high + 1) >>> 1;
-                    if ((Boolean) fits.invoke(screen, rest.substring(0, middle))) low = middle;
+                    if (fits.fits(rest.substring(0, middle))) low = middle;
                     else high = middle - 1;
                 }
                 cut = low;
@@ -257,7 +299,7 @@ public final class TextEntry {
                 }
             }
             String content = rest.substring(0, cut);
-            if (index == page) {
+            if (index == page && !pageBox) {
                 call(screen, "method_2439", content);   // setPageContent: the page shown, marked dirty
             } else {
                 while (pages.size() <= index) {
@@ -271,6 +313,12 @@ public final class TextEntry {
             rest = rest.substring(separator ? cut + 1 : cut);
             if (rest.isEmpty() || cut == 0) break;
             ++index;
+        }
+        if (pageBox) {
+            // 1.21.6+: the pages list is what the book saves; updatePage loads the page shown into the box.
+            call(screen, "method_71537");
+            if (method(screen.getClass(), "method_71538") != null) call(screen, "method_71538");
+            return;
         }
         call(screen, "method_27577");                    // invalidatePageContent: re-wrap the page shown
         call(screen, "method_2413");                     // updateButtons: page arrows follow new pages

@@ -3,7 +3,7 @@
 
 Sources are the pinned archives in lwjgl/lwjgl-sources.lock.json (generated C is part of both
 release trees). LWJGL 3.2.2 (Minecraft up to 1.20.4) calls through dyncall 1.0, which replaces the
-prebuilt Linux libdyncall*_s.a LWJGL downloads; LWJGL 3.3.3 (Minecraft 1.20.5 to 1.21.4) calls
+prebuilt Linux libdyncall*_s.a LWJGL downloads; LWJGL 3.3.3 (Minecraft 1.20.5 to 1.21.11) calls
 through libffi 3.4.4, built here in place of its prebuilt libffi.a. Each module uses the shared
 Orbis JNI recipe (orbis_prx.py). Linux natives are never used.
 """

@@ -20,6 +20,44 @@ public final class TextEntryBookTest {
         void method_2413() { ++buttonUpdates; }
     }
 
+    /** 1.21.6+: the page is an EditBoxWidget whose EditBox checks length and lines; same limits. */
+    static final class FakeModernBook {
+        List<String> field_17116 = new ArrayList<>(List.of("old first page", ""));
+        int field_2840;                 // currentPage
+        FakeBoxWidget field_60462 = new FakeBoxWidget();
+        int pageUpdates, arrowUpdates;
+
+        void method_2436() { if (field_17116.size() < 4) field_17116.add(""); }
+        void method_71537() { field_60462.text = field_17116.get(field_2840); ++pageUpdates; }   // updatePage
+        void method_71538() { ++arrowUpdates; }
+    }
+
+    static final class FakeBoxWidget {
+        String text = "";
+        FakeEditBox field_39509 = new FakeEditBox();
+        String method_44405() { return text; }
+    }
+
+    static final class FakeEditBox {
+        boolean method_44418() { return true; }                                   // hasMaxLength
+        int method_44409() { return 40; }                                         // getMaxLength
+        boolean method_71519(String text) { return text.split("\n", -1).length > 3; }  // exceedsMaxLines
+    }
+
+    /** Chat up to 1.21.8: keyPressed(key, scancode, modifiers). */
+    static final class FakeChat {
+        int key = -1;
+        boolean method_25404(int key, int scancode, int modifiers) { this.key = key; return true; }
+    }
+
+    /** Chat from 1.21.9: keyPressed(KeyInput). */
+    record FakeKeyInput(int key, int scancode, int modifiers) { }
+
+    static final class FakeChat1219 {
+        FakeKeyInput pressed;
+        boolean method_25404(FakeKeyInput input) { pressed = input; return true; }
+    }
+
     static final class FakeSelection {
         int ends;
         void method_16204() { ++ends; }
@@ -68,6 +106,31 @@ public final class TextEntryBookTest {
         title.invoke(null, book, "A very long book title\nindeed");
         check(book.field_2847.equals("A very long boo") && book.field_2837 && book.buttonUpdates == 1
               && ((FakeSelection) book.field_24270).ends == 1, "title is one line of at most 15 characters: " + book.field_2847);
+
+        FakeModernBook modern = new FakeModernBook();
+        pages.invoke(null, modern, 0, text);
+        check(modern.field_17116.size() == 2 && modern.field_17116.get(1).startsWith("golf"),
+              "1.21.6+: overflow adds a page, broken between words: " + modern.field_17116);
+        check(String.join(" ", modern.field_17116).trim().replaceAll("\\s+", " ").equals(text),
+              "1.21.6+: no word lost or doubled: " + modern.field_17116);
+        check(modern.field_60462.text.equals(modern.field_17116.get(0)) && modern.pageUpdates == 1
+              && modern.arrowUpdates == 1, "1.21.6+: the page shown is reloaded into the edit box");
+
+        modern = new FakeModernBook();
+        modern.field_2840 = 1;
+        pages.invoke(null, modern, 1, "one\ntwo\nthree\nfour");
+        check(modern.field_17116.get(0).equals("old first page") && modern.field_17116.get(1).equals("one\ntwo\nthree")
+              && modern.field_17116.get(2).equals("four") && modern.field_60462.text.equals("one\ntwo\nthree"),
+              "1.21.6+: the edit box's line limit moves the fourth line on: " + modern.field_17116);
+
+        Method enter = entry.getDeclaredMethod("pressEnter", Object.class);
+        enter.setAccessible(true);
+        FakeChat chat = new FakeChat();
+        enter.invoke(null, chat);
+        check(chat.key == 257, "chat sends with keyPressed(int, int, int)");
+        FakeChat1219 chat1219 = new FakeChat1219();
+        enter.invoke(null, chat1219);
+        check(chat1219.pressed != null && chat1219.pressed.key() == 257, "chat sends with keyPressed(KeyInput) (1.21.9+)");
 
         if (failures > 0) System.exit(1);
         System.out.println("TextEntry book writing passed");

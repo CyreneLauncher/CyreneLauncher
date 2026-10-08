@@ -2,7 +2,7 @@
 """Build the Orbis LWJGL adapter JAR for one LWJGL release and enforce its binary contract.
 
 Contents, placed ahead of the official lwjgl-<release>.jar and instead of lwjgl-glfw-<release>.jar
-(3.2.2 for Minecraft up to 1.20.4, 3.3.3 for 1.20.5 to 1.21.4):
+(3.2.2 for Minecraft up to 1.20.4, 3.3.3 for 1.20.5 to 1.21.11):
   * org.lwjgl.system.Platform from the release's source, accepting os.name "Orbis" as Linux;
   * every org.lwjgl.glfw class copied byte-for-byte from the official lwjgl-glfw JAR,
     except GLFW/GLFW$Functions (generated) and Callbacks (replaced), and for 3.2.2 the classes
