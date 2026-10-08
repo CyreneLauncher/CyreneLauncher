@@ -513,6 +513,17 @@ final class OrbisGLFW {
 
     static void glfwSetWindowPos(long handle, int xpos, int ypos) { requireWindow(handle); }
 
+    /** Minecraft 1.21.2+ sets a minimum window size; the one fullscreen window never resizes, so it has no effect. */
+    static void glfwSetWindowSizeLimits(long handle, int minwidth, int minheight, int maxwidth, int maxheight) {
+        if (!requireWindow(handle)) return;
+        boolean minimum = minwidth != GLFW_DONT_CARE && minheight != GLFW_DONT_CARE;
+        boolean maximum = maxwidth != GLFW_DONT_CARE && maxheight != GLFW_DONT_CARE;
+        if ((minimum && (minwidth < 0 || minheight < 0))
+                || (maximum && (maxwidth < 0 || maxheight < 0 || (minimum && (maxwidth < minwidth || maxheight < minheight)))))
+            error(GLFW_INVALID_VALUE, "Invalid window size limits " + minwidth + "x" + minheight + " to "
+                    + maxwidth + "x" + maxheight);
+    }
+
     static void glfwGetWindowPos(long handle, int[] xpos, int[] ypos) {
         if (xpos != null) xpos[0] = 0;
         if (ypos != null) ypos[0] = 0;

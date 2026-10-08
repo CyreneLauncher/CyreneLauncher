@@ -38,5 +38,40 @@
     "sha1": "3e402df983933dec9d9123e494fa3130b3900ab8",
     "license": "BSD-3-Clause",
     "selection": "Generated GLFW sources; GLFWImage and GLFWNativeGLX are rebuilt from them with the LWJGL 3.3 members newer Minecraft calls"
+  },
+  "lwjgl-3.3.3": {
+    "version": "3.3.3",
+    "url": "https://github.com/LWJGL/lwjgl3/archive/refs/tags/3.3.3.tar.gz",
+    "filename": "lwjgl3-3.3.3.tar.gz",
+    "sha256": "381a386688a5f5109a0edf2395adfee3cc62031929bf0ddbbd39fd356f647447",
+    "license": "BSD-3-Clause (LICENSE.md in the archive)",
+    "selection": "Minecraft 1.20.5 to 1.21.4 declare LWJGL 3.3.3 (Mojang version metadata)"
+  },
+  "libffi": {
+    "version": "3.4.4",
+    "url": "https://github.com/libffi/libffi/releases/download/v3.4.4/libffi-3.4.4.tar.gz",
+    "filename": "libffi-3.4.4.tar.gz",
+    "sha256": "d66c56ad259a82cf2a9dfc408b32bf5da52371500b84745f7fb8b645712df676",
+    "license": "MIT (LICENSE in the archive)",
+    "selection": "LWJGL 3.3.3's core/src/main/c/libffi/ffi.h is libffi 3.4.4's ffi.h.in with configure's x86-64 substitutions and LWJGL's ABI names; LWJGL links a prebuilt libffi.a, built here from this release"
+  },
+  "freetype": {
+    "version": "2.13.2",
+    "url": "https://download.savannah.gnu.org/releases/freetype/freetype-2.13.2.tar.xz",
+    "filename": "freetype-2.13.2.tar.xz",
+    "sha256": "12991c4e55c506dd7f9b765933e62fd2be2e06d421505d7950a132e4f1bb484d",
+    "license": "FTL or GPL-2.0-or-later (LICENSE.TXT in the archive)",
+    "selection": "LWJGL 3.3.3's FreeType binding is generated for FreeType 2.13.2 (FREETYPE_MAJOR/MINOR/PATCH); built with the default options (internal zlib, no bzip2, PNG, HarfBuzz or Brotli). SHA-256 matches the SourceForge mirror."
+  },
+  "java_artifacts_3.3.3": {
+    "description": "Official Mojang LWJGL 3.3.3 Java JARs (SHA-1 from the Minecraft 1.21.1 version metadata), which the 3.3.3 facade and natives are checked against.",
+    "lwjgl-3.3.3.jar": "29589b5f87ed335a6c7e7ee6a5775f81f97ecb84",
+    "lwjgl-freetype-3.3.3.jar": "a0db6c84a8becc8ca05f9dbfa985edc348a824c7",
+    "lwjgl-glfw-3.3.3.jar": "efa1eb78c5ccd840e9f329717109b5e892d72f8e",
+    "lwjgl-jemalloc-3.3.3.jar": "b543467b7ff3c6920539a88ee602d34098628be5",
+    "lwjgl-openal-3.3.3.jar": "daada81ceb5fc0c291fbfdd4433cb8d9423577f2",
+    "lwjgl-opengl-3.3.3.jar": "02f6b0147078396a58979125a4c947664e98293a",
+    "lwjgl-stb-3.3.3.jar": "25dd6161988d7e65f71d5065c99902402ee32746",
+    "lwjgl-tinyfd-3.3.3.jar": "82d755ca94b102e9ca77283b9e2dc46d1b15fbe5"
   }
 }

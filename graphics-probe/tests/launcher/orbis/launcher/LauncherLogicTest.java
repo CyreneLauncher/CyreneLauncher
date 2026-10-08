@@ -23,6 +23,7 @@ public final class LauncherLogicTest {
 
     public static void main(String[] args) throws Exception {
         versionPredicates();
+        lwjglSelection();
         scroller();
         packRules();
         packInstall();
@@ -36,6 +37,25 @@ public final class LauncherLogicTest {
     }
 
     // ------------------------------------------------------------------ versions
+
+    /** 1.20.5+ keep their LWJGL 3.3.3; older releases (and any mixture) take the installed 3.2.2 set. */
+    private static void lwjglSelection() {
+        String modern = "[{\"name\":\"org.lwjgl:lwjgl:3.3.3\"},{\"name\":\"org.lwjgl:lwjgl:3.3.3:natives-linux\"},"
+                + "{\"name\":\"org.lwjgl:lwjgl-freetype:3.3.3\"},{\"name\":\"com.mojang:brigadier:1.3.10\"}]";
+        String old = "[{\"name\":\"org.lwjgl:lwjgl:3.3.2\"},{\"name\":\"org.lwjgl:lwjgl-glfw:3.3.2\"}]";
+        String mixed = "[{\"name\":\"org.lwjgl:lwjgl:3.3.3\"},{\"name\":\"org.lwjgl:lwjgl-glfw:3.3.2\"}]";
+        String none = "[{\"name\":\"com.mojang:brigadier:1.3.10\"}]";
+        check(VersionStore.declaresOnly(array(modern), "3.3.3"), "1.21-shaped libraries keep LWJGL 3.3.3");
+        check(!VersionStore.declaresOnly(array(old), "3.3.3"), "1.20.4-shaped libraries take 3.2.2");
+        check(!VersionStore.declaresOnly(array(mixed), "3.3.3"), "a mixed LWJGL set takes 3.2.2");
+        check(!VersionStore.declaresOnly(array(none), "3.3.3"), "no LWJGL is not 3.3.3");
+        check(VersionStore.inRange("1.20.4") && !VersionStore.inRange("1.21.5"), "1.20.4 offered, 1.21.5 not");
+        check(VersionStore.inRange("1.21.4") == (VersionStore.JAVA >= 21), "1.21.4 offered only on Java 21");
+    }
+
+    private static com.google.gson.JsonArray array(String json) {
+        return com.google.gson.JsonParser.parseString(json).getAsJsonArray();
+    }
 
     private static void versionPredicates() {
         String[][] yes = {

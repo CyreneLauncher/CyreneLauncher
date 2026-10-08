@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
-"""Cross-build LWJGL 3.2.2 core, OpenGL and STB natives as Orbis PRXs.
+"""Cross-build LWJGL core, OpenGL and STB natives as Orbis PRXs.
 
-Sources are the pinned archives in lwjgl/lwjgl-sources.lock.json (generated C is part of
-the 3.2.2 tree). dyncall 1.0 replaces the prebuilt Linux libdyncall*_s.a LWJGL downloads.
-Each module uses the shared Orbis JNI recipe (orbis_prx.py). Linux natives are never used.
+Sources are the pinned archives in lwjgl/lwjgl-sources.lock.json (generated C is part of both
+release trees). LWJGL 3.2.2 (Minecraft up to 1.20.4) calls through dyncall 1.0, which replaces the
+prebuilt Linux libdyncall*_s.a LWJGL downloads; LWJGL 3.3.3 (Minecraft 1.20.5 to 1.21.4) calls
+through libffi 3.4.4, built here in place of its prebuilt libffi.a. Each module uses the shared
+Orbis JNI recipe (orbis_prx.py). Linux natives are never used.
 """
 import argparse
 import json
@@ -24,6 +26,12 @@ DYNCALL_SOURCES = (
     'dyncall/dyncall_struct.c', 'dyncallback/dyncall_args.c',
     'dyncallback/dyncall_callback.c', 'dyncallback/dyncall_callback_arch.S',
     'dyncallback/dyncall_thunk.c', 'dynload/dynload.c', 'dynload/dynload_syms.c')
+# libffi 3.4.4's x86-64 Unix back-end, the set its configure picks for x86_64-*-linux; closures.c is
+# replaced by lwjgl/libffi/orbis_ffi_closures.c.
+LIBFFI_SOURCES = ('src/prep_cif.c', 'src/types.c', 'src/raw_api.c', 'src/java_raw_api.c',
+                  'src/x86/ffi64.c', 'src/x86/unix64.S', 'src/x86/ffiw64.c', 'src/x86/win64.S')
+# Per release: the lock entry and the library that makes calls and callbacks.
+RELEASES = {'3.2.2': ('lwjgl', 'dyncall'), '3.3.3': ('lwjgl-3.3.3', 'libffi')}
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--sdk', default='/home/wonder/ps4-payload-sdk', help='OpenOrbis clang/lld')
@@ -33,16 +41,22 @@ parser.add_argument('--jni-platform', default='linux')
 parser.add_argument('--paid', default='0x3800000000000011')
 parser.add_argument('--downloads', default=str(ROOT / 'build/downloads'))
 parser.add_argument('--fetch', action='store_true', help='download missing pinned archives')
-parser.add_argument('--output', default=str(ROOT / 'build/lwjgl'))
+parser.add_argument('--release', choices=sorted(RELEASES), default='3.2.2')
+parser.add_argument('--output', help='default build/lwjgl (3.2.2) or build/lwjgl-<release>')
 arguments = parser.parse_args()
+lwjgl_key, ffi_key = RELEASES[arguments.release]
+if arguments.output is None:
+    arguments.output = str(ROOT / ('build/lwjgl' if arguments.release == '3.2.2' else f'build/lwjgl-{arguments.release}'))
 tools = orbis_prx.Toolchain(arguments.sdk, arguments.toolchain)
 downloads, out = Path(arguments.downloads).resolve(), Path(arguments.output).resolve()
-MODULES = ('liblwjgl', 'liblwjgl_opengl', 'liblwjgl_stb')
+# 3.2.2's TinyFD comes from build_lwjgl_optional.py; 3.3.3's TinyFD JNI binds a newer interface and
+# is built here with its own stub (lwjgl/tinyfd/orbis_tinyfd_3_3.c).
+MODULES = ('liblwjgl', 'liblwjgl_opengl', 'liblwjgl_stb') + (() if arguments.release == '3.2.2' else ('liblwjgl_tinyfd',))
 
 # The archives are pinned by the lock file, so the stamp covers them through it.
 stamp = (orbis_prx.stamp_recipe(build_stamp.Stamp(out, 'lwjgl-natives'), tools)
          .files(Path(__file__), Path(lwjgl_sources.__file__), ROOT / 'lwjgl/lwjgl-sources.lock.json',
-                ROOT / 'lwjgl/dyncall')
+                ROOT / f'lwjgl/{ffi_key}', ROOT / 'lwjgl/tinyfd/orbis_tinyfd_3_3.c')
          .stats(Path(arguments.jni_headers))
          .value('arguments', {k: v for k, v in vars(arguments).items() if k not in ('fetch', 'downloads')}))
 if stamp.current(out / 'lwjgl-audit.json', *[out / f'{name}{suffix}' for name in MODULES for suffix in ('.so', '.prx')]):
@@ -53,12 +67,14 @@ stamp.invalidate()
 
 
 sources = out / 'sources'
-lwjgl = lwjgl_sources.extract(lwjgl_sources.archive('lwjgl', downloads, arguments.fetch), sources / 'lwjgl') / 'modules/lwjgl'
-dyncall = lwjgl_sources.extract(lwjgl_sources.archive('dyncall', downloads, arguments.fetch), sources / 'dyncall')
+lwjgl = lwjgl_sources.extract(lwjgl_sources.archive(lwjgl_key, downloads, arguments.fetch), sources / 'lwjgl') / 'modules/lwjgl'
+ffi = lwjgl_sources.extract(lwjgl_sources.archive(ffi_key, downloads, arguments.fetch), sources / ffi_key)
 script, runtime = orbis_prx.runtime_objects(tools, out / 'runtime')
 jni = ('-I', arguments.jni_headers, '-I', Path(arguments.jni_headers) / arguments.jni_platform)
-# LWJGL's Linux flags, minus glibc-specific -U_FORTIFY_SOURCE handling and LTO.
-lwjgl_flags = ('-std=c11', '-O2', '-fdata-sections', '-D_GNU_SOURCE', '-DNDEBUG', '-DLWJGL_LINUX',
+# LWJGL's Linux flags, minus glibc-specific -U_FORTIFY_SOURCE handling and LTO. 3.3 builds with
+# gnu11 and includes the STB headers as system headers (they rely on implicit declarations).
+modern = arguments.release != '3.2.2'
+lwjgl_flags = ('-std=gnu11' if modern else '-std=c11', '-O2', '-fdata-sections', '-D_GNU_SOURCE', '-DNDEBUG', '-DLWJGL_LINUX',
                '-DLWJGL_x64', *jni, '-I', lwjgl / 'core/src/main/c', '-I', lwjgl / 'core/src/main/c/linux')
 
 
@@ -71,27 +87,41 @@ def compile_all(files, directory, *flags):
     return objects
 
 
-# dyncall_alloc_wx_mmap.c is replaced: one 16 KiB mapping per callback exhausts Orbis memory.
-dyncall_objects = compile_all([dyncall / s for s in DYNCALL_SOURCES] + [ROOT / 'lwjgl/dyncall/orbis_dyncall_alloc_wx.c'],
+if ffi_key == 'dyncall':
+    # dyncall_alloc_wx_mmap.c is replaced: one 16 KiB mapping per callback exhausts Orbis memory.
+    ffi_objects = compile_all([ffi / s for s in DYNCALL_SOURCES] + [ROOT / 'lwjgl/dyncall/orbis_dyncall_alloc_wx.c'],
                               out / 'obj/dyncall', '-O2',
-                              '-I', dyncall / 'dyncall', '-I', dyncall / 'dyncallback', '-I', dyncall / 'dynload')
+                              '-I', ffi / 'dyncall', '-I', ffi / 'dyncallback', '-I', ffi / 'dynload')
+    ffi_flags = ('-I', lwjgl / 'core/src/main/c/dyncall')
+else:
+    # LWJGL's own ffi.h/ffitarget.h, so the library and the bindings agree on every structure.
+    ffi_flags = ('-I', lwjgl / 'core/src/main/c/libffi', '-I', lwjgl / 'core/src/main/c/libffi/x86', '-DX86_64')
+    ffi_objects = compile_all([ffi / s for s in LIBFFI_SOURCES] + [ROOT / 'lwjgl/libffi/orbis_ffi_closures.c'],
+                              out / 'obj/libffi', '-O2', '-I', ROOT / 'lwjgl/libffi', *ffi_flags,
+                              '-I', ffi / 'include', '-I', ffi / 'src/x86')
+# io_uring has no Orbis counterpart; its bindings stay out like the Windows ones.
 core_sources = (sorted((lwjgl / 'core/src/main/c').glob('*.c')) + sorted((lwjgl / 'core/src/generated/c').glob('*.c'))
-                + sorted((lwjgl / 'core/src/generated/c/linux').glob('*.c')))
-core_objects = compile_all(core_sources, out / 'obj/core', *lwjgl_flags,
-                           '-I', lwjgl / 'core/src/main/c/dyncall')
-opengl_objects = compile_all(sorted((lwjgl / 'opengl/src/generated/c').glob('*.c')), out / 'obj/opengl',
-                             *lwjgl_flags, '-I', lwjgl / 'opengl/src/main/c')
+                + sorted(p for p in (lwjgl / 'core/src/generated/c/linux').glob('*.c') if 'liburing' not in p.name))
+core_objects = compile_all(core_sources, out / 'obj/core', *lwjgl_flags, *ffi_flags)
+opengl_objects = compile_all(sorted(p for p in (lwjgl / 'opengl/src/generated/c').glob('*.c')
+                                    if p.name != 'org_lwjgl_opengl_WGL.c'),
+                             out / 'obj/opengl', *lwjgl_flags, '-I', lwjgl / 'opengl/src/main/c')
 stb_sources = sorted((lwjgl / 'stb/src/generated/c').glob('*.c'))
 if len(stb_sources) != 11:
     raise SystemExit(f'expected 11 pinned STB generated translation units, found {len(stb_sources)}')
 stb_objects = compile_all(stb_sources, out / 'obj/stb', *lwjgl_flags,
-                          '-I', lwjgl / 'stb/src/main/c')
+                          '-isystem' if modern else '-I', lwjgl / 'stb/src/main/c')
 
-summary = {'lwjgl': LOCK['lwjgl']['version'], 'dyncall': LOCK['dyncall']['version'], 'modules': {}}
-for name, objects, prefix, onload in (
-        ('liblwjgl', core_objects + dyncall_objects, 'Java_org_lwjgl_system_', True),
-        ('liblwjgl_opengl', opengl_objects, 'Java_org_lwjgl_opengl_', False),
-        ('liblwjgl_stb', stb_objects, 'Java_org_lwjgl_stb_', False)):
+builds = [('liblwjgl', core_objects + ffi_objects, 'Java_org_lwjgl_system_', True),
+          ('liblwjgl_opengl', opengl_objects, 'Java_org_lwjgl_opengl_', False),
+          ('liblwjgl_stb', stb_objects, 'Java_org_lwjgl_stb_', False)]
+if 'liblwjgl_tinyfd' in MODULES:
+    tinyfd = lwjgl / 'tinyfd/src'
+    builds.append(('liblwjgl_tinyfd', compile_all(
+        [tinyfd / 'generated/c/org_lwjgl_util_tinyfd_TinyFileDialogs.c', ROOT / 'lwjgl/tinyfd/orbis_tinyfd_3_3.c'],
+        out / 'obj/tinyfd', *lwjgl_flags, '-I', tinyfd / 'main/c'), 'Java_org_lwjgl_util_tinyfd_', False))
+summary = {'lwjgl': LOCK[lwjgl_key]['version'], ffi_key: LOCK[ffi_key]['version'], 'modules': {}}
+for name, objects, prefix, onload in builds:
     elf = out / f'{name}.so'
     orbis_prx.link(tools, script, runtime, elf, objects)
     audit, natives = orbis_prx.audit(elf, allowed_needed=('libkernel.so',), jni_prefix=prefix,

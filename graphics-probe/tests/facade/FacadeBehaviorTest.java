@@ -87,6 +87,11 @@ public final class FacadeBehaviorTest {
         int[] context = NativePlatform.lastContext;
         check(context[0] == 3 && context[1] == 2 && context[2] == 1 && context[3] == 1, "context hints forwarded");
         check(glfwCreateWindow(1, 1, "second", 0, 0) == 0 && lastError() == GLFW_PLATFORM_ERROR, "one window only");
+        int errorsBefore = errors.size();
+        glfwSetWindowSizeLimits(window, 320, 240, GLFW_DONT_CARE, GLFW_DONT_CARE);
+        check(errors.size() == errorsBefore, "Minecraft 1.21.2+ window size limits accepted");
+        glfwSetWindowSizeLimits(window, 320, 240, 100, 100);
+        check(lastError() == GLFW_INVALID_VALUE, "maximum below minimum rejected");
 
         int[] w = new int[1], h = new int[1];
         glfwGetFramebufferSize(window, w, h);

@@ -34,15 +34,18 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 
 /**
- * Downloads Minecraft releases 1.14 to 1.20.4, with Fabric, Quilt or no loader, into the shared
+ * Downloads Minecraft releases 1.14 to 1.20.4 (to 1.21.4 on Java 21), with Fabric, Quilt or no loader, into the shared
  * libraries and assets the installed 1.18.2 already uses. Each version gets
  * launcher/versions/&lt;id&gt;/ holding its client JAR, a flattened profile the runner accepts
  * (game.json), the same profile booting the launcher (boot.json), and install.json, written last.
  *
- * <p>Every profile runs on the audited LWJGL 3.2.2 Java artifacts and the Orbis GLFW adapter:
- * a client audit found no LWJGL member any of these releases uses beyond them except GLFW 3.4's
- * glfwGetPlatform, which the adapter provides. LWJGL and an older gson (the launcher boots on
- * each version's class path and needs 2.8.6+) are replaced by the installed 1.18.2 entries.
+ * <p>Up to 1.20.4 every profile runs on the audited LWJGL 3.2.2 Java artifacts and the Orbis GLFW
+ * adapter: a client audit found no LWJGL member any of these releases uses beyond them except GLFW
+ * 3.4's glfwGetPlatform, which the adapter provides, so their LWJGL is replaced by the installed
+ * 1.18.2 entries. 1.20.5 and newer declare LWJGL 3.3.3 (with lwjgl-freetype) and need Java 21; they
+ * keep their own LWJGL Java artifacts, which the runner's 3.3.3 profile pairs with Orbis natives, and
+ * skip the Linux natives. An older gson (the launcher boots on each version's class path and needs
+ * 2.8.6+) is replaced by the installed 1.18.2 entry.
  */
 final class VersionStore {
     enum Loader {
@@ -69,7 +72,11 @@ final class VersionStore {
     static final String VANILLA_MAIN = "net.minecraft.client.main.Main";
     /** The runner's own JAR stays a system library: the GLFW adapter reaches runner.gpu.NativeInput in it. */
     static final String SYSTEM_LIBRARIES = "/app0/app.jar";
-    private static final int[] OLDEST = {1, 14}, NEWEST = {1, 20, 4};
+    /** Java 21 runs Minecraft 1.20.5 to 1.21.4 (LWJGL 3.3.3); Java 17 stops at 1.20.4. */
+    static final int JAVA = Runtime.version().feature();
+    private static final int[] OLDEST = {1, 14}, NEWEST = JAVA >= 21 ? new int[] {1, 21, 4} : new int[] {1, 20, 4};
+    /** The LWJGL release whose Java artifacts a version keeps (the runner has a profile and natives for it). */
+    static final String OWN_LWJGL = "3.3.3";
     private static final int SCHEMA = 1;
     private static final long MAX_JSON = 16L << 20, MAX_FILE = 64L << 20;
     private static final int DOWNLOAD_THREADS = 6;
@@ -91,7 +98,7 @@ final class VersionStore {
 
     // ------------------------------------------------------------------ catalog
 
-    /** Releases 1.14 to 1.20.4 the loader supports, newest first. */
+    /** Releases in range (1.14 to 1.20.4, or 1.21.4 on Java 21) the loader supports, newest first. */
     List<GameVersion> catalog(Loader loader) throws IOException {
         JsonObject manifest = json(fetch(MANIFEST_URL, MAX_JSON));
         Set<String> supported = switch (loader) {
@@ -173,6 +180,8 @@ final class VersionStore {
         Map<String, String> provides = new LinkedHashMap<>();
         for (Map.Entry<String, JsonElement> e : o.getAsJsonObject("provides").entrySet())
             provides.put(e.getKey(), e.getValue().getAsString());
+        // The runtime, not the one the version was installed under (runner.conf picks the JDK).
+        provides.put("java", javaVersion());
         Installed value = new Installed(id, o.get("minecraft").getAsString(), Loader.valueOf(o.get("loader").getAsString()),
                 o.get("loaderVersion").getAsString(), dir.resolve("game.json"), dir.resolve("boot.json"),
                 dir.resolve("client.jar"), o.get("mainClass").getAsString(), o.get("assetIndex").getAsString(),
@@ -231,7 +240,7 @@ final class VersionStore {
         Set<String> seen = new LinkedHashSet<>();
         Map<String, String> provides = new LinkedHashMap<>();
         provides.put("minecraft", version.id());
-        provides.put("java", "17");
+        provides.put("java", javaVersion());
         if (loaderProfile != null) {
             JsonArray loaderLibraries = loaderProfile.getAsJsonArray("libraries");
             int index = 0;
@@ -263,13 +272,18 @@ final class VersionStore {
         if (lwjgl.isEmpty() || builtInGson == null) throw new IOException("The installed 1.18.2 profile lacks LWJGL or gson");
 
         JsonArray vanillaLibraries = vanilla.getAsJsonArray("libraries");
+        boolean ownLwjgl = declaresOnly(vanillaLibraries, OWN_LWJGL);
         int index = 0;
         boolean lwjglAdded = false;
         for (JsonElement element : vanillaLibraries) {
             JsonObject library = element.getAsJsonObject();
             String name = library.get("name").getAsString();
             op.progress("Downloading Minecraft libraries (" + ++index + "/" + vanillaLibraries.size() + ")");
-            if (name.startsWith("org.lwjgl:")) {
+            if (ownLwjgl && name.startsWith("org.lwjgl:")) {
+                // Orbis natives come from the graphics bundle; the Linux ones are never used.
+                if (name.split(":").length == 4 && name.split(":")[3].startsWith("natives-")) continue;
+                lwjglAdded = true;
+            } else if (name.startsWith("org.lwjgl:")) {
                 if (!lwjglAdded) {
                     for (JsonObject entry : lwjgl) { requirePresent(entry); merged.add(entry); }
                     lwjglAdded = true;
@@ -462,6 +476,22 @@ final class VersionStore {
     // ------------------------------------------------------------------ helpers
 
     /** Mojang semantics for library rules on a Linux-like x86_64 system: last matching rule wins. */
+    /** The version declares LWJGL only at this release (every org.lwjgl:module:version entry). */
+    static boolean declaresOnly(JsonArray libraries, String release) {
+        boolean any = false;
+        for (JsonElement element : libraries) {
+            String[] p = element.getAsJsonObject().get("name").getAsString().split(":");
+            if (p.length != 3 || !p[0].equals("org.lwjgl")) continue;
+            if (!p[2].equals(release)) return false;
+            any = true;
+        }
+        return any;
+    }
+
+    static String javaVersion() {
+        return System.getProperty("java.specification.version", "17");
+    }
+
     static boolean allowed(JsonElement rules) {
         if (rules == null || rules.isJsonNull()) return true;
         boolean allow = false;

@@ -19,7 +19,16 @@ public final class LwjglProfileRegistryTest {
     public static void main(String[] args) throws Exception {
         equal("minecraft-1.18.2-lwjgl-3.2.2-orbis-v1", AUDITED.id(), "audited profile id");
         equal(7, AUDITED.modules().size(), "seven exact coordinates");
-        equal(List.of(AUDITED), LwjglProfileRegistry.profiles(), "only the audited profile is registered");
+        equal(List.of(AUDITED, LwjglProfileRegistry.MINECRAFT_1_20_5), LwjglProfileRegistry.profiles(),
+                "only the audited profiles are registered");
+        LwjglProfile modern = LwjglProfileRegistry.MINECRAFT_1_20_5;
+        equal("minecraft-1.20.5-lwjgl-3.3.3-orbis-v1", modern.id(), "3.3.3 profile id");
+        equal(8, modern.modules().size(), "eight exact coordinates, with freetype");
+        equal(modern, LwjglProfileRegistry.select(plan(modern.modules(), modern.javaSha1())), "3.3.3 set selected");
+        Map<String, String> noFreetype = new TreeMap<>(modern.modules());
+        noFreetype.remove("org.lwjgl:lwjgl-freetype");
+        fails(PROFILE_UNSUPPORTED, "3.3.3 set without freetype",
+                () -> LwjglProfileRegistry.select(plan(noFreetype, modern.javaSha1())));
 
         equal(AUDITED, LwjglProfileRegistry.select(plan(AUDITED.modules(), AUDITED.javaSha1())), "exact set selected");
 

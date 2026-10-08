@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""Every native method in the LWJGL 3.2.2 core/OpenGL/STB JARs has a JNI export.
+"""Every native method in the LWJGL core/OpenGL/STB JARs has a JNI export.
 
 Reads ACC_NATIVE methods straight from the class files, applies JNI short/long name
 mangling and compares with the natives build_lwjgl_natives.py recorded for each PRX.
-Needs a prior build (graphics-probe/build/lwjgl) and the audited JARs (ORBIS_LWJGL_JARS).
+Needs a prior build (graphics-probe/build/lwjgl, or build/lwjgl-3.3.3 with ORBIS_LWJGL_RELEASE=3.3.3)
+and the audited JARs (ORBIS_LWJGL_JARS).
 """
 import os
 import struct
@@ -13,13 +14,20 @@ from collections import Counter
 from pathlib import Path
 
 root = Path(__file__).resolve().parents[1]
-build = Path(os.environ.get('ORBIS_LWJGL_BUILD', root / 'build/lwjgl'))
+release = os.environ.get('ORBIS_LWJGL_RELEASE', '3.2.2')
+build = Path(os.environ.get('ORBIS_LWJGL_BUILD', root / ('build/lwjgl' if release == '3.2.2' else f'build/lwjgl-{release}')))
 jars = Path(os.environ.get('ORBIS_LWJGL_JARS', '/tmp/lwjgl-audit'))
-MODULES = {'liblwjgl': 'lwjgl-3.2.2.jar', 'liblwjgl_opengl': 'lwjgl-opengl-3.2.2.jar',
-           'liblwjgl_stb': 'lwjgl-stb-3.2.2.jar'}
+MODULES = {'liblwjgl': f'lwjgl-{release}.jar', 'liblwjgl_opengl': f'lwjgl-opengl-{release}.jar',
+           'liblwjgl_stb': f'lwjgl-stb-{release}.jar'}
+if release != '3.2.2':  # 3.2.2's TinyFD is checked by test_lwjgl_optional.py
+    MODULES['liblwjgl_tinyfd'] = f'lwjgl-tinyfd-{release}.jar'
+# The pinned STB generated sources declare exactly this many natives per release.
+STB_NATIVES = {'3.2.2': 205, '3.3.3': 215}
 ACC_NATIVE = 0x0100
 # Natives of other platforms are not built for Linux either; LWJGL never loads these classes there.
-OTHER_PLATFORMS = ('org/lwjgl/system/windows/', 'org/lwjgl/system/macosx/')
+# io_uring (3.3) has no Orbis counterpart, so its bindings are left out of the build.
+OTHER_PLATFORMS = ('org/lwjgl/system/windows/', 'org/lwjgl/system/macosx/', 'org/lwjgl/system/linux/liburing/',
+                   'org/lwjgl/opengl/WGL.class')
 
 
 def native_methods(data):
@@ -116,6 +124,6 @@ for module, jar in MODULES.items():
                 missing.append(f'{klass}.{method}{descriptor}')
     assert total > 0, f'{jar} declares no native methods'
     if module == 'liblwjgl_stb':
-        assert total == 205, f'expected 205 pinned STB natives, found {total}'
+        assert total == STB_NATIVES[release], f'expected {STB_NATIVES[release]} pinned STB natives, found {total}'
     assert not missing, f'{module}: {len(missing)} of {total} natives unexported, e.g. {missing[:5]}'
     print(f'{module}: all {total} native methods of {jar} are exported')

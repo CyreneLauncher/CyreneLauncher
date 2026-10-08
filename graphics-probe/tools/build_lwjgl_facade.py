@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
-"""Build the Orbis LWJGL 3.2.2 adapter JAR and enforce its binary contract.
+"""Build the Orbis LWJGL adapter JAR for one LWJGL release and enforce its binary contract.
 
-Contents, placed ahead of the official lwjgl-3.2.2.jar and instead of lwjgl-glfw-3.2.2.jar:
-  * org.lwjgl.system.Platform from the 3.2.2 source, accepting os.name "Orbis" as Linux;
-  * every org.lwjgl.glfw class copied byte-for-byte from the official lwjgl-glfw-3.2.2.jar,
-    except GLFW/GLFW$Functions (generated) and Callbacks (replaced);
+Contents, placed ahead of the official lwjgl-<release>.jar and instead of lwjgl-glfw-<release>.jar
+(3.2.2 for Minecraft up to 1.20.4, 3.3.3 for 1.20.5 to 1.21.4):
+  * org.lwjgl.system.Platform from the release's source, accepting os.name "Orbis" as Linux;
+  * every org.lwjgl.glfw class copied byte-for-byte from the official lwjgl-glfw JAR,
+    except GLFW/GLFW$Functions (generated) and Callbacks (replaced), and for 3.2.2 the classes
+    rebuilt with LWJGL 3.3 members newer Minecraft calls;
   * orbis.graphics.NativePlatform, the platform PRX's Java side.
 GLFW.java is generated from the official GLFW.class: all constants, GLFW$Functions and
 every exported method with its exact descriptor. Methods OrbisGLFW implements with the
@@ -13,6 +15,7 @@ method. The build fails unless the JAR's exported members equal the official one
 every required method is implemented.
 """
 import argparse
+import contextlib
 import json
 import shutil
 import subprocess
@@ -66,14 +69,14 @@ REQUIRED = {
     'glfwGetInputMode (JI)I', 'glfwGetWindowAttrib (JI)I',
     'glfwSetCharCallback (JLorg/lwjgl/glfw/GLFWCharCallbackI;)Lorg/lwjgl/glfw/GLFWCharCallback;',
 }
-# GLFW 3.4 calls newer Minecraft makes while running on these LWJGL 3.2.2 classes (1.20.2+ asks
+# GLFW 3.4 calls newer Minecraft makes while running on the LWJGL 3.2.2 classes (1.20.2+ asks
 # glfwGetPlatform before setting the window icon). The only exported members beyond 3.2.2's GLFW;
-# each must be implemented by OrbisGLFW.
-ADDITIONS = {('glfwGetPlatform', '()I')}
-REQUIRED |= {f'{name} {descriptor}' for name, descriptor in ADDITIONS}
-# LWJGL 3.3 members Minecraft 1.19.3+ calls on other GLFW classes. Those classes are rebuilt from the
-# pinned 3.2.2 sources with each member inserted before its anchor; nothing else in them changes.
-SOURCE_ADDITIONS = {
+# each must be implemented by OrbisGLFW. LWJGL 3.3.3's GLFW has it already.
+ADDITIONS_3_2_2 = {('glfwGetPlatform', '()I')}
+REQUIRED |= {'glfwGetPlatform ()I'}
+# LWJGL 3.3 members Minecraft 1.19.3+ calls on other GLFW classes. For 3.2.2 those classes are rebuilt
+# from the pinned sources with each member inserted before its anchor; nothing else in them changes.
+SOURCE_ADDITIONS_3_2_2 = {
     'org/lwjgl/glfw/GLFWImage': (
         '    public static class Buffer extends StructBuffer<GLFWImage, Buffer> implements NativeResource {',
         '    /** LWJGL 3.3\'s name for {@link #mallocStack(int, MemoryStack)} (Minecraft 1.19.3+ window icons). */\n'
@@ -88,21 +91,29 @@ SOURCE_ADDITIONS = {
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--boot-jdk', default='/usr/lib/jvm/java-17-openjdk-amd64')
-parser.add_argument('--jars', default='/tmp/lwjgl-audit', help='official LWJGL 3.2.2 Java JARs')
+parser.add_argument('--release', choices=('3.2.2', '3.3.3'), default='3.2.2')
+parser.add_argument('--jars', default='/tmp/lwjgl-audit', help='official LWJGL Java JARs of the release')
 parser.add_argument('--downloads', default=str(ROOT / 'build/downloads'))
 parser.add_argument('--fetch', action='store_true')
-parser.add_argument('--output', default=str(ROOT / 'build/lwjgl-facade'))
+parser.add_argument('--output', help='default build/lwjgl-facade (3.2.2) or build/lwjgl-facade-<release>')
 arguments = parser.parse_args()
+release = arguments.release
+legacy = release == '3.2.2'
+if arguments.output is None:
+    arguments.output = str(ROOT / ('build/lwjgl-facade' if legacy else f'build/lwjgl-facade-{release}'))
+ADDITIONS = ADDITIONS_3_2_2 if legacy else set()
+SOURCE_ADDITIONS = SOURCE_ADDITIONS_3_2_2 if legacy else {}
 javac = Path(arguments.boot_jdk) / 'bin/javac'
 out = Path(arguments.output).resolve()
 if out.exists():
     shutil.rmtree(out)
 out.mkdir(parents=True)
 
-core_jar = lwjgl_sources.java_artifact(arguments.jars, 'lwjgl-3.2.2.jar')
-opengl_jar = lwjgl_sources.java_artifact(arguments.jars, 'lwjgl-opengl-3.2.2.jar')
-glfw_jar = lwjgl_sources.java_artifact(arguments.jars, 'lwjgl-glfw-3.2.2.jar')
-source_root = lwjgl_sources.extract(lwjgl_sources.archive('lwjgl', arguments.downloads, arguments.fetch),
+core_jar = lwjgl_sources.java_artifact(arguments.jars, f'lwjgl-{release}.jar')
+opengl_jar = lwjgl_sources.java_artifact(arguments.jars, f'lwjgl-opengl-{release}.jar')
+glfw_jar = lwjgl_sources.java_artifact(arguments.jars, f'lwjgl-glfw-{release}.jar')
+source_key = 'lwjgl' if legacy else f'lwjgl-{release}'
+source_root = lwjgl_sources.extract(lwjgl_sources.archive(source_key, arguments.downloads, arguments.fetch),
                                     out / 'sources') / 'modules/lwjgl'
 with zipfile.ZipFile(glfw_jar) as archive:
     official = {name: classfile.parse(archive.read(name)) for name in archive.namelist()
@@ -119,11 +130,20 @@ if platform_source.count(anchor) != 1:
     raise SystemExit('unexpected Platform.java; inspect the os.name switch')
 platform = out / 'generated/org/lwjgl/system/Platform.java'
 platform.parent.mkdir(parents=True)
-platform.write_text(platform_source.replace(anchor, 'osName.startsWith("Orbis") || ' + anchor))
+platform_source = platform_source.replace(anchor, 'osName.startsWith("Orbis") || ' + anchor)
 
-glfw_sources = lwjgl_sources.archive('lwjgl-glfw-sources', arguments.downloads, arguments.fetch)
+
+def without_nullable(text):
+    """JSR-305 @Nullable is documentation only (no effect on members or linkage); it is not on this class path."""
+    return text.replace('import javax.annotation.*;\n', '').replace('@Nullable ', '').replace('@Nullable\n', '\n')
+
+
+platform.write_text(without_nullable(platform_source))
+
 patched_sources = []
-with zipfile.ZipFile(glfw_sources) as archive:
+glfw_sources = (lwjgl_sources.archive('lwjgl-glfw-sources', arguments.downloads, arguments.fetch)
+                if SOURCE_ADDITIONS else None)
+with (zipfile.ZipFile(glfw_sources) if glfw_sources else contextlib.nullcontext()) as archive:
     for name, (before, member, _) in SOURCE_ADDITIONS.items():
         text = archive.read(name + '.java').decode()
         if before is None:
@@ -133,8 +153,7 @@ with zipfile.ZipFile(glfw_sources) as archive:
             if text.count(before) != 1:
                 raise SystemExit(f'unexpected {name}.java; inspect the insertion anchor')
             text = text.replace(before, member + before)
-        # JSR-305 @Nullable is documentation only (no effect on members or linkage); it is not on this class path.
-        text = text.replace('import javax.annotation.*;\n', '').replace('@Nullable ', '').replace('@Nullable\n', '\n')
+        text = without_nullable(text)
         target = out / 'generated' / (name + '.java')
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(text)
@@ -158,7 +177,7 @@ def literal(member):
 
 def generate(implemented):
     lines = ['package org.lwjgl.glfw;', '',
-             '/** Generated from LWJGL 3.2.2 GLFW.class by build_lwjgl_facade.py; implementation: OrbisGLFW. */',
+             f'/** Generated from LWJGL {release} GLFW.class by build_lwjgl_facade.py; implementation: OrbisGLFW. */',
              '@SuppressWarnings("all")', 'public class GLFW {']
     for field in glfw.fields:
         if not field.exported:
@@ -208,9 +227,10 @@ def generate(implemented):
 runner_classes = out / 'runner-classes'
 subprocess.run([str(javac), '--release', '17', '-d', str(runner_classes),
                 str(RUNNER / 'src/runner/gpu/NativeInput.java')], check=True)
-REPLACED = {'org/lwjgl/glfw/GLFW.class', 'org/lwjgl/glfw/GLFW$Functions.class', 'org/lwjgl/glfw/Callbacks.class',
-            'org/lwjgl/glfw/GLFWImage.class', 'org/lwjgl/glfw/GLFWImage$Buffer.class',
-            'org/lwjgl/glfw/GLFWNativeGLX.class', 'org/lwjgl/glfw/GLFWNativeGLX$Functions.class'}
+REPLACED = {'org/lwjgl/glfw/GLFW.class', 'org/lwjgl/glfw/GLFW$Functions.class', 'org/lwjgl/glfw/Callbacks.class'}
+if legacy:
+    REPLACED |= {'org/lwjgl/glfw/GLFWImage.class', 'org/lwjgl/glfw/GLFWImage$Buffer.class',
+                 'org/lwjgl/glfw/GLFWNativeGLX.class', 'org/lwjgl/glfw/GLFWNativeGLX$Functions.class'}
 own = sorted(FACADE.rglob('*.java')) + [ROOT / 'lwjgl/java/orbis/graphics/NativePlatform.java',
                                       ROOT / 'lwjgl/java/orbis/graphics/TextInput.java']
 # The official GLFW jar supplies the unchanged classes; the generated GLFW source overrides its GLFW.
@@ -230,7 +250,7 @@ implemented = {(m.name, m.descriptor) for m in implementation.methods if m.acces
 classes = out / 'classes'
 compile_into(classes, generate(implemented))
 
-jar = out / 'orbis-lwjgl-3.2.2-adapter.jar'
+jar = out / f'orbis-lwjgl-{release}-adapter.jar'
 with zipfile.ZipFile(jar, 'w', zipfile.ZIP_DEFLATED) as archive, zipfile.ZipFile(glfw_jar) as source:
     for name in sorted(official):
         if name not in REPLACED:
@@ -272,7 +292,7 @@ for field in glfw.fields:
         problems.append(f'GLFW.{field.name} constant differs')
 platform_built = built.get('org/lwjgl/system/Platform.class')
 if platform_built is None or platform_built.exported_members() != official_platform.exported_members():
-    problems.append('Platform shim exported members differ from lwjgl-3.2.2.jar')
+    problems.append(f'Platform shim exported members differ from lwjgl-{release}.jar')
 allowed = set(official) | {'org/lwjgl/system/Platform.class', 'orbis/graphics/NativePlatform.class',
                            'orbis/graphics/TextInput.class',
                            'org/lwjgl/glfw/OrbisGLFW.class', 'org/lwjgl/glfw/OrbisGLFW$EglFunctionProvider.class',
@@ -292,7 +312,7 @@ if problems:
     raise SystemExit('facade contract failed:\n  ' + '\n  '.join(problems))
 
 delegated = sorted(f'{n} {d}' for n, d in implemented if f'{n} {d}' in exported)
-audit = {'jar': str(jar), 'classes': len(built), 'official_classes': len(official),
+audit = {'release': release, 'jar': str(jar), 'classes': len(built), 'official_classes': len(official),
          'glfw_methods': len(exported), 'implemented': delegated,
          'unsupported': sorted(exported - set(delegated))}
 (out / 'facade-audit.json').write_text(json.dumps(audit, indent=2) + '\n')

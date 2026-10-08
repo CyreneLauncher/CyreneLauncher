@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """Orbis LWJGL facade: build with its binary contract, then run GLFW behavior on the host.
 
-The host run uses the real facade JAR with the official LWJGL 3.2.2 core/OpenGL Java and
+The host run uses the real facade JAR with the official LWJGL core/OpenGL Java and
 Linux native JARs, and pure-Java stand-ins for orbis.graphics.NativePlatform and
 runner.gpu.NativeInput (checked here against the production classes). The GL library
 name points nowhere, so any attempt by GL to load libGL itself fails the run.
+ORBIS_LWJGL_RELEASE=3.3.3 checks the 3.3.3 adapter instead of 3.2.2's.
 """
 import os
 import subprocess
@@ -18,10 +19,11 @@ import classfile  # noqa: E402
 
 boot_jdk = Path(os.environ.get('BOOT_JDK', '/usr/lib/jvm/java-17-openjdk-amd64'))
 jars = Path(os.environ.get('ORBIS_LWJGL_JARS', '/tmp/lwjgl-audit'))
+release = os.environ.get('ORBIS_LWJGL_RELEASE', '3.2.2')
 downloads = root / 'build/downloads'
-needed = ['lwjgl-3.2.2.jar', 'lwjgl-opengl-3.2.2.jar', 'lwjgl-glfw-3.2.2.jar',
-          'lwjgl-3.2.2-natives-linux.jar', 'lwjgl-opengl-3.2.2-natives-linux.jar']
-if not all((jars / jar).is_file() for jar in needed) or not (downloads / 'lwjgl3-3.2.2.tar.gz').is_file():
+needed = [f'lwjgl-{release}.jar', f'lwjgl-opengl-{release}.jar', f'lwjgl-glfw-{release}.jar',
+          f'lwjgl-{release}-natives-linux.jar', f'lwjgl-opengl-{release}-natives-linux.jar']
+if not all((jars / jar).is_file() for jar in needed) or not (downloads / f'lwjgl3-{release}.tar.gz').is_file():
     print('LWJGL facade test skipped: set ORBIS_LWJGL_JARS and place the pinned LWJGL archive in build/downloads')
     sys.exit(0)
 
@@ -33,8 +35,8 @@ def javac(*args):
 with tempfile.TemporaryDirectory() as directory:
     tmp = Path(directory)
     subprocess.run([sys.executable, str(root / 'tools/build_lwjgl_facade.py'), '--boot-jdk', str(boot_jdk),
-                    '--jars', str(jars), '--downloads', str(downloads), '--output', str(tmp / 'facade')], check=True)
-    facade = tmp / 'facade/orbis-lwjgl-3.2.2-adapter.jar'
+                    '--release', release, '--jars', str(jars), '--downloads', str(downloads), '--output', str(tmp / 'facade')], check=True)
+    facade = tmp / f'facade/orbis-lwjgl-{release}-adapter.jar'
 
     # Stand-ins must expose exactly what the production classes do.
     real = tmp / 'real'
