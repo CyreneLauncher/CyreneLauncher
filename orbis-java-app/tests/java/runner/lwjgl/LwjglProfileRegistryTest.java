@@ -19,7 +19,8 @@ public final class LwjglProfileRegistryTest {
     public static void main(String[] args) throws Exception {
         equal("minecraft-1.18.2-lwjgl-3.2.2-orbis-v1", AUDITED.id(), "audited profile id");
         equal(7, AUDITED.modules().size(), "seven exact coordinates");
-        equal(List.of(AUDITED, LwjglProfileRegistry.MINECRAFT_1_20_5), LwjglProfileRegistry.profiles(),
+        equal(List.of(AUDITED, LwjglProfileRegistry.MINECRAFT_1_20_5, LwjglProfileRegistry.MINECRAFT_26_1),
+                LwjglProfileRegistry.profiles(),
                 "only the audited profiles are registered");
         LwjglProfile modern = LwjglProfileRegistry.MINECRAFT_1_20_5;
         equal("minecraft-1.20.5-lwjgl-3.3.3-orbis-v1", modern.id(), "3.3.3 profile id");
@@ -29,6 +30,15 @@ public final class LwjglProfileRegistryTest {
         noFreetype.remove("org.lwjgl:lwjgl-freetype");
         fails(PROFILE_UNSUPPORTED, "3.3.3 set without freetype",
                 () -> LwjglProfileRegistry.select(plan(noFreetype, modern.javaSha1())));
+
+        LwjglProfile current = LwjglProfileRegistry.MINECRAFT_26_1;
+        equal("minecraft-26.1-lwjgl-3.4.1-orbis-v1", current.id(), "3.4.1 profile id");
+        equal(8, current.modules().size(), "26.1: eight exact coordinates");
+        equal(current, LwjglProfileRegistry.select(plan(current.modules(), current.javaSha1())), "3.4.1 set selected");
+        Map<String, String> withVulkan = new TreeMap<>(current.modules());
+        withVulkan.put("org.lwjgl:lwjgl-vulkan", "3.4.1");
+        fails(PROFILE_UNSUPPORTED, "26.2's set (vulkan, shaderc, spvc) is not 26.1's",
+                () -> LwjglProfileRegistry.select(plan(withVulkan, current.javaSha1())));
 
         equal(AUDITED, LwjglProfileRegistry.select(plan(AUDITED.modules(), AUDITED.javaSha1())), "exact set selected");
 

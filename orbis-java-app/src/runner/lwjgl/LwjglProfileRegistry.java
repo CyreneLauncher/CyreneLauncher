@@ -53,7 +53,31 @@ public final class LwjglProfileRegistry {
                     "org.lwjgl:lwjgl-stb", "25dd6161988d7e65f71d5065c99902402ee32746",
                     "org.lwjgl:lwjgl-tinyfd", "82d755ca94b102e9ca77283b9e2dc46d1b15fbe5"));
 
-    private static final List<LwjglProfile> PROFILES = List.of(MINECRAFT_1_18_2, MINECRAFT_1_20_5);
+    /**
+     * Minecraft 26.1 and 26.2: the LWJGL 3.4.1 set they declare (Mojang version metadata). Runs on LWJGL
+     * 3.4.1 natives built for Orbis with libffi 3.5.0; on Java 25 LWJGL calls functions and callbacks
+     * through the JDK's foreign function linker.
+     */
+    public static final LwjglProfile MINECRAFT_26_1 = new LwjglProfile(
+            "minecraft-26.1-lwjgl-3.4.1-orbis-v1",
+            Map.of("org.lwjgl:lwjgl", "3.4.1",
+                    "org.lwjgl:lwjgl-freetype", "3.4.1",
+                    "org.lwjgl:lwjgl-glfw", "3.4.1",
+                    "org.lwjgl:lwjgl-jemalloc", "3.4.1",
+                    "org.lwjgl:lwjgl-openal", "3.4.1",
+                    "org.lwjgl:lwjgl-opengl", "3.4.1",
+                    "org.lwjgl:lwjgl-stb", "3.4.1",
+                    "org.lwjgl:lwjgl-tinyfd", "3.4.1"),
+            Map.of("org.lwjgl:lwjgl", "6105690714874b995aa7812e4f7732a21109276c",
+                    "org.lwjgl:lwjgl-freetype", "caa75a37e857efc9b0686e434d708d6420c5b6ea",
+                    "org.lwjgl:lwjgl-glfw", "a782b1ddd175c9107bf300fd92920579ea65e2a4",
+                    "org.lwjgl:lwjgl-jemalloc", "16b663092854fc6adfe0a941e61cae2bb2e437b6",
+                    "org.lwjgl:lwjgl-openal", "8508bd60589de0539aa465b78fcf838efd07ae9a",
+                    "org.lwjgl:lwjgl-opengl", "830412cab823c029cda6b9729f9d2ed36cf79959",
+                    "org.lwjgl:lwjgl-stb", "f077c3dafc31924fbe8acb0b913f08977ba27f8e",
+                    "org.lwjgl:lwjgl-tinyfd", "562697d40dbd2ed0424bf24dcf65d51170f81adf"));
+
+    private static final List<LwjglProfile> PROFILES = List.of(MINECRAFT_1_18_2, MINECRAFT_1_20_5, MINECRAFT_26_1);
 
     private LwjglProfileRegistry() {}
 

@@ -7,9 +7,10 @@ Upload the CONTENTS of the output directory to the runner's graphics_bundle path
   build-info.json        source pins and build audits
   lib/                   six SELF PRXs with .so names (LWJGL 3.2.2, OpenAL, the Mesa platform),
                          the adapter JARs and the launcher
-  lib/lwjgl-3.3.3/       LWJGL 3.3.3 natives and FreeType (Minecraft 1.20.5+); the profile's
+  lib/lwjgl-3.3.3/       LWJGL 3.3.3 natives and FreeType (Minecraft 1.19 to 1.21.11); the profile's
                          org.lwjgl.librarypath, while OpenAL and the platform module stay in lib/
                          (java.library.path)
+  lib/lwjgl-3.4.1/       the same for LWJGL 3.4.1 (Minecraft 26.1 and 26.2)
   legal/                 licence texts of what the modules contain
 The bundle never contains runner or JDK files. Building it does not deploy it.
 """
@@ -41,6 +42,12 @@ MODERN_NATIVES = tuple(f'{MODERN_DIR}/{name}' for name in
                        ('liblwjgl.so', 'liblwjgl_opengl.so', 'liblwjgl_stb.so', 'liblwjgl_tinyfd.so',
                         'libfreetype.so')) + ('libopenal.so', 'liborbis_lwjgl_platform.so')
 
+CURRENT_ID = 'minecraft-26.1-lwjgl-3.4.1-orbis-v1'
+CURRENT_MODULES = {module: '3.4.1' for module in MODERN_MODULES}
+CURRENT_ADAPTER = 'orbis-lwjgl-3.4.1-adapter.jar'
+CURRENT_DIR = 'lwjgl-3.4.1'
+CURRENT_NATIVES = tuple(name.replace(MODERN_DIR, CURRENT_DIR) for name in MODERN_NATIVES)
+
 parser = argparse.ArgumentParser()
 parser.add_argument('--boot-jdk', default='/usr/lib/jvm/java-17-openjdk-amd64')
 parser.add_argument('--platform', default=str(ROOT / 'build/platform'))
@@ -52,6 +59,9 @@ parser.add_argument('--launcher', default=str(ROOT / 'build/launcher'))
 parser.add_argument('--lwjgl-modern', default=str(ROOT / 'build/lwjgl-3.3.3'))
 parser.add_argument('--facade-modern', default=str(ROOT / 'build/lwjgl-facade-3.3.3'))
 parser.add_argument('--freetype', default=str(ROOT / 'build/freetype'))
+parser.add_argument('--lwjgl-current', default=str(ROOT / 'build/lwjgl-3.4.1'))
+parser.add_argument('--facade-current', default=str(ROOT / 'build/lwjgl-facade-3.4.1'))
+parser.add_argument('--freetype-current', default=str(ROOT / 'build/freetype-3.4.1'))
 parser.add_argument('--output', default=str(ROOT / 'build/graphics-bundle'))
 arguments = parser.parse_args()
 platform, lwjgl, facade, optional = (Path(p).resolve() for p in
@@ -82,6 +92,14 @@ freetype_audit = load_audit(freetype / 'freetype-audit.json')
 modern_tree = next((lwjgl_modern / 'sources/lwjgl').iterdir())
 libffi_tree = next((lwjgl_modern / 'sources/libffi').iterdir())
 freetype_tree = next((freetype / 'sources/freetype').iterdir())
+lwjgl_current, facade_current, freetype_current = (Path(p).resolve() for p in
+                                                   (arguments.lwjgl_current, arguments.facade_current,
+                                                    arguments.freetype_current))
+current_audit = load_audit(lwjgl_current / 'lwjgl-audit.json')
+facade_current_audit = load_audit(facade_current / 'facade-audit.json')
+freetype_current_audit = load_audit(freetype_current / 'freetype-audit.json')
+current_tree = next((lwjgl_current / 'sources/lwjgl').iterdir())
+libffi_current_tree = next((lwjgl_current / 'sources/libffi-3.5.0').iterdir())
 
 if out.exists():
     shutil.rmtree(out)
@@ -99,7 +117,12 @@ for name in ('liblwjgl', 'liblwjgl_opengl', 'liblwjgl_stb', 'liblwjgl_tinyfd'):
     shutil.copyfile(lwjgl_modern / f'{name}.prx', out / 'lib' / MODERN_DIR / f'{name}.so')
 shutil.copyfile(freetype / 'libfreetype.prx', out / 'lib' / MODERN_DIR / 'libfreetype.so')
 shutil.copyfile(facade_modern / MODERN_ADAPTER, out / 'lib' / MODERN_ADAPTER)
-for name in NATIVES + MODERN_NATIVES:
+(out / 'lib' / CURRENT_DIR).mkdir()
+for name in ('liblwjgl', 'liblwjgl_opengl', 'liblwjgl_stb', 'liblwjgl_tinyfd'):
+    shutil.copyfile(lwjgl_current / f'{name}.prx', out / 'lib' / CURRENT_DIR / f'{name}.so')
+shutil.copyfile(freetype_current / 'libfreetype.prx', out / 'lib' / CURRENT_DIR / 'libfreetype.so')
+shutil.copyfile(facade_current / CURRENT_ADAPTER, out / 'lib' / CURRENT_ADAPTER)
+for name in NATIVES + MODERN_NATIVES + CURRENT_NATIVES:
     if (out / 'lib' / name).read_bytes()[:4] != b'O\x15=\x1d':
         raise SystemExit(f'{name} is not a SELF module')
 
@@ -112,6 +135,8 @@ shutil.copyfile(lwjgl_tree / 'LICENSE.md', legal / 'lwjgl-LICENSE.md')
 shutil.copyfile(dyncall_tree / 'LICENSE', legal / 'dyncall-LICENSE')
 shutil.copyfile(modern_tree / 'LICENSE.md', legal / 'lwjgl-3.3.3-LICENSE.md')
 shutil.copyfile(libffi_tree / 'LICENSE', legal / 'libffi-LICENSE')
+shutil.copyfile(current_tree / 'LICENSE.md', legal / 'lwjgl-3.4.1-LICENSE.md')
+shutil.copyfile(libffi_current_tree / 'LICENSE', legal / 'libffi-3.5.0-LICENSE')
 for name in ('LICENSE.TXT', 'docs/FTL.TXT'):
     shutil.copyfile(freetype_tree / name, legal / f'freetype-{Path(name).name}')
 shutil.copyfile(lwjgl_tree / 'modules/lwjgl/tinyfd/src/main/c/tinyfiledialogs.h',
@@ -133,6 +158,10 @@ if (sources / 'orbis-compat/licenses').is_dir():
   (`libffi-LICENSE`, MIT); the TinyFD stub is original, like 3.2.2's.
 - `lwjgl-3.3.3/libfreetype.so` is FreeType 2.13.2 built unmodified with its default options
   (`freetype-LICENSE.TXT`; used here under the FreeType Project License, `freetype-FTL.TXT`).
+- `lwjgl-3.4.1/liblwjgl.so`, `liblwjgl_opengl.so`, `liblwjgl_stb.so`, `liblwjgl_tinyfd.so` and
+  `orbis-lwjgl-3.4.1-adapter.jar`: LWJGL 3.4.1 (`lwjgl-3.4.1-LICENSE.md`) and libffi 3.5.0
+  (`libffi-3.5.0-LICENSE`, MIT); the same TinyFD stub. `lwjgl-3.4.1/libfreetype.so` is FreeType
+  2.14.1, built the same way under the same licences.
 - STB sources in `liblwjgl_stb.so` are upstream stb headers bundled by LWJGL 3.2.2;
   their headers state public-domain or MIT dual licensing. The generated JNI is LWJGL BSD-3-Clause.
 - `liblwjgl_tinyfd.so` uses LWJGL generated JNI (BSD-3-Clause) and the bounded
@@ -152,7 +181,7 @@ porting kit note that file as GPL-3.0). Review these before distributing the bun
 
 build_info = {
     'profile': PROFILE_ID,
-    'profiles': [PROFILE_ID, MODERN_ID],
+    'profiles': [PROFILE_ID, MODERN_ID, CURRENT_ID],
     'sources': json.loads((ROOT / 'lwjgl/lwjgl-sources.lock.json').read_text()),
     'mesa_lock': json.loads((ROOT / 'deps.lock.json').read_text())['sources'],
     'platform': {k: platform_audit[k] for k in ('needed', 'imports', 'tls')},
@@ -176,6 +205,14 @@ build_info = {
     'facade_3.3.3': {k: facade_modern_audit[k] for k in ('classes', 'official_classes', 'glfw_methods')}
                     | {'implemented': len(facade_modern_audit['implemented']),
                        'unsupported': len(facade_modern_audit['unsupported'])},
+    'lwjgl_3.4.1': {name: {k: audit[k] for k in ('needed', 'imports', 'jni_natives', 'tls')}
+                    for name, audit in current_audit['modules'].items()},
+    'freetype_3.4.1': {'version': freetype_current_audit['freetype'],
+                       'lwjgl_required_functions': freetype_current_audit['lwjgl_required_functions']}
+                      | {k: freetype_current_audit['module'][k] for k in ('needed', 'imports', 'tls')},
+    'facade_3.4.1': {k: facade_current_audit[k] for k in ('classes', 'official_classes', 'glfw_methods')}
+                    | {'implemented': len(facade_current_audit['implemented']),
+                       'unsupported': len(facade_current_audit['unsupported'])},
 }
 (out / 'build-info.json').write_text(json.dumps(build_info, indent=2) + '\n')
 
@@ -187,6 +224,7 @@ for path in sorted(out.rglob('*')):
         files[path.relative_to(out).as_posix()] = hashlib.sha256(path.read_bytes()).hexdigest()
 operations = sorted({entry.split(' ')[0] for entry in facade_audit['implemented']})
 modern_operations = sorted({entry.split(' ')[0] for entry in facade_modern_audit['implemented']})
+current_operations = sorted({entry.split(' ')[0] for entry in facade_current_audit['implemented']})
 manifest = {
     'schema_version': 1,
     'files': files,
@@ -203,6 +241,13 @@ manifest = {
         'java_adapter_paths': [f'lib/{MODERN_ADAPTER}', f'lib/{LAUNCHER}'],
         'native_library_paths': [f'lib/{name}' for name in MODERN_NATIVES],
         'glfw_operations': modern_operations,
+        'gl_features': ['egl-desktop-opengl', 'single-fullscreen-window', 'eglGetProcAddress'],
+    }, {
+        'id': CURRENT_ID,
+        'modules': CURRENT_MODULES,
+        'java_adapter_paths': [f'lib/{CURRENT_ADAPTER}', f'lib/{LAUNCHER}'],
+        'native_library_paths': [f'lib/{name}' for name in CURRENT_NATIVES],
+        'glfw_operations': current_operations,
         'gl_features': ['egl-desktop-opengl', 'single-fullscreen-window', 'eglGetProcAddress'],
     }],
 }

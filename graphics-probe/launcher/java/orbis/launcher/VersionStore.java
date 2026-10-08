@@ -73,14 +73,18 @@ final class VersionStore {
     static final String VANILLA_MAIN = "net.minecraft.client.main.Main";
     /** The runner's own JAR stays a system library: the GLFW adapter reaches runner.gpu.NativeInput in it. */
     static final String SYSTEM_LIBRARIES = "/app0/app.jar";
-    private static final int[] OLDEST = {1, 14}, NEWEST_17 = {1, 20, 4}, NEWEST_21 = {1, 21, 11};
+    private static final int[] OLDEST = {1, 14}, NEWEST_17 = {1, 20, 4}, NEWEST_21 = {1, 21, 11},
+            NEWEST_25 = {26, 1, 2};
     /**
      * The newest Java a runner on the console provides (Runtimes.newest()); LauncherConfig sets it.
-     * A Java 21 runner adds Minecraft 1.20.5 to 1.21.11 (LWJGL 3.3.3); Java 17 stops at 1.20.4.
+     * Java 17 stops at 1.20.4; a Java 21 runner adds 1.20.5 to 1.21.11 (LWJGL 3.3.3) and a Java 25
+     * runner 26.1 to 26.1.2 (LWJGL 3.4.1). 26.2 needs shaderc and SPIRV-Cross natives, 26.3 SDL3.
      */
     static volatile int offeredJava = Runtime.version().feature();
     /** The LWJGL release whose Java artifacts a version keeps (the runner has a profile and natives for it). */
     static final String OWN_LWJGL = "3.3.3";
+    /** Minecraft 26.1's LWJGL, whose Java artifacts are kept too (the runner's 3.4.1 profile). */
+    static final String CURRENT_LWJGL = "3.4.1";
     /** Mojang's LWJGL 3.3.3 Java artifacts as Minecraft 1.20.5 declares them: the runner's 3.3.3 profile pins. */
     private static final String OWN_LWJGL_LIBRARIES = """
             [
@@ -97,7 +101,8 @@ final class VersionStore {
     private static final long MAX_JSON = 16L << 20, MAX_FILE = 64L << 20;
     private static final int DOWNLOAD_THREADS = 6;
     private static final String USER_AGENT = "orbis-launcher (PlayStation 4 Minecraft launcher)";
-    private static final Pattern VERSION_ID = Pattern.compile("1\\.\\d+(\\.\\d+)?");
+    /** 1.x releases, and the year-numbered ones from 26.1 on. */
+    private static final Pattern VERSION_ID = Pattern.compile("(1|2\\d)\\.\\d+(\\.\\d+)?");
     private static final Pattern PROFILE_ID = Pattern.compile("[A-Za-z0-9._+-]{1,96}");
     private static final Pattern HASH = Pattern.compile("[0-9a-f]{40}");
 
@@ -152,13 +157,14 @@ final class VersionStore {
 
     /** The newest release offered, for messages. */
     static String newest() {
-        return offeredJava >= 21 ? "1.21.11" : "1.20.4";
+        return offeredJava >= 25 ? "26.1.2" : offeredJava >= 21 ? "1.21.11" : "1.20.4";
     }
 
     static boolean inRange(String id) {
         if (!VERSION_ID.matcher(id).matches()) return false;
         int[] v = parts(id);
-        return compare(v, OLDEST) >= 0 && compare(v, offeredJava >= 21 ? NEWEST_21 : NEWEST_17) <= 0;
+        return compare(v, OLDEST) >= 0
+                && compare(v, offeredJava >= 25 ? NEWEST_25 : offeredJava >= 21 ? NEWEST_21 : NEWEST_17) <= 0;
     }
 
     // ------------------------------------------------------------------ installed versions
@@ -294,7 +300,7 @@ final class VersionStore {
         if (lwjgl.isEmpty() || builtInGson == null) throw new IOException("The installed 1.18.2 profile lacks LWJGL or gson");
 
         JsonArray vanillaLibraries = vanilla.getAsJsonArray("libraries");
-        boolean ownLwjgl = declaresOnly(vanillaLibraries, OWN_LWJGL);
+        boolean ownLwjgl = declaresOnly(vanillaLibraries, OWN_LWJGL) || declaresOnly(vanillaLibraries, CURRENT_LWJGL);
         boolean upgradedLwjgl = !ownLwjgl && upgradesToOwnLwjgl(vanillaLibraries);
         int index = 0;
         boolean lwjglAdded = false;
@@ -587,6 +593,7 @@ final class VersionStore {
     /** The Java a release needs (Mojang's javaVersion), for install records written before it was kept. */
     static int requiredJava(String minecraft) {
         int[] v = parts(minecraft);
+        if (compare(v, new int[] {26}) >= 0) return 25;
         if (compare(v, new int[] {1, 20, 5}) >= 0) return 21;
         if (compare(v, new int[] {1, 18}) >= 0) return 17;
         if (compare(v, new int[] {1, 17}) >= 0) return 16;

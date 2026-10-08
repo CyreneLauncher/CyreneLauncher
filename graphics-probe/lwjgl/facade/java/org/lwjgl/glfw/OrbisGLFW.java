@@ -329,7 +329,7 @@ final class OrbisGLFW {
         return initialized;
     }
 
-    private static boolean requireWindow(long handle) {
+    static boolean requireWindow(long handle) {
         if (!requireInit()) return false;
         if (handle == NULL || handle != window) {
             error(GLFW_INVALID_VALUE, "Invalid window handle 0x" + Long.toHexString(handle));
@@ -512,6 +512,8 @@ final class OrbisGLFW {
             case GLFW_AUTO_ICONIFY: case GLFW_FLOATING: case GLFW_MAXIMIZED:
             case GLFW_CENTER_CURSOR: case GLFW_TRANSPARENT_FRAMEBUFFER:
             case GLFW_FOCUS_ON_SHOW: case GLFW_SCALE_TO_MONITOR:
+            // LWJGL 3.4's GLFW_SOFT_FULLSCREEN (borderless; Minecraft 26.1): the one window is fullscreen.
+            case 0x20010:
                 break;
             default:
                 error(GLFW_INVALID_ENUM, "Unsupported window hint 0x" + Integer.toHexString(hint));

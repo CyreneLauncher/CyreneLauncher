@@ -16,6 +16,7 @@
 #include <cstring>
 #include <exception>
 #include <functional>
+#include <mutex>
 #include <thread>
 #include <vector>
 
@@ -41,6 +42,17 @@ constexpr int32_t kAlreadyInitialised = static_cast<int32_t>(0x8026000E);
  * spends most of each period blocked in sceAudioOutOutput, so it cannot hog a core. */
 constexpr int kMixerPriority = 0x120;
 
+/*
+ * One AudioOut port for the whole process, opened by the first device and never closed. A device
+ * can outlive alcCloseDevice while something still references it, and each switch of Minecraft's
+ * audio device setting (26.1 reopens the sound engine) then held one more port until AudioOut
+ * answered 0x80260005 (port full) and the game retried every tick. The device opened last owns
+ * the port; an older one that is still alive stops writing to it.
+ */
+std::mutex gPortLock;
+int32_t gPort{-1};
+std::atomic<const void*> gPortOwner{nullptr};
+
 struct OrbisBackend final : public BackendBase {
     OrbisBackend(DeviceBase *device) noexcept : BackendBase{device} { }
     ~OrbisBackend() override;
@@ -62,8 +74,8 @@ struct OrbisBackend final : public BackendBase {
 
 OrbisBackend::~OrbisBackend()
 {
-    if(mPort >= 0)
-        sceAudioOutClose(mPort);
+    const void *self{this};
+    gPortOwner.compare_exchange_strong(self, nullptr, std::memory_order_acq_rel);
     mPort = -1;
 }
 
@@ -75,7 +87,8 @@ int OrbisBackend::mixerProc()
     althrd_setname(MIXER_THREAD_NAME);
 
     while(!mKillNow.load(std::memory_order_acquire)
-        && mDevice->Connected.load(std::memory_order_acquire))
+        && mDevice->Connected.load(std::memory_order_acquire)
+        && gPortOwner.load(std::memory_order_acquire) == this)
     {
         mDevice->renderSamples(mBuffer.data(), kPeriodFrames, 2u);
         const int32_t result{sceAudioOutOutput(mPort, mBuffer.data())};
@@ -98,24 +111,28 @@ void OrbisBackend::open(const char *name)
             name};
 
     /* OpenAL Soft reports a failed open only at warning level; these always reach the log. */
-    const int32_t init{sceAudioOutInit()};
-    if(init < 0 && init != kAlreadyInitialised)
-        ERR("sceAudioOutInit failed: 0x%08x\n", static_cast<uint32_t>(init));
-    if(init < 0 && init != kAlreadyInitialised)
-        throw al::backend_exception{al::backend_error::DeviceError,
-            "sceAudioOutInit failed: 0x%08x", static_cast<uint32_t>(init)};
+    std::lock_guard<std::mutex> lock{gPortLock};
+    if(gPort < 0)
+    {
+        const int32_t init{sceAudioOutInit()};
+        if(init < 0 && init != kAlreadyInitialised)
+            ERR("sceAudioOutInit failed: 0x%08x\n", static_cast<uint32_t>(init));
+        if(init < 0 && init != kAlreadyInitialised)
+            throw al::backend_exception{al::backend_error::DeviceError,
+                "sceAudioOutInit failed: 0x%08x", static_cast<uint32_t>(init)};
 
-    const int32_t port{sceAudioOutOpen(kSystemUser, ORBIS_AUDIO_OUT_PORT_TYPE_MAIN, 0,
-        kPeriodFrames, kFrequency, ORBIS_AUDIO_OUT_PARAM_FORMAT_FLOAT_STEREO)};
-    if(port < 0)
-        ERR("sceAudioOutOpen failed: 0x%08x\n", static_cast<uint32_t>(port));
-    if(port < 0)
-        throw al::backend_exception{al::backend_error::DeviceError,
-            "sceAudioOutOpen failed: 0x%08x", static_cast<uint32_t>(port)};
-
-    if(mPort >= 0)
-        sceAudioOutClose(mPort);
-    mPort = port;
+        const int32_t port{sceAudioOutOpen(kSystemUser, ORBIS_AUDIO_OUT_PORT_TYPE_MAIN, 0,
+            kPeriodFrames, kFrequency, ORBIS_AUDIO_OUT_PARAM_FORMAT_FLOAT_STEREO)};
+        if(port < 0)
+            ERR("sceAudioOutOpen failed: 0x%08x\n", static_cast<uint32_t>(port));
+        if(port < 0)
+            throw al::backend_exception{al::backend_error::DeviceError,
+                "sceAudioOutOpen failed: 0x%08x", static_cast<uint32_t>(port)};
+        gPort = port;
+    }
+    mPort = gPort;
+    gPortOwner.store(this, std::memory_order_release);
+    const int32_t port{mPort};
     mDevice->DeviceName = name;
     TRACE("Opened %s port %d: %u Hz float stereo, %u-frame periods\n", name, port, kFrequency,
         kPeriodFrames);

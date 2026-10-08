@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Build FreeType as the libfreetype PRX LWJGL 3.3.3's org.lwjgl.util.freetype loads.
+"""Build FreeType as the libfreetype PRX LWJGL's org.lwjgl.util.freetype loads (3.3.3: FreeType 2.13.2,
+3.4.1: FreeType 2.14.1; each release binds one FreeType version).
 
 LWJGL has no JNI code for FreeType: FreeType.Functions looks every entry point up by name in
 libfreetype when the class initialises, and calls them through JNI.invoke*. So the module is plain
@@ -35,6 +36,8 @@ SOURCES = (
     'src/type1/type1.c', 'src/type42/type42.c', 'src/winfonts/winfnt.c',
     'src/base/ftsystem.c', 'src/base/ftdebug.c')
 BINDING = 'modules/lwjgl/freetype/src/generated/java/org/lwjgl/util/freetype/FreeType.java'
+# Per LWJGL release: its lock entry and the FreeType lock entry it binds.
+RELEASES = {'3.3.3': ('lwjgl-3.3.3', 'freetype'), '3.4.1': ('lwjgl-3.4.1', 'freetype-2.14.1')}
 
 
 def required_functions(lwjgl):
@@ -55,8 +58,12 @@ def main():
     parser.add_argument('--paid', default='0x3800000000000011')
     parser.add_argument('--downloads', default=str(ROOT / 'build/downloads'))
     parser.add_argument('--fetch', action='store_true', help='download the pinned archives if missing')
-    parser.add_argument('--output', default=str(ROOT / 'build/freetype'))
+    parser.add_argument('--release', choices=sorted(RELEASES), default='3.3.3')
+    parser.add_argument('--output', help='default build/freetype (3.3.3) or build/freetype-<release>')
     arguments = parser.parse_args()
+    lwjgl_key, freetype_key = RELEASES[arguments.release]
+    if arguments.output is None:
+        arguments.output = str(ROOT / ('build/freetype' if arguments.release == '3.3.3' else f'build/freetype-{arguments.release}'))
     out = Path(arguments.output).resolve()
     out.mkdir(parents=True, exist_ok=True)
     downloads = Path(arguments.downloads)
@@ -70,13 +77,13 @@ def main():
         return
     stamp.invalidate()
 
-    lwjgl = lwjgl_sources.extract(lwjgl_sources.archive('lwjgl-3.3.3', downloads, arguments.fetch),
+    lwjgl = lwjgl_sources.extract(lwjgl_sources.archive(lwjgl_key, downloads, arguments.fetch),
                                   out / 'sources/lwjgl')
     required, version = required_functions(lwjgl)
-    pinned = lwjgl_sources.LOCK['freetype']['version']
+    pinned = lwjgl_sources.LOCK[freetype_key]['version']
     if '.'.join(map(str, version)) != pinned:
         raise SystemExit(f'LWJGL binds FreeType {version}, the lock pins {pinned}')
-    source = lwjgl_sources.extract(lwjgl_sources.archive('freetype', downloads, arguments.fetch),
+    source = lwjgl_sources.extract(lwjgl_sources.archive(freetype_key, downloads, arguments.fetch),
                                    out / 'sources/freetype')
 
     objects = []
@@ -92,7 +99,7 @@ def main():
     audit, _ = orbis_prx.audit(elf, allowed_needed=('libkernel.so',), jni_prefix=None, jni_count=None,
                                require_onload=False, required_c_exports=required)
     audit['prx'] = str(orbis_prx.fself(tools, elf, arguments.paid))
-    summary = {'freetype': pinned, 'source_sha256': lwjgl_sources.LOCK['freetype']['sha256'],
+    summary = {'freetype': pinned, 'source_sha256': lwjgl_sources.LOCK[freetype_key]['sha256'],
                'lwjgl_required_functions': len(required), 'module': audit}
     (out / 'freetype-audit.json').write_text(json.dumps(summary, indent=2) + '\n')
     stamp.record()

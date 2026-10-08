@@ -74,6 +74,12 @@ def main():
     patch(source / 'alc/alc.cpp', '    { "null", NullBackendFactory::getFactory },\n',
           '#ifdef HAVE_ORBIS\n    { "orbis", OrbisBackendFactory::getFactory },\n#endif\n'
           '    { "null", NullBackendFactory::getFactory },\n')
+    # ALC_SOFT_system_events (lwjgl/openal/orbis_openal_system_events.c): LWJGL resolves an
+    # extension's functions only when the extension string lists it.
+    patch(source / 'alc/alc.cpp', '    "ALC_SOFT_loopback_bformat "\n    "ALC_SOFT_reopen_device";\n',
+          '    "ALC_SOFT_loopback_bformat "\n    "ALC_SOFT_reopen_device "\n    "ALC_SOFT_system_events";\n')
+    patch(source / 'alc/alc.cpp', '    "ALC_SOFT_pause_device "\n    "ALC_SOFT_reopen_device";\n',
+          '    "ALC_SOFT_pause_device "\n    "ALC_SOFT_reopen_device "\n    "ALC_SOFT_system_events";\n')
     patch(source / 'CMakeLists.txt', '    alc/backends/null.cpp\n',
           '    alc/backends/null.cpp\n    alc/backends/orbis_audioout.cpp\n')
     # al::semaphore over libkernel's pthread mutex/condvar: the SDK libc's sem_* are FreeBSD
@@ -155,12 +161,15 @@ set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)
     # A defined no-op for the weak thread-local init hook create-fself cannot leave undefined.
     tls_init = tools.compile(ROOT / 'lwjgl/openal/orbis_openal_tls_init.c', out / 'orbis_openal_tls_init.o',
                              '-std=c11', '-O2')
+    # ALC_SOFT_system_events entry points Minecraft 26.1 calls unconditionally (OpenAL Soft 1.24 has them).
+    events = tools.compile(ROOT / 'lwjgl/openal/orbis_openal_system_events.c', out / 'orbis_openal_system_events.o',
+                           '-std=c11', '-O2')
     script, runtime = orbis_prx.runtime_objects(tools, out / 'runtime')
     elf = out / 'libopenal.so'
-    orbis_prx.link(tools, script, runtime, elf, [*objects, atexit, guard, tls_init],
+    orbis_prx.link(tools, script, runtime, elf, [*objects, atexit, guard, tls_init, events],
                    system_libraries=('SceAudioOut', 'SceUserService'))
     audit, _ = orbis_prx.audit(elf, allowed_needed=('libkernel.so', 'libSceAudioOut.so', 'libSceUserService.so'),
-                               jni_prefix=None, jni_count=None, require_onload=False, required_c_exports=CORE)
+                               jni_prefix=None, jni_count=None, require_onload=False, required_c_exports=CORE + ('alcEventIsSupportedSOFT', 'alcEventControlSOFT', 'alcEventCallbackSOFT'))
     audit['prx'] = str(orbis_prx.fself(tools, elf, arguments.paid))
     summary = {'openal_soft': lwjgl_sources.LOCK['openal-soft']['version'],
                'source_sha256': lwjgl_sources.LOCK['openal-soft']['sha256'],

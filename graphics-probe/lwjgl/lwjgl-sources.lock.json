@@ -73,5 +73,40 @@
     "lwjgl-opengl-3.3.3.jar": "02f6b0147078396a58979125a4c947664e98293a",
     "lwjgl-stb-3.3.3.jar": "25dd6161988d7e65f71d5065c99902402ee32746",
     "lwjgl-tinyfd-3.3.3.jar": "82d755ca94b102e9ca77283b9e2dc46d1b15fbe5"
+  },
+  "lwjgl-3.4.1": {
+    "version": "3.4.1",
+    "url": "https://github.com/LWJGL/lwjgl3/archive/refs/tags/3.4.1.tar.gz",
+    "filename": "lwjgl3-3.4.1.tar.gz",
+    "sha256": "86f22fa70bdb8dbf9ea205daa0e9d88dd80fa7cecbd60025f687b7400edb11fd",
+    "license": "BSD-3-Clause (LICENSE.md in the archive)",
+    "selection": "Minecraft 26.1 to 26.2 declare LWJGL 3.4.1 (Mojang version metadata)"
+  },
+  "libffi-3.5.0": {
+    "version": "3.5.0",
+    "url": "https://github.com/libffi/libffi/releases/download/v3.5.0/libffi-3.5.0.tar.gz",
+    "filename": "libffi-3.5.0.tar.gz",
+    "sha256": "8c72678628a5dd8782f08ad421d5a441e42c1c5c1b33e0bc211cbfcf1f3b3978",
+    "license": "MIT (LICENSE in the archive)",
+    "selection": "LWJGL 3.4.1's core/src/main/c/libffi/ffi.h is libffi 3.5.0's (FFI_VERSION_STRING 3.5.0); LWJGL links a prebuilt libffi.a, built here from this release"
+  },
+  "freetype-2.14.1": {
+    "version": "2.14.1",
+    "url": "https://download.savannah.gnu.org/releases/freetype/freetype-2.14.1.tar.xz",
+    "filename": "freetype-2.14.1.tar.xz",
+    "sha256": "32427e8c471ac095853212a37aef816c60b42052d4d9e48230bab3bdf2936ccc",
+    "license": "FTL or GPL-2.0-or-later (LICENSE.TXT in the archive)",
+    "selection": "LWJGL 3.4.1's FreeType binding is generated for FreeType 2.14.1 (FREETYPE_MAJOR/MINOR/PATCH); built like 2.13.2, same CMake source set. SHA-256 matches the SourceForge mirror."
+  },
+  "java_artifacts_3.4.1": {
+    "description": "Official Mojang LWJGL 3.4.1 Java JARs (SHA-1 from the Minecraft 26.1.2 version metadata), which the 3.4.1 facade and natives are checked against.",
+    "lwjgl-freetype-3.4.1.jar": "caa75a37e857efc9b0686e434d708d6420c5b6ea",
+    "lwjgl-glfw-3.4.1.jar": "a782b1ddd175c9107bf300fd92920579ea65e2a4",
+    "lwjgl-jemalloc-3.4.1.jar": "16b663092854fc6adfe0a941e61cae2bb2e437b6",
+    "lwjgl-openal-3.4.1.jar": "8508bd60589de0539aa465b78fcf838efd07ae9a",
+    "lwjgl-opengl-3.4.1.jar": "830412cab823c029cda6b9729f9d2ed36cf79959",
+    "lwjgl-stb-3.4.1.jar": "f077c3dafc31924fbe8acb0b913f08977ba27f8e",
+    "lwjgl-tinyfd-3.4.1.jar": "562697d40dbd2ed0424bf24dcf65d51170f81adf",
+    "lwjgl-3.4.1.jar": "6105690714874b995aa7812e4f7732a21109276c"
   }
 }

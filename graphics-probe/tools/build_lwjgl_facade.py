@@ -2,7 +2,7 @@
 """Build the Orbis LWJGL adapter JAR for one LWJGL release and enforce its binary contract.
 
 Contents, placed ahead of the official lwjgl-<release>.jar and instead of lwjgl-glfw-<release>.jar
-(3.2.2 for Minecraft up to 1.20.4, 3.3.3 for 1.20.5 to 1.21.11):
+(3.2.2 for Minecraft up to 1.18.2, 3.3.3 for 1.19 to 1.21.11, 3.4.1 for 26.1 and 26.2):
   * org.lwjgl.system.Platform from the release's source, accepting os.name "Orbis" as Linux;
   * every org.lwjgl.glfw class copied byte-for-byte from the official lwjgl-glfw JAR,
     except GLFW/GLFW$Functions (generated) and Callbacks (replaced), and for 3.2.2 the classes
@@ -30,6 +30,8 @@ import lwjgl_sources  # noqa: E402
 ROOT = lwjgl_sources.ROOT
 RUNNER = ROOT.parent / 'orbis-java-app'
 FACADE = ROOT / 'lwjgl/facade/java'
+# GLFW calls with LWJGL 3.4-only types (OrbisGLFW34); compiled for 3.4 releases alone.
+FACADE_34 = ROOT / 'lwjgl/facade/java-3.4'
 # Minecraft 1.18.2's direct GLFW references (graphics-probe/results/lwjgl-abi-audit.md) plus
 # the runner smoke test's. Each must reach OrbisGLFW, never an unsupported stub.
 REQUIRED = {
@@ -91,7 +93,7 @@ SOURCE_ADDITIONS_3_2_2 = {
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--boot-jdk', default='/usr/lib/jvm/java-17-openjdk-amd64')
-parser.add_argument('--release', choices=('3.2.2', '3.3.3'), default='3.2.2')
+parser.add_argument('--release', choices=('3.2.2', '3.3.3', '3.4.1'), default='3.2.2')
 parser.add_argument('--jars', default='/tmp/lwjgl-audit', help='official LWJGL Java JARs of the release')
 parser.add_argument('--downloads', default=str(ROOT / 'build/downloads'))
 parser.add_argument('--fetch', action='store_true')
@@ -125,8 +127,12 @@ functions = official['org/lwjgl/glfw/GLFW$Functions.class']
 
 # Platform: the only change is accepting os.name "Orbis" on the Linux path.
 platform_source = (source_root / 'core/src/main/java/org/lwjgl/system/Platform.java').read_text()
-anchor = 'osName.startsWith("Linux") || osName.startsWith("FreeBSD")'
-if platform_source.count(anchor) != 1:
+# 3.2.2/3.3.3 test Linux and FreeBSD together; 3.4.1 has a FreeBSD platform of its own. Orbis takes the
+# Linux path either way (the natives are built with LWJGL_LINUX).
+anchor = next((a for a in ('osName.startsWith("Linux") || osName.startsWith("FreeBSD")',
+                           'osName.startsWith("Linux") || osName.startsWith("SunOS")')
+               if platform_source.count(a) == 1), None)
+if anchor is None:
     raise SystemExit('unexpected Platform.java; inspect the os.name switch')
 platform = out / 'generated/org/lwjgl/system/Platform.java'
 platform.parent.mkdir(parents=True)
@@ -134,8 +140,13 @@ platform_source = platform_source.replace(anchor, 'osName.startsWith("Orbis") ||
 
 
 def without_nullable(text):
-    """JSR-305 @Nullable is documentation only (no effect on members or linkage); it is not on this class path."""
-    return text.replace('import javax.annotation.*;\n', '').replace('@Nullable ', '').replace('@Nullable\n', '\n')
+    """JSR-305 (3.2.2, 3.3.3) and JSpecify (3.4.1) nullness annotations are documentation only (no effect on
+    members or linkage); neither is on this class path."""
+    for package in ('javax.annotation', 'org.jspecify.annotations'):
+        text = text.replace(f'import {package}.*;\n', '')
+    for annotation in ('@Nullable', '@NonNull', '@NullMarked', '@NullUnmarked'):
+        text = text.replace(annotation + ' ', '').replace(annotation + '\n', '\n')
+    return text
 
 
 platform.write_text(without_nullable(platform_source))
@@ -201,7 +212,7 @@ def generate(implemented):
         names = [f'p{i}' for i in range(len(parameters))]
         signature = ', '.join(f'{classfile.java_type(t)} {n}' for t, n in zip(parameters, names))
         if (method.name, method.descriptor) in implemented:
-            call = f'OrbisGLFW.{method.name}({", ".join(names)});'
+            call = f'{implemented[(method.name, method.descriptor)]}.{method.name}({", ".join(names)});'
             body = call if returned == 'V' else 'return ' + call
         else:
             body = f'throw unsupported("{method.name}{method.descriptor}");'
@@ -231,7 +242,9 @@ REPLACED = {'org/lwjgl/glfw/GLFW.class', 'org/lwjgl/glfw/GLFW$Functions.class', 
 if legacy:
     REPLACED |= {'org/lwjgl/glfw/GLFWImage.class', 'org/lwjgl/glfw/GLFWImage$Buffer.class',
                  'org/lwjgl/glfw/GLFWNativeGLX.class', 'org/lwjgl/glfw/GLFWNativeGLX$Functions.class'}
-own = sorted(FACADE.rglob('*.java')) + [ROOT / 'lwjgl/java/orbis/graphics/NativePlatform.java',
+modern34 = release.startswith('3.4')
+own = sorted(FACADE.rglob('*.java')) + (sorted(FACADE_34.rglob('*.java')) if modern34 else []) + [
+    ROOT / 'lwjgl/java/orbis/graphics/NativePlatform.java',
                                       ROOT / 'lwjgl/java/orbis/graphics/TextInput.java']
 # The official GLFW jar supplies the unchanged classes; the generated GLFW source overrides its GLFW.
 classpath = ':'.join(map(str, (core_jar, opengl_jar, glfw_jar, runner_classes)))
@@ -244,9 +257,16 @@ def compile_into(directory, glfw_java):
 
 
 first = out / 'classes-first'
-compile_into(first, generate(set()))
-implementation = classfile.parse((first / 'org/lwjgl/glfw/OrbisGLFW.class').read_bytes())
-implemented = {(m.name, m.descriptor) for m in implementation.methods if m.access & classfile.ACC_STATIC}
+compile_into(first, generate({}))
+# Each implemented (name, descriptor) maps to the class that implements it.
+implemented = {}
+for owner in ('OrbisGLFW',) + (('OrbisGLFW34',) if modern34 else ()):
+    implementation = classfile.parse((first / f'org/lwjgl/glfw/{owner}.class').read_bytes())
+    for m in implementation.methods:
+        if m.access & classfile.ACC_STATIC and m.name.startswith(('glfw', 'nglfw')):
+            if (m.name, m.descriptor) in implemented:
+                raise SystemExit(f'{m.name}{m.descriptor} is implemented twice')
+            implemented[(m.name, m.descriptor)] = owner
 classes = out / 'classes'
 compile_into(classes, generate(implemented))
 
@@ -301,6 +321,8 @@ allowed = set(official) | {'org/lwjgl/system/Platform.class', 'orbis/graphics/Na
 allowed |= {n for n in built if n.startswith('org/lwjgl/system/Platform$')}
 # OrbisGLFW's nested classes: the EGL function provider and the Java-only callback wrappers.
 allowed |= {n for n in built if n.startswith('org/lwjgl/glfw/OrbisGLFW$')}
+if modern34:
+    allowed |= {n for n in built if n.startswith(('org/lwjgl/glfw/OrbisGLFW34.', 'org/lwjgl/glfw/OrbisGLFW34$'))}
 problems += [f'unexpected class {name}' for name in sorted(set(built) - allowed)]
 exported = {f'{m.name} {m.descriptor}' for m in glfw.methods if m.exported and m.name != '<init>'}
 exported |= {f'{name} {descriptor}' for name, descriptor in ADDITIONS}

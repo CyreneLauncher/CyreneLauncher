@@ -3,8 +3,9 @@
 
 Sources are the pinned archives in lwjgl/lwjgl-sources.lock.json (generated C is part of both
 release trees). LWJGL 3.2.2 (Minecraft up to 1.20.4) calls through dyncall 1.0, which replaces the
-prebuilt Linux libdyncall*_s.a LWJGL downloads; LWJGL 3.3.3 (Minecraft 1.20.5 to 1.21.11) calls
-through libffi 3.4.4, built here in place of its prebuilt libffi.a. Each module uses the shared
+prebuilt Linux libdyncall*_s.a LWJGL downloads; LWJGL 3.3.3 (Minecraft 1.19 to 1.21.11) calls
+through libffi 3.4.4 and LWJGL 3.4.1 (Minecraft 26.1 and 26.2) through libffi 3.5.0, built here in
+place of the prebuilt libffi.a. Each module uses the shared
 Orbis JNI recipe (orbis_prx.py). Linux natives are never used.
 """
 import argparse
@@ -26,12 +27,13 @@ DYNCALL_SOURCES = (
     'dyncall/dyncall_struct.c', 'dyncallback/dyncall_args.c',
     'dyncallback/dyncall_callback.c', 'dyncallback/dyncall_callback_arch.S',
     'dyncallback/dyncall_thunk.c', 'dynload/dynload.c', 'dynload/dynload_syms.c')
-# libffi 3.4.4's x86-64 Unix back-end, the set its configure picks for x86_64-*-linux; closures.c is
-# replaced by lwjgl/libffi/orbis_ffi_closures.c.
+# libffi's x86-64 Unix back-end (3.4.4 and 3.5.0), the set its configure picks for x86_64-*-linux;
+# closures.c is replaced by lwjgl/libffi/orbis_ffi_closures.c. Static trampolines (tramp.c) stay off,
+# as LWJGL's ffitarget.h leaves FFI_EXEC_STATIC_TRAMP undefined.
 LIBFFI_SOURCES = ('src/prep_cif.c', 'src/types.c', 'src/raw_api.c', 'src/java_raw_api.c',
                   'src/x86/ffi64.c', 'src/x86/unix64.S', 'src/x86/ffiw64.c', 'src/x86/win64.S')
 # Per release: the lock entry and the library that makes calls and callbacks.
-RELEASES = {'3.2.2': ('lwjgl', 'dyncall'), '3.3.3': ('lwjgl-3.3.3', 'libffi')}
+RELEASES = {'3.2.2': ('lwjgl', 'dyncall'), '3.3.3': ('lwjgl-3.3.3', 'libffi'), '3.4.1': ('lwjgl-3.4.1', 'libffi-3.5.0')}
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--sdk', default='/home/wonder/ps4-payload-sdk', help='OpenOrbis clang/lld')
@@ -50,13 +52,13 @@ if arguments.output is None:
 tools = orbis_prx.Toolchain(arguments.sdk, arguments.toolchain)
 downloads, out = Path(arguments.downloads).resolve(), Path(arguments.output).resolve()
 # 3.2.2's TinyFD comes from build_lwjgl_optional.py; 3.3.3's TinyFD JNI binds a newer interface and
-# is built here with its own stub (lwjgl/tinyfd/orbis_tinyfd_3_3.c).
+# is built here with its own stub (lwjgl/tinyfd/orbis_tinyfd_3_3.c), which 3.4.1's identical one shares.
 MODULES = ('liblwjgl', 'liblwjgl_opengl', 'liblwjgl_stb') + (() if arguments.release == '3.2.2' else ('liblwjgl_tinyfd',))
 
 # The archives are pinned by the lock file, so the stamp covers them through it.
 stamp = (orbis_prx.stamp_recipe(build_stamp.Stamp(out, 'lwjgl-natives'), tools)
          .files(Path(__file__), Path(lwjgl_sources.__file__), ROOT / 'lwjgl/lwjgl-sources.lock.json',
-                ROOT / f'lwjgl/{ffi_key}', ROOT / 'lwjgl/tinyfd/orbis_tinyfd_3_3.c')
+                ROOT / f"lwjgl/{ffi_key.split('-')[0]}", ROOT / 'lwjgl/tinyfd/orbis_tinyfd_3_3.c')
          .stats(Path(arguments.jni_headers))
          .value('arguments', {k: v for k, v in vars(arguments).items() if k not in ('fetch', 'downloads')}))
 if stamp.current(out / 'lwjgl-audit.json', *[out / f'{name}{suffix}' for name in MODULES for suffix in ('.so', '.prx')]):

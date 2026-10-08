@@ -61,3 +61,8 @@ with tempfile.TemporaryDirectory() as directory:
     subprocess.run([str(boot_jdk / 'bin/java'), '-ea', '-Dorg.lwjgl.opengl.libname=/nonexistent/libGL.so',
                     '-Dorg.lwjgl.util.NoChecks=false', '-cp', f'{tests}:{classpath}', 'FacadeBehaviorTest'],
                    check=True)
+    if release.startswith('3.4'):
+        # GLFW calls with LWJGL 3.4-only types (OrbisGLFW34).
+        javac('-cp', classpath, '-d', tests, root / 'tests/facade/FacadeBehavior34Test.java')
+        subprocess.run([str(boot_jdk / 'bin/java'), '-ea', '-Dorg.lwjgl.opengl.libname=/nonexistent/libGL.so',
+                        '-cp', f'{tests}:{classpath}', 'FacadeBehavior34Test'], check=True)
