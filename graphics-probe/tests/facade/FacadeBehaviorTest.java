@@ -115,6 +115,22 @@ public final class FacadeBehaviorTest {
         check(glfwCreateStandardCursor(0x3600B) == 0 && lastError() == GLFW_INVALID_ENUM, "unknown shape rejected");
         glfwSetCursor(window, 12345);
         check(lastError() == GLFW_INVALID_VALUE, "foreign cursor handle rejected");
+        // Mods set their own pointer image (Via Romana on 1.20.1).
+        errorsBefore = errors.size();
+        try (org.lwjgl.system.MemoryStack stack = org.lwjgl.system.MemoryStack.stackPush()) {
+            GLFWImage image = GLFWImage.mallocStack(stack).width(16).height(16).pixels(stack.calloc(16 * 16 * 4));
+            long first = glfwCreateCursor(image, 0, 0), second = glfwCreateCursor(image, 8, 8);
+            check(first != 0 && second != 0 && first != second && first != ibeam, "image cursors created");
+            glfwSetCursor(window, first);
+            glfwDestroyCursor(first);
+            glfwSetCursor(window, second);
+            glfwSetCursor(window, 0);
+            check(errors.size() == errorsBefore, "image cursors set, destroyed and reset");
+            glfwSetCursor(window, first);
+            check(lastError() == GLFW_INVALID_VALUE, "a destroyed image cursor is rejected");
+            check(glfwCreateCursor(GLFWImage.callocStack(stack), 0, 0) == 0 && lastError() == GLFW_INVALID_VALUE,
+                    "an empty cursor image is rejected");
+        }
 
         int[] w = new int[1], h = new int[1];
         glfwGetFramebufferSize(window, w, h);

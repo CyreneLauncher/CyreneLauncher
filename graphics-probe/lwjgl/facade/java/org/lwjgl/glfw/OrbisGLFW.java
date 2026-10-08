@@ -413,6 +413,7 @@ final class OrbisGLFW {
         if (modes != null) { nmemFree(modes.address()); modes = null; }
         if (monitors != null) { memFree(monitors); monitors = null; }
         clipboard = null;
+        imageCursors.clear(); cursorShape = 0;
         glfwDefaultWindowHints();
         inputFocused = true; systemOverlaid = false; systemBackground = false; statusUnavailable = false; statusDue = 0;
         java.util.Arrays.fill(lastSystemStatus, (byte) 0);
@@ -683,11 +684,35 @@ final class OrbisGLFW {
 
     /** GLFW 3.4's standard shapes run from GLFW_ARROW_CURSOR (0x36001) to GLFW_NOT_ALLOWED_CURSOR (0x3600A). */
     private static final int FIRST_STANDARD_CURSOR = 0x36001, LAST_STANDARD_CURSOR = 0x3600A;
-    /** The shape last selected (0: the default arrow); the drawn pointer is the same for every shape. */
+    /** The cursor last selected (0: the default arrow); the drawn pointer is the same for every cursor. */
     private static int cursorShape;
+
+    /** Image cursors (glfwCreateCursor) get handles above the standard shapes; they draw the same pointer. */
+    private static final long FIRST_IMAGE_CURSOR = 0x37001;
+    private static long nextImageCursor = FIRST_IMAGE_CURSOR;
+    private static final java.util.Set<Long> imageCursors = new java.util.HashSet<>();
 
     private static boolean standardCursor(long cursor) {
         return cursor >= FIRST_STANDARD_CURSOR && cursor <= LAST_STANDARD_CURSOR;
+    }
+
+    private static boolean knownCursor(long cursor) {
+        return standardCursor(cursor) || imageCursors.contains(cursor);
+    }
+
+    /**
+     * Mods set their own pointer image (Via Romana on 1.20.1). The image is checked as GLFW does; the
+     * pointer keeps its drawn shape, as it does for every standard shape.
+     */
+    static long glfwCreateCursor(GLFWImage image, int xhot, int yhot) {
+        if (!requireInit()) return NULL;
+        if (image == null || image.width() <= 0 || image.height() <= 0) {
+            error(GLFW_INVALID_VALUE, "Invalid image dimensions for cursor");
+            return NULL;
+        }
+        long cursor = nextImageCursor++;
+        imageCursors.add(cursor);
+        return cursor;
     }
 
     /** Minecraft 1.21.9+ switches the pointer shape per widget; a standard cursor's handle is its shape. */
@@ -702,16 +727,17 @@ final class OrbisGLFW {
 
     static void glfwDestroyCursor(long cursor) {
         if (!requireInit() || cursor == NULL) return;
-        if (!standardCursor(cursor)) {
+        if (!knownCursor(cursor)) {
             error(GLFW_INVALID_VALUE, "Invalid cursor handle 0x" + Long.toHexString(cursor));
             return;
         }
+        imageCursors.remove(cursor);
         if (cursorShape == cursor) cursorShape = 0;
     }
 
     static void glfwSetCursor(long handle, long cursor) {
         if (!requireWindow(handle)) return;
-        if (cursor != NULL && !standardCursor(cursor)) {
+        if (cursor != NULL && !knownCursor(cursor)) {
             error(GLFW_INVALID_VALUE, "Invalid cursor handle 0x" + Long.toHexString(cursor));
             return;
         }

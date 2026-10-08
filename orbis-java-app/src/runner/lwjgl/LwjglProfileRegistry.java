@@ -30,8 +30,9 @@ public final class LwjglProfileRegistry {
                     "org.lwjgl:lwjgl-tinyfd", "fcbe606c8f8da6f8f9a05e2c540eb1ee8632b0e9"));
 
     /**
-     * Minecraft 1.20.5 to 1.21.11: the same LWJGL 3.3.3 set in every release (Mojang version metadata),
-     * which adds lwjgl-freetype. Runs on LWJGL 3.3.3 natives built for Orbis with libffi.
+     * Minecraft 1.19 to 1.21.11: the LWJGL 3.3.3 set 1.20.5 to 1.21.11 declare (Mojang version metadata),
+     * which adds lwjgl-freetype; the launcher gives it to 1.19 to 1.20.4 too (they declare 3.3.1 or 3.3.2).
+     * Runs on LWJGL 3.3.3 natives built for Orbis with libffi.
      */
     public static final LwjglProfile MINECRAFT_1_20_5 = new LwjglProfile(
             "minecraft-1.20.5-lwjgl-3.3.3-orbis-v1",

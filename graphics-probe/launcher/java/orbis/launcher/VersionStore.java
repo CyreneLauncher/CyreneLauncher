@@ -39,12 +39,13 @@ import com.google.gson.JsonParser;
  * launcher/versions/&lt;id&gt;/ holding its client JAR, a flattened profile the runner accepts
  * (game.json), the same profile booting the launcher (boot.json), and install.json, written last.
  *
- * <p>Up to 1.20.4 every profile runs on the audited LWJGL 3.2.2 Java artifacts and the Orbis GLFW
+ * <p>Up to 1.18.2 every profile runs on the audited LWJGL 3.2.2 Java artifacts and the Orbis GLFW
  * adapter: a client audit found no LWJGL member any of these releases uses beyond them except GLFW
  * 3.4's glfwGetPlatform, which the adapter provides, so their LWJGL is replaced by the installed
- * 1.18.2 entries. 1.20.5 and newer declare LWJGL 3.3.3 (with lwjgl-freetype) and need Java 21; they
- * keep their own LWJGL Java artifacts, which the runner's 3.3.3 profile pairs with Orbis natives, and
- * skip the Linux natives. An older gson (the launcher boots on each version's class path and needs
+ * 1.18.2 entries. 1.19 to 1.20.4 declare LWJGL 3.3.1 or 3.3.2 and run on Mojang's 3.3.3 set (1.20.5's,
+ * with lwjgl-freetype): Sodium 0.5 refuses anything older than 3.3.1, and 3.3.3 only adds to them.
+ * 1.20.5 and newer declare LWJGL 3.3.3 and need Java 21; they keep their own LWJGL Java artifacts.
+ * The runner's 3.3.3 profile pairs that set with Orbis natives; the Linux natives are skipped. An older gson (the launcher boots on each version's class path and needs
  * 2.8.6+) is replaced by the installed 1.18.2 entry.
  */
 final class VersionStore {
@@ -80,6 +81,18 @@ final class VersionStore {
     static volatile int offeredJava = Runtime.version().feature();
     /** The LWJGL release whose Java artifacts a version keeps (the runner has a profile and natives for it). */
     static final String OWN_LWJGL = "3.3.3";
+    /** Mojang's LWJGL 3.3.3 Java artifacts as Minecraft 1.20.5 declares them: the runner's 3.3.3 profile pins. */
+    private static final String OWN_LWJGL_LIBRARIES = """
+            [
+            {"name": "org.lwjgl:lwjgl-freetype:3.3.3", "downloads": {"artifact": {"path": "org/lwjgl/lwjgl-freetype/3.3.3/lwjgl-freetype-3.3.3.jar", "sha1": "a0db6c84a8becc8ca05f9dbfa985edc348a824c7", "size": 450896, "url": "https://libraries.minecraft.net/org/lwjgl/lwjgl-freetype/3.3.3/lwjgl-freetype-3.3.3.jar"}}},
+            {"name": "org.lwjgl:lwjgl-glfw:3.3.3", "downloads": {"artifact": {"path": "org/lwjgl/lwjgl-glfw/3.3.3/lwjgl-glfw-3.3.3.jar", "sha1": "efa1eb78c5ccd840e9f329717109b5e892d72f8e", "size": 135546, "url": "https://libraries.minecraft.net/org/lwjgl/lwjgl-glfw/3.3.3/lwjgl-glfw-3.3.3.jar"}}},
+            {"name": "org.lwjgl:lwjgl-jemalloc:3.3.3", "downloads": {"artifact": {"path": "org/lwjgl/lwjgl-jemalloc/3.3.3/lwjgl-jemalloc-3.3.3.jar", "sha1": "b543467b7ff3c6920539a88ee602d34098628be5", "size": 43896, "url": "https://libraries.minecraft.net/org/lwjgl/lwjgl-jemalloc/3.3.3/lwjgl-jemalloc-3.3.3.jar"}}},
+            {"name": "org.lwjgl:lwjgl-openal:3.3.3", "downloads": {"artifact": {"path": "org/lwjgl/lwjgl-openal/3.3.3/lwjgl-openal-3.3.3.jar", "sha1": "daada81ceb5fc0c291fbfdd4433cb8d9423577f2", "size": 110586, "url": "https://libraries.minecraft.net/org/lwjgl/lwjgl-openal/3.3.3/lwjgl-openal-3.3.3.jar"}}},
+            {"name": "org.lwjgl:lwjgl-opengl:3.3.3", "downloads": {"artifact": {"path": "org/lwjgl/lwjgl-opengl/3.3.3/lwjgl-opengl-3.3.3.jar", "sha1": "02f6b0147078396a58979125a4c947664e98293a", "size": 929192, "url": "https://libraries.minecraft.net/org/lwjgl/lwjgl-opengl/3.3.3/lwjgl-opengl-3.3.3.jar"}}},
+            {"name": "org.lwjgl:lwjgl-stb:3.3.3", "downloads": {"artifact": {"path": "org/lwjgl/lwjgl-stb/3.3.3/lwjgl-stb-3.3.3.jar", "sha1": "25dd6161988d7e65f71d5065c99902402ee32746", "size": 120283, "url": "https://libraries.minecraft.net/org/lwjgl/lwjgl-stb/3.3.3/lwjgl-stb-3.3.3.jar"}}},
+            {"name": "org.lwjgl:lwjgl-tinyfd:3.3.3", "downloads": {"artifact": {"path": "org/lwjgl/lwjgl-tinyfd/3.3.3/lwjgl-tinyfd-3.3.3.jar", "sha1": "82d755ca94b102e9ca77283b9e2dc46d1b15fbe5", "size": 13400, "url": "https://libraries.minecraft.net/org/lwjgl/lwjgl-tinyfd/3.3.3/lwjgl-tinyfd-3.3.3.jar"}}},
+            {"name": "org.lwjgl:lwjgl:3.3.3", "downloads": {"artifact": {"path": "org/lwjgl/lwjgl/3.3.3/lwjgl-3.3.3.jar", "sha1": "29589b5f87ed335a6c7e7ee6a5775f81f97ecb84", "size": 785029, "url": "https://libraries.minecraft.net/org/lwjgl/lwjgl/3.3.3/lwjgl-3.3.3.jar"}}}
+            ]""";
     private static final int SCHEMA = 1;
     private static final long MAX_JSON = 16L << 20, MAX_FILE = 64L << 20;
     private static final int DOWNLOAD_THREADS = 6;
@@ -282,6 +295,7 @@ final class VersionStore {
 
         JsonArray vanillaLibraries = vanilla.getAsJsonArray("libraries");
         boolean ownLwjgl = declaresOnly(vanillaLibraries, OWN_LWJGL);
+        boolean upgradedLwjgl = !ownLwjgl && upgradesToOwnLwjgl(vanillaLibraries);
         int index = 0;
         boolean lwjglAdded = false;
         for (JsonElement element : vanillaLibraries) {
@@ -292,6 +306,17 @@ final class VersionStore {
                 // Orbis natives come from the graphics bundle; the Linux ones are never used.
                 if (name.split(":").length == 4 && name.split(":")[3].startsWith("natives-")) continue;
                 lwjglAdded = true;
+            } else if (upgradedLwjgl && name.startsWith("org.lwjgl:")) {
+                if (!lwjglAdded) {
+                    for (JsonElement own : ownLwjglLibraries()) {
+                        JsonObject entry = own.getAsJsonObject();
+                        ensureArtifact(entry);
+                        seen.add(key(entry.get("name").getAsString()));
+                        merged.add(entry);
+                    }
+                    lwjglAdded = true;
+                }
+                continue;
             } else if (name.startsWith("org.lwjgl:")) {
                 if (!lwjglAdded) {
                     for (JsonObject entry : lwjgl) { requirePresent(entry); merged.add(entry); }
@@ -496,6 +521,67 @@ final class VersionStore {
             any = true;
         }
         return any;
+    }
+
+    /** The version declares LWJGL 3.3.x before 3.3.3 (1.19 to 1.20.4), which runs on the 3.3.3 set. */
+    static boolean upgradesToOwnLwjgl(JsonArray libraries) {
+        String release = null;
+        for (JsonElement element : libraries) {
+            String[] p = element.getAsJsonObject().get("name").getAsString().split(":");
+            if (p.length != 3 || !p[0].equals("org.lwjgl")) continue;
+            if (release != null && !release.equals(p[2])) return false;
+            release = p[2];
+        }
+        return release != null && release.startsWith("3.3.") && compare(parts(release), parts(OWN_LWJGL)) < 0;
+    }
+
+    /** 1.19 to 1.20.4: declared LWJGL 3.3.1 or 3.3.2, run on the 3.3.3 set. */
+    static boolean runsUpgradedLwjgl(String minecraft) {
+        int[] v = parts(minecraft);
+        return compare(v, new int[] {1, 19}) >= 0 && compare(v, new int[] {1, 20, 5}) < 0;
+    }
+
+    static JsonArray ownLwjglLibraries() {
+        return JsonParser.parseString(OWN_LWJGL_LIBRARIES).getAsJsonArray();
+    }
+
+    /**
+     * Installs of 1.19 to 1.20.4 made before they ran on LWJGL 3.3.3 carry the 1.18.2 LWJGL 3.2.2 entries:
+     * their game and boot profiles get the 3.3.3 set in place (JARs downloaded and checked first).
+     * True when a profile changed.
+     */
+    boolean upgradeLwjgl(Installed version) throws IOException {
+        if (!runsUpgradedLwjgl(version.minecraft())) return false;
+        boolean changed = false;
+        for (Path profile : List.of(version.gameProfile(), version.bootProfile())) {
+            JsonObject json = json(LauncherFiles.read(profile, MAX_JSON));
+            JsonArray libraries = json.getAsJsonArray("libraries");
+            if (declaresOnly(libraries, OWN_LWJGL)) continue;
+            JsonArray updated = new JsonArray();
+            boolean added = false;
+            for (JsonElement element : libraries) {
+                if (!element.getAsJsonObject().get("name").getAsString().startsWith("org.lwjgl:")) {
+                    updated.add(element);
+                } else if (!added) {
+                    for (JsonElement own : ownLwjglLibraries()) {
+                        ensureArtifact(own.getAsJsonObject());
+                        updated.add(own);
+                    }
+                    added = true;
+                }
+            }
+            if (!added) throw new IOException("Minecraft " + version.minecraft() + " declares no LWJGL");
+            json.add("libraries", updated);
+            LauncherFiles.write(profile, bytes(json), false);
+            changed = true;
+        }
+        return changed;
+    }
+
+    private void ensureArtifact(JsonObject library) throws IOException {
+        JsonObject artifact = library.getAsJsonObject("downloads").getAsJsonObject("artifact");
+        ensure(libraries.resolve(confined(artifact.get("path").getAsString())), artifact.get("url").getAsString(),
+                artifact.get("sha1").getAsString(), artifact.get("size").getAsLong());
     }
 
     /** The Java a release needs (Mojang's javaVersion), for install records written before it was kept. */

@@ -40,6 +40,8 @@ final class LaunchPreparation {
         rollback(); // A previous interrupted transaction cannot contaminate this one.
         validateInstance(instance);
         VersionStore.Installed version = config.installed(instance);
+        if (version != null && config.versions.upgradeLwjgl(version))
+            System.out.println("launcher: Minecraft " + version.minecraft() + " now runs on LWJGL 3.3.3");
         try {
             ConsoleModSettings.apply(instance.gameDir());
         } catch (IOException failure) {
@@ -48,7 +50,9 @@ final class LaunchPreparation {
         LaunchRequest request = LaunchRequest.create(instance.id(), accountId);
         byte[] originalOptions = LauncherFiles.read(optionsFile, MAX_FILE_BYTES);
         byte[] originalConf = LauncherFiles.read(confFile, MAX_FILE_BYTES);
-        byte[] preparedOptions = options(originalOptions, instance, version, compatibilityMod(version));
+        List<String> extra = new ArrayList<>(compatibilityMod(version));
+        extra.addAll(lwjglOptions(version));
+        byte[] preparedOptions = options(originalOptions, instance, version, extra);
         byte[] preparedConf = configuration(originalConf, instance.gameDir(), config.debugLog, version,
                 runtime(config.runtimes, version));
         if (preparedOptions.length > MAX_FILE_BYTES || preparedConf.length > MAX_FILE_BYTES)
@@ -186,7 +190,18 @@ final class LaunchPreparation {
 
     /** Options a downloaded version replaces with its own (install.json jvm). */
     private static final List<String> VERSION_OPTIONS = List.of("-DFabricMcEmu=", "-Dfabric.systemLibraries=",
-            "-Dloader.systemLibraries=", "-Dlog4j.configurationFile=", "-Dfabric.addMods=", "-Dloader.addMods=");
+            "-Dloader.systemLibraries=", "-Dlog4j.configurationFile=", "-Dfabric.addMods=", "-Dloader.addMods=",
+            "-Dsodium.checks.issue2561=");
+
+    /**
+     * Sodium 0.5 for 1.19 to 1.20.4 stops unless LWJGL's version starts with 3.3.1 (its issue 2561, a
+     * crash with 3.2.x); those releases run on 3.3.3 here, which it would refuse. Sodium's own switch
+     * for the check turns it off.
+     */
+    static List<String> lwjglOptions(VersionStore.Installed version) {
+        return version != null && VersionStore.runsUpgradedLwjgl(version.minecraft())
+                ? List.of("-Dsodium.checks.issue2561=false") : List.of();
+    }
 
     /**
      * The launcher's compatibility mod (launcher/compat, embedded in this JAR), extracted for Fabric and

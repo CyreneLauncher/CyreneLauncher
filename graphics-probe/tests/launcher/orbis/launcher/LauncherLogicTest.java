@@ -24,6 +24,7 @@ public final class LauncherLogicTest {
     public static void main(String[] args) throws Exception {
         versionPredicates();
         lwjglSelection();
+        lwjglUpgrade();
         runtimeSelection();
         consoleModSettings();
         scroller();
@@ -66,6 +67,71 @@ public final class LauncherLogicTest {
         check(VersionStore.requiredJava("1.21.1") == 21 && VersionStore.requiredJava("1.20.5") == 21
                 && VersionStore.requiredJava("1.20.4") == 17 && VersionStore.requiredJava("1.16.5") == 8,
                 "required Java for records without one");
+
+        String v331 = "[{\"name\":\"org.lwjgl:lwjgl:3.3.1\"},{\"name\":\"org.lwjgl:lwjgl-glfw:3.3.1\"}]";
+        String v322 = "[{\"name\":\"org.lwjgl:lwjgl:3.2.2\"},{\"name\":\"org.lwjgl:lwjgl-glfw:3.2.2\"}]";
+        check(VersionStore.upgradesToOwnLwjgl(array(old)) && VersionStore.upgradesToOwnLwjgl(array(v331)),
+                "1.19 to 1.20.4 (LWJGL 3.3.1, 3.3.2) run on the 3.3.3 set");
+        check(!VersionStore.upgradesToOwnLwjgl(array(v322)) && !VersionStore.upgradesToOwnLwjgl(array(modern))
+                && !VersionStore.upgradesToOwnLwjgl(array(mixed)) && !VersionStore.upgradesToOwnLwjgl(array(none)),
+                "3.2.2, 3.3.3, mixed and no LWJGL are not upgraded");
+        java.util.Set<String> modules = new java.util.TreeSet<>();
+        for (com.google.gson.JsonElement e : VersionStore.ownLwjglLibraries()) {
+            String[] name = e.getAsJsonObject().get("name").getAsString().split(":");
+            check(name.length == 3 && name[2].equals("3.3.3"), "own LWJGL entries are 3.3.3 Java artifacts");
+            modules.add(name[1]);
+        }
+        check(modules.equals(new java.util.TreeSet<>(List.of("lwjgl", "lwjgl-freetype", "lwjgl-glfw", "lwjgl-jemalloc",
+                "lwjgl-openal", "lwjgl-opengl", "lwjgl-stb", "lwjgl-tinyfd"))), "own LWJGL set is the runner's 3.3.3 profile");
+        check(VersionStore.declaresOnly(VersionStore.ownLwjglLibraries(), "3.3.3"), "own LWJGL set declares only 3.3.3");
+        check(LaunchPreparation.lwjglOptions(installed("1.20.1", 17)).equals(List.of("-Dsodium.checks.issue2561=false"))
+                && LaunchPreparation.lwjglOptions(installed("1.19", 17)).size() == 1
+                && LaunchPreparation.lwjglOptions(installed("1.18.2", 17)).isEmpty()
+                && LaunchPreparation.lwjglOptions(installed("1.20.5", 21)).isEmpty()
+                && LaunchPreparation.lwjglOptions(null).isEmpty(), "Sodium's 3.3.1 check is off exactly for 1.19 to 1.20.4");
+    }
+
+    /**
+     * An install of 1.20.1 made with the 1.18.2 LWJGL 3.2.2 entries gets the 3.3.3 set in both profiles, in
+     * place; other entries keep their order. Needs the official 3.3.3 JARs (ORBIS_LWJGL_JARS) to stay offline.
+     */
+    private static void lwjglUpgrade() throws IOException {
+        String jars = System.getenv("ORBIS_LWJGL_JARS");
+        Path root = Files.createTempDirectory("lwjgl-upgrade");
+        Path libraries = Files.createDirectories(root.resolve("libraries"));
+        VersionStore store = new VersionStore(root.resolve("home"), libraries, root.resolve("assets"), root.resolve("x.json"));
+        Path dir = Files.createDirectories(store.versionsRoot().resolve("1.20.1-vanilla"));
+        String profile = "{\"libraries\":[{\"name\":\"com.mojang:brigadier:1.1.8\"},{\"name\":\"org.lwjgl:lwjgl:3.2.2\"},"
+                + "{\"name\":\"org.lwjgl:lwjgl:3.2.2:natives-linux\"},{\"name\":\"org.lwjgl:lwjgl-glfw:3.2.2\"},"
+                + "{\"name\":\"com.mojang:logging:1.1.1\"}]}";
+        for (String name : List.of("game.json", "boot.json")) Files.writeString(dir.resolve(name), profile);
+        Path x = dir.resolve("game.json");
+        VersionStore.Installed old = new VersionStore.Installed("1.20.1-vanilla", "1.20.1", VersionStore.Loader.VANILLA, "",
+                dir.resolve("game.json"), dir.resolve("boot.json"), x, "x.Main", "1", "release", List.of(), java.util.Map.of(), 17);
+        check(!store.upgradeLwjgl(new VersionStore.Installed("1.18.2-vanilla", "1.18.2", VersionStore.Loader.VANILLA, "",
+                x, x, x, "x.Main", "1", "release", List.of(), java.util.Map.of(), 17)), "1.18.2 keeps LWJGL 3.2.2");
+        check(!store.upgradeLwjgl(new VersionStore.Installed("1.20.5-vanilla", "1.20.5", VersionStore.Loader.VANILLA, "",
+                x, x, x, "x.Main", "1", "release", List.of(), java.util.Map.of(), 21)), "1.20.5 keeps its own LWJGL");
+        if (jars == null) {
+            System.out.println("LWJGL upgrade migration skipped: set ORBIS_LWJGL_JARS to the official 3.3.3 JARs");
+            return;
+        }
+        for (com.google.gson.JsonElement e : VersionStore.ownLwjglLibraries()) {
+            String path = e.getAsJsonObject().getAsJsonObject("downloads").getAsJsonObject("artifact").get("path").getAsString();
+            Path target = libraries.resolve(path);
+            Files.createDirectories(target.getParent());
+            Files.copy(Path.of(jars).resolve(target.getFileName()), target);
+        }
+        check(store.upgradeLwjgl(old), "1.20.1 with LWJGL 3.2.2 is upgraded");
+        for (String name : List.of("game.json", "boot.json")) {
+            com.google.gson.JsonArray libs = com.google.gson.JsonParser.parseString(Files.readString(dir.resolve(name)))
+                    .getAsJsonObject().getAsJsonArray("libraries");
+            check(libs.size() == 10 && libs.get(0).getAsJsonObject().get("name").getAsString().startsWith("com.mojang:brigadier")
+                    && libs.get(9).getAsJsonObject().get("name").getAsString().startsWith("com.mojang:logging")
+                    && VersionStore.declaresOnly(libs, "3.3.3"), name + " carries the 3.3.3 set in place");
+        }
+        check(!store.upgradeLwjgl(old), "an upgraded install is left alone");
+        System.out.println("LWJGL upgrade migration passed");
     }
 
     /** Ixeris is switched off through its own per-platform keys; nothing else in its config changes. */
