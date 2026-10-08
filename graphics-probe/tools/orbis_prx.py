@@ -64,8 +64,9 @@ def runtime_objects(tools, out):
 
 def link(tools, script, runtime, elf, inputs, *, system_libraries=(), extra=(), why_extract=None):
     """inputs: module objects and archives, placed before the runtime and SDK libraries."""
+    # --wrap=pthread_create: threads the module starts release their orbis_prx_tls.c block on return.
     run(tools.sdk / 'bin/ld.lld', '--shared', '--no-undefined', '-soname', elf.name, '-e', 'module_start',
-        '-Bsymbolic', '--script', script, '--eh-frame-hdr', '--exclude-libs=ALL', *extra,
+        '-Bsymbolic', '--wrap=pthread_create', '--script', script, '--eh-frame-hdr', '--exclude-libs=ALL', *extra,
         *(['--why-extract=' + str(why_extract)] if why_extract else []),
         '-o', elf, *inputs, *runtime, tools.root / 'lib/crtlib.o',
         *['--wrap=' + fn for fn in WRAPPED],

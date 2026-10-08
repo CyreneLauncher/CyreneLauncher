@@ -2,7 +2,9 @@
 """Per-thread PRX TLS: host behavior plus an SDK link with the --prx-tls script.
 
 The host run proves per-thread blocks, template initialisation (.tdata.*, .tbss.*,
-local-dynamic) and release at thread exit. The SDK link proves the image bounds equal
+local-dynamic), explicit release on thread exit, slot reuse across
+many more threads than the table holds, and automatic release for threads the module starts
+(linked with --wrap=pthread_create, as orbis_prx.py links every graphics module). The SDK link proves the image bounds equal
 the PRX's PT_TLS, .tbss is merged into the image, and every TLS access goes through the
 module's own __tls_get_addr (no initial/local-exec relocations, no import).
 """
@@ -40,7 +42,7 @@ with tempfile.TemporaryDirectory() as directory:
     tmp = Path(directory)
     module = tmp / 'libprxtls.so'
     run(cc, '-shared', '-fPIC', '-fdata-sections', '-ftls-model=global-dynamic', '-O2', '-Wall', '-Werror',
-        '-DORBIS_PRX_TLS_EXTERNAL_TEMPLATE', '-Wl,-Bsymbolic', '-pthread',
+        '-DORBIS_PRX_TLS_EXTERNAL_TEMPLATE', '-Wl,-Bsymbolic', '-Wl,--wrap=pthread_create', '-pthread',
         root / 'tools/orbis_prx_tls.c', root / 'tests/testdata/orbis_prx_tls_module.c', '-o', module)
     check_tls_imports(module)
     assert 'R_X86_64_DTPMOD64' in readelf('-r', module), 'module did not use dynamic TLS'
@@ -68,18 +70,20 @@ with tempfile.TemporaryDirectory() as directory:
             '-isysroot', toolchain, '-isystem', toolchain / 'include', '-c', path, '-o', obj)
         objects.append(obj)
     prx = tmp / 'libtlsuser.so'
-    run(sdk / 'bin/ld.lld', '--shared', '--no-undefined', '-Bsymbolic', '-e', 'module_start', '--script', script,
-        '-o', prx, *objects, toolchain / 'lib/crtlib.o', '-L' + str(toolchain / 'lib'),
+    run(sdk / 'bin/ld.lld', '--shared', '--no-undefined', '-Bsymbolic', '--wrap=pthread_create', '-e', 'module_start',
+        '--script', script, '-o', prx, *objects, toolchain / 'lib/crtlib.o', '-L' + str(toolchain / 'lib'),
         '--start-group', '-lc', '-lclang_rt.builtins-x86_64', '--end-group', '-lkernel')
     check_tls_imports(prx)
+    assert 'pthread_setspecific' not in readelf('--dyn-syms', prx), \
+        'per-thread blocks must not hold libkernel setspecific storage'
     bss_source = tmp / 'tbss_only.c'
     bss_source.write_text('__thread long only_cleared[4];\nlong *e(void) { return only_cleared; }\n')
     bss_object = tmp / 'tbss_only.o'
     run(sdk / 'bin/clang', '--target=x86_64-pc-freebsd12-elf', '-fPIC', '-fdata-sections', '-O2',
         '-isysroot', toolchain, '-isystem', toolchain / 'include', '-c', bss_source, '-o', bss_object)
     bss_prx = tmp / 'libtbssonly.so'
-    run(sdk / 'bin/ld.lld', '--shared', '--no-undefined', '-Bsymbolic', '-e', 'module_start', '--script', script,
-        '-o', bss_prx, bss_object, objects[1], toolchain / 'lib/crtlib.o', '-L' + str(toolchain / 'lib'),
+    run(sdk / 'bin/ld.lld', '--shared', '--no-undefined', '-Bsymbolic', '--wrap=pthread_create', '-e', 'module_start',
+        '--script', script, '-o', bss_prx, bss_object, objects[1], toolchain / 'lib/crtlib.o', '-L' + str(toolchain / 'lib'),
         '--start-group', '-lc', '-lclang_rt.builtins-x86_64', '--end-group', '-lkernel')
     bss_tls = [line.split() for line in readelf('-l', bss_prx).splitlines() if line.strip().startswith('TLS ')]
     assert len(bss_tls) == 1 and bss_tls[0][4] == bss_tls[0][5] and int(bss_tls[0][4], 16) > 0, \

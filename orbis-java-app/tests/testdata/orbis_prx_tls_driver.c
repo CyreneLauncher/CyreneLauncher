@@ -1,4 +1,6 @@
-/* Drives orbis_prx_tls_module: per-thread copies, template initialisation, release at exit. */
+/* Drives orbis_prx_tls_module: per-thread copies, template initialisation, release on thread exit,
+ * a churn of threads far beyond the table size (released slots are reused), and threads the module
+ * starts itself releasing their blocks without a call (wrapped pthread_create). */
 #include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -9,6 +11,8 @@ char *module_name(void);
 long *module_zero(void);
 int *module_local(void);
 long orbis_prx_tls_live_blocks(void);
+void module_thread_exit(void);
+int module_spawn_and_join(long value);
 
 #define THREADS 8
 static pthread_barrier_t written;
@@ -39,6 +43,15 @@ static void *worker(void *argument) {
     CHECK(strcmp(module_name(), expected) == 0);
     CHECK(module_zero()[31] == index);
     CHECK(*module_local() == -index);
+    module_thread_exit();
+    return NULL;
+}
+
+#define CHURN 20000
+static void *short_lived(void *argument) {
+    check_template();
+    *module_counter() = (int)(long)argument;
+    module_thread_exit();
     return NULL;
 }
 
@@ -60,6 +73,24 @@ int main(void) {
     CHECK(*module_counter() == 1);
     CHECK(strcmp(module_name(), "main") == 0);
     CHECK(*module_local() == 99);
+    CHECK(orbis_prx_tls_live_blocks() == 1);
+
+    for (long i = 0; i < CHURN; ++i) {
+        pthread_t thread;
+        CHECK(pthread_create(&thread, NULL, short_lived, (void *)i) == 0);
+        CHECK(pthread_join(thread, NULL) == 0);
+    }
+    CHECK(orbis_prx_tls_live_blocks() == 1);
+    CHECK(*module_counter() == 1);
+
+    for (long i = 0; i < CHURN; ++i) CHECK(module_spawn_and_join(i) == 0);
+    CHECK(orbis_prx_tls_live_blocks() == 1);
+    CHECK(*module_counter() == 1);
+
+    module_thread_exit();
+    CHECK(orbis_prx_tls_live_blocks() == 0);
+    module_thread_exit();
+    check_template();
     CHECK(orbis_prx_tls_live_blocks() == 1);
     puts("PRX TLS host behavior passed");
     return 0;

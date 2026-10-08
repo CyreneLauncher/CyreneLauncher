@@ -1,6 +1,7 @@
 /* Host module for orbis_prx_tls.c: thread-locals in .tdata.*, .tbss.* and local-dynamic form. */
 #define _GNU_SOURCE
 #include <link.h>
+#include <pthread.h>
 #include <stddef.h>
 #include <stdint.h>
 
@@ -42,3 +43,17 @@ int *module_counter(void) { return &tls_counter; }
 char *module_name(void) { return tls_name; }
 long *module_zero(void) { return tls_zero; }
 int *module_local(void) { return &tls_local; }
+
+__attribute__((visibility("hidden"))) void orbis_prx_tls_thread_exit(void);
+void module_thread_exit(void) { orbis_prx_tls_thread_exit(); }
+
+/* A thread this module starts (pthread_create is wrapped) releases its block on return. */
+static void *module_worker(void *argument) {
+    tls_counter = (int)(long)argument;
+    return NULL;
+}
+int module_spawn_and_join(long value) {
+    pthread_t thread;
+    if (pthread_create(&thread, NULL, module_worker, (void *)value) != 0) return -1;
+    return pthread_join(thread, NULL);
+}
