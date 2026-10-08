@@ -44,7 +44,8 @@ final class LaunchPreparation {
         byte[] originalOptions = LauncherFiles.read(optionsFile, MAX_FILE_BYTES);
         byte[] originalConf = LauncherFiles.read(confFile, MAX_FILE_BYTES);
         byte[] preparedOptions = options(originalOptions, instance, version, compatibilityMod(version));
-        byte[] preparedConf = configuration(originalConf, instance.gameDir(), config.debugLog, version);
+        byte[] preparedConf = configuration(originalConf, instance.gameDir(), config.debugLog, version,
+                runtime(config.runtimes, version));
         if (preparedOptions.length > MAX_FILE_BYTES || preparedConf.length > MAX_FILE_BYTES)
             throw new IOException("Prepared runner settings are too large");
         JsonObject saved = new JsonObject();
@@ -223,11 +224,27 @@ final class LaunchPreparation {
         return String.join("\n", result).concat("\n").getBytes(StandardCharsets.UTF_8);
     }
 
-    private static byte[] configuration(byte[] original, Path gameDir, boolean debugLog, VersionStore.Installed version)
-            throws IOException {
+    /**
+     * The runner a version starts on: null keeps runner.conf's java_home (the default runner), else the
+     * runtime its Java needs (the optional JDK 21 runner for Minecraft 1.20.5+).
+     */
+    static Runtimes.Runtime runtime(Runtimes runtimes, VersionStore.Installed version) throws IOException {
+        if (version == null || runtimes.fallback.feature() >= version.java()) return null;
+        Runtimes.Runtime runtime = runtimes.forJava(version.java());
+        if (runtime == null)
+            throw new IOException("Minecraft " + version.minecraft() + " needs Java " + version.java()
+                    + "; upload a Java " + version.java() + " runtime export to " + runtimes.root + "/<name>/"
+                    + Runtimes.EXPORT);
+        return runtime;
+    }
+
+    private static byte[] configuration(byte[] original, Path gameDir, boolean debugLog, VersionStore.Installed version,
+                                        Runtimes.Runtime runtime) throws IOException {
         java.util.Map<String, String> set = new java.util.LinkedHashMap<>();
         set.put("working_directory", gameDir.toString());
         set.put("debug", String.valueOf(debugLog));
+        // Only this launch runs on another runtime: the game restores runner.conf as it starts.
+        if (runtime != null) set.put("java_home", runtime.home().toString());
         // A downloaded version boots on its own client JAR and profile, which starts the launcher first.
         if (version != null) {
             set.put("jar", version.clientJar().toString());
@@ -257,7 +274,7 @@ final class LaunchPreparation {
     }
 
     private static final java.util.Set<String> PREPARED_KEYS =
-            java.util.Set.of("working_directory", "debug", "jar", "version_metadata");
+            java.util.Set.of("working_directory", "debug", "jar", "version_metadata", "java_home");
 
     /** Restore only our configuration edits when another writer changed unrelated settings. */
     private static byte[] mergeConfigurationRecovery(byte[] original, byte[] prepared, byte[] current)

@@ -24,6 +24,7 @@ public final class LauncherLogicTest {
     public static void main(String[] args) throws Exception {
         versionPredicates();
         lwjglSelection();
+        runtimeSelection();
         scroller();
         packRules();
         packInstall();
@@ -49,8 +50,63 @@ public final class LauncherLogicTest {
         check(!VersionStore.declaresOnly(array(old), "3.3.3"), "1.20.4-shaped libraries take 3.2.2");
         check(!VersionStore.declaresOnly(array(mixed), "3.3.3"), "a mixed LWJGL set takes 3.2.2");
         check(!VersionStore.declaresOnly(array(none), "3.3.3"), "no LWJGL is not 3.3.3");
-        check(VersionStore.inRange("1.20.4") && !VersionStore.inRange("1.21.5"), "1.20.4 offered, 1.21.5 not");
-        check(VersionStore.inRange("1.21.4") == (VersionStore.JAVA >= 21), "1.21.4 offered only on Java 21");
+        int offered = VersionStore.offeredJava;
+        try {
+            VersionStore.offeredJava = 17;
+            check(VersionStore.inRange("1.20.4") && !VersionStore.inRange("1.20.5"), "Java 17 runner: up to 1.20.4");
+            check(!ModrinthClient.supportedReleases().contains("1.21.1"), "Java 17 runner: no 1.21 packs");
+            VersionStore.offeredJava = 21;
+            check(VersionStore.inRange("1.21.4") && !VersionStore.inRange("1.21.5"), "Java 21 runner: up to 1.21.4");
+            check(ModrinthClient.supportedReleases().contains("1.21.1"), "Java 21 runner: 1.21 packs");
+        } finally {
+            VersionStore.offeredJava = offered;
+        }
+        check(VersionStore.requiredJava("1.21.1") == 21 && VersionStore.requiredJava("1.20.5") == 21
+                && VersionStore.requiredJava("1.20.4") == 17 && VersionStore.requiredJava("1.16.5") == 8,
+                "required Java for records without one");
+    }
+
+    /** JDK 17 stays the default runner; a version needing Java 21 starts on the JDK 21 export, if one is there. */
+    private static void runtimeSelection() throws IOException {
+        Path root = Files.createTempDirectory("launcher-runtimes");
+        Path jdk17 = export(root.resolve("jdk"), "17.0.20"), jdk21 = export(root.resolve("jdk21"), "21.0.12");
+        Files.createDirectories(root.resolve("runner"));               // not a runtime
+        Files.createDirectories(root.resolve("broken/release-desktop")); // no release file
+        Runtimes runtimes = Runtimes.discover(jdk17, root);
+        check(runtimes.fallback.home().equals(jdk17) && runtimes.fallback.feature() == 17, "default runner is JDK 17");
+        check(runtimes.all.size() == 2 && runtimes.newest() == 21, "JDK 21 export found beside it: " + runtimes.all);
+        check(runtimes.forJava(17) == runtimes.fallback && runtimes.forJava(8) == runtimes.fallback,
+                "older versions keep the default runner");
+        check(runtimes.forJava(21).home().equals(jdk21), "1.20.5+ get the JDK 21 runner");
+        check(runtimes.forJava(25) == null, "no runner for Java 25");
+        check(LaunchPreparation.runtime(runtimes, installed("1.20.4", 17)) == null, "1.20.4 keeps java_home");
+        check(LaunchPreparation.runtime(runtimes, installed("1.21.1", 21)).home().equals(jdk21), "1.21.1 switches");
+        check(LaunchPreparation.runtime(runtimes, null) == null, "the built-in 1.18.2 keeps java_home");
+        Runtimes only17 = Runtimes.discover(jdk17, jdk17);
+        check(only17.newest() == 17, "no JDK 21 export, nothing newer offered");
+        try {
+            LaunchPreparation.runtime(only17, installed("1.21.1", 21));
+            throw new AssertionError("1.21.1 without a Java 21 runner must not launch");
+        } catch (IOException expected) {
+            check(expected.getMessage().contains("needs Java 21"), expected.getMessage());
+        }
+        // A default runner on JDK 21 runs everything itself.
+        check(LaunchPreparation.runtime(Runtimes.discover(jdk21, root), installed("1.21.1", 21)) == null,
+                "a Java 21 default keeps java_home");
+    }
+
+    private static Path export(Path dir, String version) throws IOException {
+        Path home = Files.createDirectories(dir.resolve(Runtimes.EXPORT));
+        Files.createDirectories(home.resolve("lib/server"));
+        Files.write(home.resolve("lib/server/libjvm.prx"), new byte[]{1});
+        Files.writeString(home.resolve("release"), "JAVA_VERSION=\"" + version + "\"\nMODULES=\"java.base\"\n");
+        return home;
+    }
+
+    private static VersionStore.Installed installed(String minecraft, int required) {
+        Path x = Path.of("/x");
+        return new VersionStore.Installed(minecraft + "-vanilla", minecraft, VersionStore.Loader.VANILLA, "", x, x, x,
+                "x.Main", "1", "release", List.of(), java.util.Map.of(), required);
     }
 
     private static com.google.gson.JsonArray array(String json) {

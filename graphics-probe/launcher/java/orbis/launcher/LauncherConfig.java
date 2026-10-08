@@ -18,6 +18,8 @@ final class LauncherConfig {
     static final int MIN_HEAP_MIB = 768, MAX_HEAP_MIB = 1536;
     static final int MIN_ARENA_MIB = 1024, MAX_ARENA_MIB = 2048;
     static final int STEP_MIB = 128;
+    /** runner_config.c's java_home when runner.conf names none. */
+    static final String DEFAULT_JAVA_HOME = "/data/orbis-jdk/jdk";
     /** Heap plus arena that has run on the console (1.5 GiB each); more leaves too little native memory. */
     static final int MAX_TOTAL_MIB = 3072;
 
@@ -28,6 +30,8 @@ final class LauncherConfig {
     final InstanceStore instances;
     /** Downloaded Minecraft versions; the built-in runtime (metadata) is the installed 1.18.2. */
     final VersionStore versions;
+    /** runner.conf's java_home (the default runner) and the other Java runtimes on the console. */
+    final Runtimes runtimes;
     final String versionId;
     final String gameMainClass;
     final String loaderVersion;
@@ -67,8 +71,13 @@ final class LauncherConfig {
             }
         }
         Path libraries = runnerRoot.getParent().resolve("libraries"), assets = runnerRoot.getParent().resolve("assets");
-        for (String line : Files.readAllLines(runnerConf(), StandardCharsets.UTF_8))
+        Path javaHome = Path.of(DEFAULT_JAVA_HOME);
+        for (String line : Files.readAllLines(runnerConf(), StandardCharsets.UTF_8)) {
             if (line.trim().startsWith("libraries=")) libraries = Path.of(line.trim().substring("libraries=".length()));
+            if (line.trim().startsWith("java_home=")) javaHome = Path.of(line.trim().substring("java_home=".length()));
+        }
+        runtimes = Runtimes.discover(javaHome, runnerRoot.getParent());
+        VersionStore.offeredJava = runtimes.newest();
         List<String> arguments = Files.exists(runnerRoot.resolve("app-args.txt"))
                 ? Files.readAllLines(runnerRoot.resolve("app-args.txt"), StandardCharsets.UTF_8) : List.of();
         for (int i = 0; i + 1 < arguments.size(); i++)
@@ -120,7 +129,9 @@ final class LauncherConfig {
             v.put("minecraft", builtInGameVersion());
             if (!loaderVersion.isEmpty()) v.put("fabricloader", loaderVersion);
         }
-        v.put("java", System.getProperty("java.specification.version", "17"));
+        // The runner the instance will start on, not the one the launcher runs on.
+        Runtimes.Runtime runtime = version != null ? runtimes.forJava(version.java()) : runtimes.fallback;
+        v.put("java", String.valueOf(runtime != null ? runtime.feature() : runtimes.fallback.feature()));
         return v;
     }
 

@@ -1339,7 +1339,7 @@ class LauncherScreen {
     /** What the browser searches for, for messages. */
     private String target(ModrinthClient.Type type) {
         return type == ModrinthClient.Type.MOD
-                ? config.loader().title + " " + config.gameVersion() : "Fabric and Quilt, Minecraft 1.14 to 1.20.4";
+                ? config.loader().title + " " + config.gameVersion() : "Fabric and Quilt, Minecraft 1.14 to " + VersionStore.newest();
     }
 
     // ------------------------------------------------------------------ project
@@ -1555,7 +1555,8 @@ class LauncherScreen {
             ModrinthClient.VersionInfo v = version;
             if (v == null) {
                 List<ModrinthClient.VersionInfo> compatible = client.projectVersions(hit.projectId(), ModrinthClient.Type.MODPACK, true);
-                if (compatible.isEmpty()) throw new IOException("no version of this pack runs Fabric or Quilt on Minecraft 1.14 to 1.20.4");
+                if (compatible.isEmpty()) throw new IOException("no version of this pack runs Fabric or Quilt on Minecraft 1.14 to "
+                        + VersionStore.newest());
                 v = compatible.get(0);
             }
             return packs.download(v.file(), folder, new InstanceStore.Operation());

@@ -34,7 +34,7 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 
 /**
- * Downloads Minecraft releases 1.14 to 1.20.4 (to 1.21.4 on Java 21), with Fabric, Quilt or no loader, into the shared
+ * Downloads Minecraft releases 1.14 to 1.20.4 (to 1.21.4 when a Java 21 runner is installed), with Fabric, Quilt or no loader, into the shared
  * libraries and assets the installed 1.18.2 already uses. Each version gets
  * launcher/versions/&lt;id&gt;/ holding its client JAR, a flattened profile the runner accepts
  * (game.json), the same profile booting the launcher (boot.json), and install.json, written last.
@@ -58,7 +58,7 @@ final class VersionStore {
 
     record Installed(String id, String minecraft, Loader loader, String loaderVersion, Path gameProfile,
                      Path bootProfile, Path clientJar, String mainClass, String assetIndex, String versionType,
-                     List<String> jvmOptions, Map<String, String> provides) {
+                     List<String> jvmOptions, Map<String, String> provides, int java) {
         String title() {
             return "Minecraft " + minecraft + (loader == Loader.VANILLA ? "" : "  " + loader.title + " " + loaderVersion);
         }
@@ -72,9 +72,12 @@ final class VersionStore {
     static final String VANILLA_MAIN = "net.minecraft.client.main.Main";
     /** The runner's own JAR stays a system library: the GLFW adapter reaches runner.gpu.NativeInput in it. */
     static final String SYSTEM_LIBRARIES = "/app0/app.jar";
-    /** Java 21 runs Minecraft 1.20.5 to 1.21.4 (LWJGL 3.3.3); Java 17 stops at 1.20.4. */
-    static final int JAVA = Runtime.version().feature();
-    private static final int[] OLDEST = {1, 14}, NEWEST = JAVA >= 21 ? new int[] {1, 21, 4} : new int[] {1, 20, 4};
+    private static final int[] OLDEST = {1, 14}, NEWEST_17 = {1, 20, 4}, NEWEST_21 = {1, 21, 4};
+    /**
+     * The newest Java a runner on the console provides (Runtimes.newest()); LauncherConfig sets it.
+     * A Java 21 runner adds Minecraft 1.20.5 to 1.21.4 (LWJGL 3.3.3); Java 17 stops at 1.20.4.
+     */
+    static volatile int offeredJava = Runtime.version().feature();
     /** The LWJGL release whose Java artifacts a version keeps (the runner has a profile and natives for it). */
     static final String OWN_LWJGL = "3.3.3";
     private static final int SCHEMA = 1;
@@ -134,10 +137,15 @@ final class VersionStore {
         return best;
     }
 
+    /** The newest release offered, for messages. */
+    static String newest() {
+        return offeredJava >= 21 ? "1.21.4" : "1.20.4";
+    }
+
     static boolean inRange(String id) {
         if (!VERSION_ID.matcher(id).matches()) return false;
         int[] v = parts(id);
-        return compare(v, OLDEST) >= 0 && compare(v, NEWEST) <= 0;
+        return compare(v, OLDEST) >= 0 && compare(v, offeredJava >= 21 ? NEWEST_21 : NEWEST_17) <= 0;
     }
 
     // ------------------------------------------------------------------ installed versions
@@ -180,12 +188,12 @@ final class VersionStore {
         Map<String, String> provides = new LinkedHashMap<>();
         for (Map.Entry<String, JsonElement> e : o.getAsJsonObject("provides").entrySet())
             provides.put(e.getKey(), e.getValue().getAsString());
-        // The runtime, not the one the version was installed under (runner.conf picks the JDK).
-        provides.put("java", javaVersion());
+        String minecraft = o.get("minecraft").getAsString();
+        int java = o.has("java") ? o.get("java").getAsInt() : requiredJava(minecraft);
         Installed value = new Installed(id, o.get("minecraft").getAsString(), Loader.valueOf(o.get("loader").getAsString()),
                 o.get("loaderVersion").getAsString(), dir.resolve("game.json"), dir.resolve("boot.json"),
                 dir.resolve("client.jar"), o.get("mainClass").getAsString(), o.get("assetIndex").getAsString(),
-                o.get("versionType").getAsString(), List.copyOf(jvm), Map.copyOf(provides));
+                o.get("versionType").getAsString(), List.copyOf(jvm), Map.copyOf(provides), java);
         for (Path file : List.of(value.gameProfile(), value.bootProfile(), value.clientJar()))
             if (!Files.isRegularFile(file, LinkOption.NOFOLLOW_LINKS)) throw new IOException("Incomplete install");
         return value;
@@ -240,7 +248,8 @@ final class VersionStore {
         Set<String> seen = new LinkedHashSet<>();
         Map<String, String> provides = new LinkedHashMap<>();
         provides.put("minecraft", version.id());
-        provides.put("java", javaVersion());
+        int java = vanilla.has("javaVersion") ? vanilla.getAsJsonObject("javaVersion").get("majorVersion").getAsInt()
+                : requiredJava(version.id());
         if (loaderProfile != null) {
             JsonArray loaderLibraries = loaderProfile.getAsJsonArray("libraries");
             int index = 0;
@@ -337,6 +346,7 @@ final class VersionStore {
         record.addProperty("mainClass", mainClass);
         record.addProperty("assetIndex", assetIndex);
         record.addProperty("versionType", vanilla.get("type").getAsString());
+        record.addProperty("java", java);
         JsonArray options = new JsonArray();
         jvm.forEach(options::add);
         record.add("jvm", options);
@@ -488,8 +498,13 @@ final class VersionStore {
         return any;
     }
 
-    static String javaVersion() {
-        return System.getProperty("java.specification.version", "17");
+    /** The Java a release needs (Mojang's javaVersion), for install records written before it was kept. */
+    static int requiredJava(String minecraft) {
+        int[] v = parts(minecraft);
+        if (compare(v, new int[] {1, 20, 5}) >= 0) return 21;
+        if (compare(v, new int[] {1, 18}) >= 0) return 17;
+        if (compare(v, new int[] {1, 17}) >= 0) return 16;
+        return 8;
     }
 
     static boolean allowed(JsonElement rules) {

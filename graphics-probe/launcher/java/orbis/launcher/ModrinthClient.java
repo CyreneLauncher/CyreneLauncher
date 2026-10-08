@@ -23,11 +23,22 @@ class ModrinthClient {
     private static final String USER_AGENT = "orbis-launcher (Minecraft on PlayStation 4)";
     /** Results per search page. */
     static final int PAGE = 20;
-    /** The releases the launcher can install (VersionStore's 1.14 to 1.20.4), for the modpack search. */
-    static final List<String> SUPPORTED_RELEASES = List.of("1.20.4", "1.20.3", "1.20.2", "1.20.1", "1.20",
+    /** Releases the Java 21 runner adds (VersionStore's 1.20.5 to 1.21.4). */
+    private static final List<String> JAVA_21_RELEASES = List.of("1.21.4", "1.21.3", "1.21.2", "1.21.1", "1.21",
+            "1.20.6", "1.20.5");
+    /** The releases the launcher can install on Java 17 (VersionStore's 1.14 to 1.20.4). */
+    private static final List<String> JAVA_17_RELEASES = List.of("1.20.4", "1.20.3", "1.20.2", "1.20.1", "1.20",
             "1.19.4", "1.19.3", "1.19.2", "1.19.1", "1.19", "1.18.2", "1.18.1", "1.18", "1.17.1", "1.17",
             "1.16.5", "1.16.4", "1.16.3", "1.16.2", "1.16.1", "1.16", "1.15.2", "1.15.1", "1.15",
             "1.14.4", "1.14.3", "1.14.2", "1.14.1", "1.14");
+
+    /** The releases the launcher can install with the runners on the console, for the modpack search. */
+    static List<String> supportedReleases() {
+        if (VersionStore.offeredJava < 21) return JAVA_17_RELEASES;
+        List<String> all = new java.util.ArrayList<>(JAVA_21_RELEASES);
+        all.addAll(JAVA_17_RELEASES);
+        return all;
+    }
 
     enum Type { MOD("mod", "Mods"), MODPACK("modpack", "Modpacks");
         final String api, title;
@@ -85,7 +96,7 @@ class ModrinthClient {
 
     /**
      * Mods for this instance (its game version and loaders), or modpacks the launcher can install
-     * (Fabric or Quilt, 1.14 to 1.20.4).
+     * (Fabric or Quilt, 1.14 to VersionStore.newest()).
      */
     Results search(String query, Type type, Sort sort, int offset) throws IOException {
         List<String> groups = new ArrayList<>();
@@ -94,7 +105,7 @@ class ModrinthClient {
             groups.add(any("versions", List.of(gameVersion)));
             groups.add(any("categories", loaders));
         } else {
-            groups.add(any("versions", SUPPORTED_RELEASES));
+            groups.add(any("versions", supportedReleases()));
             groups.add(any("categories", List.of("fabric", "quilt")));
         }
         String facets = "[" + String.join(",", groups) + "]";
@@ -149,7 +160,7 @@ class ModrinthClient {
         String url = API + "/project/" + encode(projectIdOrSlug) + "/version";
         if (compatible) {
             if (type == Type.MOD) url += "?loaders=" + encode(json(loaders)) + "&game_versions=" + encode(json(List.of(gameVersion)));
-            else url += "?loaders=" + encode(json(List.of("fabric", "quilt"))) + "&game_versions=" + encode(json(SUPPORTED_RELEASES));
+            else url += "?loaders=" + encode(json(List.of("fabric", "quilt"))) + "&game_versions=" + encode(json(supportedReleases()));
         }
         JsonElement response;
         try {

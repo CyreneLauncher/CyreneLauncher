@@ -126,7 +126,8 @@ class PackInstaller {
             else blockers.add("The pack names no Fabric or Quilt loader.");
             if (minecraft.isEmpty()) blockers.add("The pack names no Minecraft version.");
             else if (!VersionStore.inRange(minecraft))
-                blockers.add("The pack is for Minecraft " + minecraft + "; the console runs 1.14 to 1.20.4.");
+                blockers.add("The pack is for Minecraft " + minecraft + "; the console runs 1.14 to "
+                        + VersionStore.newest() + (VersionStore.offeredJava >= 21 ? "." : " (1.21.4 with the Java 21 runner)."));
             if (!loaderVersion.isEmpty() && !loaderVersion.matches("[0-9][0-9A-Za-z.+-]{0,63}"))
                 blockers.add("Unexpected loader version " + loaderVersion + ".");
 
