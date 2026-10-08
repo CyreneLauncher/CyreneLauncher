@@ -1,31 +1,25 @@
-# Orbis OpenJDK 17 and independent JAR runner
+# Orbis JAR runner
 
-Build the runner PKG once, install it on the PS4, then upload a selected JDK
-and ordinary application JAR over FTP. The package contains the native launcher,
-Java bootstrap, screen/keyboard support and application loader libraries.
-
-From the repository root:
+The PS4 application: the native runner (eboot), its Java bootstrap (`app.jar`), screen,
+keyboard, mouse and controller services, and PKG packaging. Build it once, install the PKG, then
+upload a Java runtime and an ordinary application JAR over FTP.
 
 ```sh
-make CONF=orbis-x86_64-server-fastdebug images
-make -C orbis-java-app runner
 make -C orbis-java-app package
-make -C orbis-java-app jdk-export JDK_CONF=orbis-x86_64-server-fastdebug
+make -C orbis-java-app check
 ```
 
-The app Makefile consumes completed JDK outputs; `jdk-export` never builds the
-root JDK. `package` builds independently of runtime conversion. Override SDK,
-TOOLCHAIN, BOOT_JDK, JNI_HEADERS, JNI_PLATFORM, PKGTOOL and DOTNET when needed.
-`clean` removes app generated runner and export trees. Checks live in
-`orbis-java-app/tests`; production build/native helpers live in `tools`.
+Override SDK, TOOLCHAIN, BOOT_JDK, JNI_HEADERS, JNI_PLATFORM, PKGTOOL and DOTNET when needed.
+`clean` removes the runner build. Install
+`orbis-java-app/build-runner/output/IV0000-OJDK00003_00-ORBISJARRUNNER01.pkg`.
 
-Install `orbis-java-app/build-runner/output/IV0000-OJDK00003_00-ORBISJARRUNNER01.pkg`.
-Upload the **contents** of
-`orbis-java-app/build-jdk-orbis-x86_64-server-fastdebug/export/` to
-`/data/orbis-jdk/jdk/`. Preserve its directory layout: `conf/`, `legal/`,
-`release`, `lib/modules`, `lib/orbis-modules.list`, native libraries in `lib/`,
-and `lib/server/libjvm.prx`. Native libraries with `.so` names are converted
-SELF modules, not raw ELF libraries. Required symlinks are materialized for FTP.
+Java runtimes are separate projects. Each JDK port (`~/projects/jdk17u`, `~/projects/jdk21u`)
+exports its runtime with its own `orbis-export` directory; upload an export's contents to its own
+folder, for example `/data/orbis-jdk/jdk/release-desktop/` (JDK 17, the default runner) and
+`/data/orbis-jdk/jdk21/release-desktop/` (JDK 21, the optional runner for Minecraft 1.20.5+).
+`runner.conf`'s `java_home` names the runtime the application starts on; the Minecraft launcher
+switches it for a single launch when a version needs a newer Java (see `graphics-probe/launcher`).
+The eboot uses only the JNI invocation API and `app.jar` targets Java 17, so one package serves both.
 
 ## Application configuration
 
@@ -83,11 +77,10 @@ launch is not supported. Bootstrap/runtime/path properties are reserved;
 options replacing them fail with a startup error. Workload tuning is explicit:
 no Paper detection, injected arguments, JLine/Netty defaults or Bukkit handling.
 
-To switch runtimes, export release with
-`make -C orbis-java-app jdk-export JDK_CONF=orbis-x86_64-server-release`, upload
-to `/data/orbis-jdk/jdk-release/`, and set `java_home` accordingly. Each runtime
-supplies its own module list; switching requires no runner reinstall. Use exports
-produced by this checkout: older runtime exports are rejected during native
+To switch runtimes, upload another JDK port's export (built in that port with
+`make -C orbis-export jdk-export ...`) to its own folder and set `java_home`
+accordingly. Each runtime supplies its own module list; switching requires no runner
+reinstall. Use current exports: older runtime exports are rejected during native
 configuration because they cannot accept configured working/temporary paths. Early JVM boot
 and native library discovery also use the selected runtime home, seeded by the
 native configuration handoff before constructors and JVM creation.
@@ -142,47 +135,7 @@ libraries and GUI support are not provided. The runtime is headless; full Java
 SE compatibility, desktop APIs and arbitrary external native libraries are not
 established. No console deployment is performed by the build commands.
 
-Exact configure commands and compiler differences: see ../README.md.
-
-### Runtime metrics and network interfaces
-
-Orbis filesystem space queries use the kernel filesystem ABI directly rather
-than the toolchain statvfs wrapper. Process CPU time comes from checked getrusage
-counters; process load is sampled and normalized by the JVM active processor
-count. System CPU load uses kern.cp_time when the kernel exposes it. Unsupported
-counters return unavailable rather than a fabricated idle value; the first CPU
-load sample also has no previous interval. Console confirmation of these metrics
-is still required.
-
-IPv4 interface addresses and MACs come from SceNet. NetCtl provides active
-interface details only after its address matches the interface. IPv6 discovery
-and unsupported interface capabilities are not supplied by this adapter. Swap
-reporting and third-party OSHI hardware detection are unchanged.
-
-
-## Software desktop runtime exports
-
-`DESKTOP=0` is the default and preserves `build-jdk-<configuration>/export`.
-Select the audited software desktop native closure with:
-
-```sh
-make -C orbis-java-app -j2 jdk-export JDK_CONF=orbis-x86_64-server-release DESKTOP=1
-make -C orbis-java-app -j2 jdk-export JDK_CONF=orbis-x86_64-server-fastdebug DESKTOP=1
-```
-
-These use `build-jdk-<configuration>-desktop/export`. DESKTOP accepts exactly
-0 or 1. Each export is assembled afresh and contains schema 1
-`lib/orbis-capabilities.json`: server exports declare no capabilities and ten
-native modules; desktop exports declare `software-desktop` and seventeen native
-modules. This records packaged facilities. Offscreen drawing, font execution,
-and desktop bridge operation on PS4 remain pending.
-
-Desktop exports bundle DejaVu Sans 2.37 at `lib/fonts/DejaVuSans.ttf` and the
-full original license at `legal/orbis-desktop-fonts/LICENSE`. The pinned official
-source and SHA256 hashes are in [the font provenance README](runtime-data/desktop/fonts/README.md).
-The one regular face is the baseline logical-family fallback: it does not supply
-distinct serif/monospaced or bold/italic faces, or universal glyph coverage.
-Fonts resolve relative to java.home without host fonts or fontconfig.
+Runtime build and export details live in each JDK port's `orbis-export/README.md`.
 
 ## Cacio initialization bundle
 

@@ -2,7 +2,7 @@ Orbis Java JAR Runner: FTP setup
 
 `orbis-java-app/build-runner/output/IV0000-OJDK00003_00-ORBISJARRUNNER01.pkg`.
 Upload the **contents** of
-`orbis-java-app/build-jdk-orbis-x86_64-server-fastdebug/export/` to
+the JDK port's `orbis-export/build-jdk-orbis-x86_64-server-fastdebug/export/` to
 `/data/orbis-jdk/jdk/`. Preserve its directory layout: `conf/`, `legal/`,
 `release`, `lib/modules`, `lib/orbis-modules.list`, native libraries in `lib/`,
 and `lib/server/libjvm.prx`. Native libraries with `.so` names are converted
@@ -43,11 +43,11 @@ For desktop mode, first build a desktop-capable JDK export and install it
 separately from the default server export:
 
 ```sh
-make -C orbis-java-app jdk-export JDK_CONF=orbis-x86_64-server-fastdebug DESKTOP=1
+make -C orbis-export jdk-export JDK_CONF=orbis-x86_64-server-fastdebug DESKTOP=1
 ```
 
 FTP the contents of
-`orbis-java-app/build-jdk-orbis-x86_64-server-fastdebug-desktop/export/` to
+the JDK port's `orbis-export/build-jdk-orbis-x86_64-server-fastdebug-desktop/export/` to
 `/data/orbis-jdk/jdk-desktop/`, preserving the layout, then set
 `java_home=/data/orbis-jdk/jdk-desktop` in `runner.conf`.
 
@@ -87,7 +87,7 @@ options replacing them fail with a startup error. Workload tuning is explicit:
 no Paper detection, injected arguments, JLine/Netty defaults or Bukkit handling.
 
 To switch runtimes, export release with
-`make -C orbis-java-app jdk-export JDK_CONF=orbis-x86_64-server-release`, upload
+`make -C orbis-export jdk-export JDK_CONF=orbis-x86_64-server-release`, upload
 to `/data/orbis-jdk/jdk-release/`, and set `java_home` accordingly. Each runtime
 supplies its own module list; switching requires no runner reinstall. Use exports
 produced by this checkout: older runtime exports are rejected during native

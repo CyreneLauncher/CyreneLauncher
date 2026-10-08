@@ -8,8 +8,7 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 binaries = ([Path(path) for path in sys.argv[1:]] if len(sys.argv) > 1 else
-            [ROOT / "build" / "launcher.elf",
-             *sorted((ROOT / "build" / "native").glob("lib*.so"))])
+            [ROOT / "build-runner" / "launcher.elf"])
 assert binaries and all(path.is_file() for path in binaries), "native binaries must be built first"
 bad = []
 allocator_checked = False

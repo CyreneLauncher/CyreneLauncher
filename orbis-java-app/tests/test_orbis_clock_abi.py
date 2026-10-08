@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+"""The shared runtime's clock_gettime maps the toolchain's Linux clock ids to FreeBSD's."""
 from pathlib import Path
 import re
 import argparse
@@ -7,8 +9,7 @@ parser.add_argument("--toolchain", type=Path, default=Path("/home/wonder/PS4Tool
 parser.add_argument("--sdk", type=Path, default=Path("/home/wonder/ps4-payload-sdk"))
 args = parser.parse_args()
 
-root = Path(__file__).resolve().parents[2]
-source = (root / "src/hotspot/os/posix/os_posix.cpp").read_text()
+root = Path(__file__).resolve().parents[1]
 toolchain_time = (args.toolchain / "include/time.h").read_text()
 orbis_time = (args.sdk / "target/include/sys/time.h").read_text()
 
@@ -19,14 +20,9 @@ def clock_id(header):
 
 assert clock_id(toolchain_time) == 1
 assert clock_id(orbis_time) == 4
-assert "static const clockid_t hotspot_monotonic_clock = (clockid_t)4;" in source
-assert "static const clockid_t hotspot_monotonic_clock = CLOCK_MONOTONIC;" in source
-# HotSpot reads its clocks through orbis_read_clock, with libkernel's entry as the fallback.
-assert "orbis_read_clock(hotspot_monotonic_clock, &tp)" in source
-assert '__asm__("sceKernelClockGettime")' in source
-# Every other module gets the shared runtime's clock_gettime, which maps Linux ids to FreeBSD's.
-runtime = (root / "orbis-java-app/tools/orbis_runtime.c").read_text()
+# The eboot and every application PRX get the runtime's clock_gettime.
+runtime = (root / "tools/orbis_runtime.c").read_text()
+assert '__asm__("sceKernelClockGettime")' in runtime
 assert "case 1: case 4: case 6: case 7: native = 4; break;" in runtime
-assert "clockid_t clock = hotspot_monotonic_clock;" in source
-assert "_pthread_condattr_setclock(_condAttr, hotspot_monotonic_clock)" in source
+assert "case 2: case 3: native = 2; break;" in runtime
 print("Orbis monotonic clock ABI contract passed")

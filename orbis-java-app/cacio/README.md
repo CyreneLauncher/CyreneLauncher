@@ -21,11 +21,11 @@ export lacks the software desktop capability, fonts, and native modules. Build
 it with:
 
 ```sh
-make -C orbis-java-app jdk-export JDK_CONF=orbis-x86_64-server-fastdebug DESKTOP=1
+make -C orbis-export jdk-export JDK_CONF=orbis-x86_64-server-fastdebug DESKTOP=1
 ```
 
 FTP the contents of
-`orbis-java-app/build-jdk-orbis-x86_64-server-fastdebug-desktop/export/` to
+the JDK port's `orbis-export/build-jdk-orbis-x86_64-server-fastdebug-desktop/export/` to
 `/data/orbis-jdk/jdk-desktop/` and set `java_home=/data/orbis-jdk/jdk-desktop`
 in `runner.conf`. See `tools/runner-files-README.txt` for complete runner,
 runtime, and bundle installation steps.

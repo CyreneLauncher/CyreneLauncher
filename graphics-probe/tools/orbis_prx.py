@@ -1,6 +1,6 @@
 """Orbis JNI module recipe shared by the graphics PRXs.
 
-Mirrors orbis-java-app/tools/build_native_modules.py so the JDK dlopen wrapper can load
+Mirrors the JDK ports' orbis-export/tools/build_native_modules.py so the JDK dlopen wrapper can load
 the result: runtime objects exporting orbis_configure_runtime_v2/orbis_run_initializers,
 a private environment, wrapped dlopen/_exit, -Bsymbolic, then create-fself. Uses
 orbis_prx_tls.c (per-thread TLS) and the --prx-tls link script instead of the JDK's
