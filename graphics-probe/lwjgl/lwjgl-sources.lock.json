@@ -108,5 +108,13 @@
     "lwjgl-stb-3.4.1.jar": "f077c3dafc31924fbe8acb0b913f08977ba27f8e",
     "lwjgl-tinyfd-3.4.1.jar": "562697d40dbd2ed0424bf24dcf65d51170f81adf",
     "lwjgl-3.4.1.jar": "6105690714874b995aa7812e4f7732a21109276c"
+  },
+  "sdl3": {
+    "version": "3.4.12",
+    "url": "https://github.com/libsdl-org/SDL/releases/download/release-3.4.12/SDL3-3.4.12.tar.gz",
+    "filename": "SDL3-3.4.12.tar.gz",
+    "sha256": "f07b958a9ac5020fb7a44cadb957f658b2149c3c8abb4f63145fac9303249db7",
+    "license": "Zlib (LICENSE.txt in the archive)",
+    "selection": "Controlify 3.5 (Minecraft 26.1) loads SDL 3.4.12 through its FFM bindings (its bundled libSDL3 reports SDL-3.4.12); SHA-256 matches libsdl.org/release."
   }
 }

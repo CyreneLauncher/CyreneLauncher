@@ -384,6 +384,7 @@ final class OrbisGLFW {
             return false;
         }
         initialized = true;
+        orbis.graphics.Gamepad.install(OrbisGLFW::readPad);
         return true;
     }
 
@@ -1272,6 +1273,13 @@ final class OrbisGLFW {
             if (joystickCallback != null)
                 joystickCallback.invoke(GLFW_JOYSTICK_1, connected ? GLFW_CONNECTED : GLFW_DISCONNECTED);
         }
+    }
+
+    /** orbis.graphics.Gamepad's reader: the pad as of the last event poll. */
+    private static boolean readPad(int[] state) {
+        if (!initialized || window == NULL || !padPresent(GLFW_JOYSTICK_1)) return false;
+        System.arraycopy(pad, 0, state, 0, pad.length);
+        return true;
     }
 
     private static boolean padPresent(int jid) {

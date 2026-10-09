@@ -314,9 +314,14 @@ public final class FacadeBehaviorTest {
             glfwPollEvents();
             check(glfwGetGamepadState(GLFW_JOYSTICK_1, state) && state.buttons(GLFW_GAMEPAD_BUTTON_A) == GLFW_PRESS,
                 "a fresh press reaches the game again");
+            // The same state for code outside the facade (SDL3 for Controlify 3.5+).
+            int[] raw = new int[8];
+            check(orbis.graphics.Gamepad.read(raw) && raw[0] == 1 && raw[1] == 0x4000 && raw[2] == 128,
+                "Gamepad.read gives the pad as of the last poll");
         }
         NativePlatform.padState = new int[8];
         glfwPollEvents();
+        check(!orbis.graphics.Gamepad.read(new int[8]), "Gamepad.read is false without a controller");
         NativePlatform.imeBeginResult = -1;
         NativePlatform.imeStatus = 0;
 

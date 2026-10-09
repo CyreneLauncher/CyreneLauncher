@@ -4,7 +4,8 @@
   "package": "orbis.compat.mixin",
   "compatibilityLevel": "JAVA_8",
   "mixins": [
-    "ControlifyNativesMixin"
+    "ControlifyNativesMixin",
+    "ControlifySdlFeedMixin"
   ],
   "injectors": {
     "defaultRequire": 0

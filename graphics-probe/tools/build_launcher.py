@@ -32,6 +32,8 @@ parser.add_argument('--mixin', default=str(ROOT / 'build/minecraft-1.18.2-fabric
 # ASM's tree API, which Fabric and Quilt also ship; the mixin config plugin's interface names ClassNode.
 parser.add_argument('--asm-tree', default=str(ROOT / 'build/minecraft-1.18.2-fabric/libraries/org/ow2/asm/asm-tree/'
                                               '9.10.1/asm-tree-9.10.1.jar'))
+# A JDK 22+ for the compatibility mod's Java 22 part (launcher/compat/java22: the foreign function API).
+parser.add_argument('--java22-jdk', default='/home/wonder/projects/jdk25u/.boot-jdks/jdk-25')
 arguments = parser.parse_args()
 out = Path(arguments.output).resolve()
 classes = out / 'classes'
@@ -63,6 +65,12 @@ compat_classes.mkdir(parents=True)
 subprocess.run([str(Path(arguments.boot_jdk) / 'bin/javac'), '--release', '8', '-encoding', 'UTF-8',
                 '-Xlint:all,-options', '-Werror', '-proc:none', '-cp', arguments.mixin + ':' + arguments.asm_tree, '-d', str(compat_classes),
                 *map(str, sorted((ROOT / 'launcher/compat/java').rglob('*.java')))], check=True)
+# Loaded only on Java 22+ (orbis.compat.GamepadFeed checks the runtime first): Minecraft 26.1 runs on 25.
+java22 = Path(arguments.java22_jdk) / 'bin/javac'
+if not java22.is_file():
+    raise SystemExit(f'no JDK 22+ for launcher/compat/java22 at {arguments.java22_jdk}; pass --java22-jdk')
+subprocess.run([str(java22), '--release', '22', '-encoding', 'UTF-8', '-Xlint:all,-options', '-Werror', '-proc:none',
+                '-d', str(compat_classes), *map(str, sorted((ROOT / 'launcher/compat/java22').rglob('*.java')))], check=True)
 compat_jar = out / 'orbis-compat.jar'
 with zipfile.ZipFile(compat_jar, 'w', zipfile.ZIP_DEFLATED) as archive:
     for path in sorted((ROOT / 'launcher/compat/resources').iterdir()):

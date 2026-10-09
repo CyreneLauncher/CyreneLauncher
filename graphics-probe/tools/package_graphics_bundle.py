@@ -11,6 +11,7 @@ Upload the CONTENTS of the output directory to the runner's graphics_bundle path
                          org.lwjgl.librarypath, while OpenAL and the platform module stay in lib/
                          (java.library.path)
   lib/lwjgl-3.4.1/       the same for LWJGL 3.4.1 (Minecraft 26.1 and 26.2)
+  lib/libSDL3.so         SDL3 for Controlify 3.5+, found on java.library.path
   legal/                 licence texts of what the modules contain
 The bundle never contains runner or JDK files. Building it does not deploy it.
 """
@@ -62,6 +63,7 @@ parser.add_argument('--freetype', default=str(ROOT / 'build/freetype'))
 parser.add_argument('--lwjgl-current', default=str(ROOT / 'build/lwjgl-3.4.1'))
 parser.add_argument('--facade-current', default=str(ROOT / 'build/lwjgl-facade-3.4.1'))
 parser.add_argument('--freetype-current', default=str(ROOT / 'build/freetype-3.4.1'))
+parser.add_argument('--sdl3', default=str(ROOT / 'build/sdl3'))
 parser.add_argument('--output', default=str(ROOT / 'build/graphics-bundle'))
 arguments = parser.parse_args()
 platform, lwjgl, facade, optional = (Path(p).resolve() for p in
@@ -100,6 +102,9 @@ facade_current_audit = load_audit(facade_current / 'facade-audit.json')
 freetype_current_audit = load_audit(freetype_current / 'freetype-audit.json')
 current_tree = next((lwjgl_current / 'sources/lwjgl').iterdir())
 libffi_current_tree = next((lwjgl_current / 'sources/libffi-3.5.0').iterdir())
+sdl3 = Path(arguments.sdl3).resolve()
+sdl3_audit = load_audit(sdl3 / 'sdl3-audit.json')
+sdl3_tree = next((sdl3 / 'sources').iterdir())
 
 if out.exists():
     shutil.rmtree(out)
@@ -122,7 +127,8 @@ for name in ('liblwjgl', 'liblwjgl_opengl', 'liblwjgl_stb', 'liblwjgl_tinyfd'):
     shutil.copyfile(lwjgl_current / f'{name}.prx', out / 'lib' / CURRENT_DIR / f'{name}.so')
 shutil.copyfile(freetype_current / 'libfreetype.prx', out / 'lib' / CURRENT_DIR / 'libfreetype.so')
 shutil.copyfile(facade_current / CURRENT_ADAPTER, out / 'lib' / CURRENT_ADAPTER)
-for name in NATIVES + MODERN_NATIVES + CURRENT_NATIVES:
+shutil.copyfile(sdl3 / 'libSDL3.prx', out / 'lib/libSDL3.so')
+for name in NATIVES + MODERN_NATIVES + CURRENT_NATIVES + ('libSDL3.so',):
     if (out / 'lib' / name).read_bytes()[:4] != b'O\x15=\x1d':
         raise SystemExit(f'{name} is not a SELF module')
 
@@ -137,6 +143,7 @@ shutil.copyfile(modern_tree / 'LICENSE.md', legal / 'lwjgl-3.3.3-LICENSE.md')
 shutil.copyfile(libffi_tree / 'LICENSE', legal / 'libffi-LICENSE')
 shutil.copyfile(current_tree / 'LICENSE.md', legal / 'lwjgl-3.4.1-LICENSE.md')
 shutil.copyfile(libffi_current_tree / 'LICENSE', legal / 'libffi-3.5.0-LICENSE')
+shutil.copyfile(sdl3_tree / 'LICENSE.txt', legal / 'sdl3-LICENSE.txt')
 for name in ('LICENSE.TXT', 'docs/FTL.TXT'):
     shutil.copyfile(freetype_tree / name, legal / f'freetype-{Path(name).name}')
 shutil.copyfile(lwjgl_tree / 'modules/lwjgl/tinyfd/src/main/c/tinyfiledialogs.h',
@@ -162,6 +169,8 @@ if (sources / 'orbis-compat/licenses').is_dir():
   `orbis-lwjgl-3.4.1-adapter.jar`: LWJGL 3.4.1 (`lwjgl-3.4.1-LICENSE.md`) and libffi 3.5.0
   (`libffi-3.5.0-LICENSE`, MIT); the same TinyFD stub. `lwjgl-3.4.1/libfreetype.so` is FreeType
   2.14.1, built the same way under the same licences.
+- `libSDL3.so` is SDL 3.4.12 (Zlib, `sdl3-LICENSE.txt`) built with its dummy video and audio drivers,
+  plus an original virtual-gamepad entry point for the console's controller.
 - STB sources in `liblwjgl_stb.so` are upstream stb headers bundled by LWJGL 3.2.2;
   their headers state public-domain or MIT dual licensing. The generated JNI is LWJGL BSD-3-Clause.
 - `liblwjgl_tinyfd.so` uses LWJGL generated JNI (BSD-3-Clause) and the bounded
@@ -210,6 +219,8 @@ build_info = {
     'freetype_3.4.1': {'version': freetype_current_audit['freetype'],
                        'lwjgl_required_functions': freetype_current_audit['lwjgl_required_functions']}
                       | {k: freetype_current_audit['module'][k] for k in ('needed', 'imports', 'tls')},
+    'sdl3': {'version': sdl3_audit['sdl3'], 'reference_functions': sdl3_audit['reference_functions']}
+            | {k: sdl3_audit['module'][k] for k in ('needed', 'imports', 'tls')},
     'facade_3.4.1': {k: facade_current_audit[k] for k in ('classes', 'official_classes', 'glfw_methods')}
                     | {'implemented': len(facade_current_audit['implemented']),
                        'unsupported': len(facade_current_audit['unsupported'])},
