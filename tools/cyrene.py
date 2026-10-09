@@ -137,7 +137,7 @@ def doctor(args):
             if result.returncode or not re.search(r'version "'+str(v)+r'(?:[.\"])',result.stderr+result.stdout):
                 missing.append('matching host JDK '+str(v)+': '+str(boot))
     missing.extend(str(p) for p in paths if not p.exists())
-    if sys.version_info < (3,12): missing.append('Python 3.12+ (pinned Mesa wheels)')
+    if sys.version_info[:2] != (3,12): missing.append('Python 3.12 (pinned Mesa wheels)')
     if missing: raise ValueError('Missing prerequisites:\n  '+'\n  '.join(missing))
     print('Host tools, SDK paths and boot JDK versions found. Build recipes perform the ABI/hash audits.')
 
@@ -241,8 +241,12 @@ def verify_components(toolchain=None, root=WORK, seal=None):
         raise ValueError('Unexpected component inventory layout')
     for name,sha in seal['locks'].items():
         if digest(WORK/name)!=sha:raise ValueError('Component lock mismatch: '+name)
-    if toolchain and digest(toolchain/'lib/libc.a')!=seal['libc_sha256']:
-        raise ValueError('Component toolchain mismatch')
+    if toolchain:
+        if digest(toolchain/'lib/libc.a')!=seal['libc_sha256']:
+            raise ValueError('Component toolchain mismatch')
+        expected=json.loads((GP/'deps.lock.json').read_text())['sdk']['sha256']
+        for name,sha in expected.items():
+            if digest(toolchain/name)!=sha:raise ValueError('Component SDK mismatch: '+name)
     verify_inventories(root,seal['components'])
     return seal
 
