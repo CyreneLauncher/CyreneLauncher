@@ -8,7 +8,7 @@
     "orbis-runtime-support": "637f2596d38d49271535c061a82dc1a1fbd16c9b",
     "orbis-compat": "6922a7b6f4291a28edd239f1a4db50ed7aa00359",
     "orbis-porting-kit": "213b0c38ff25ea7ca402c8844a6494086d0f1cae",
-    "orbis-openjdk": "c9ca2f3601cabf47e56283391d6ca70f2a74c146"
+    "orbis-openjdk": "dd6e35fbf2401816b28943437c5d3e71cbb615f8"
   },
   "runtimes": {
     "jdk17": {

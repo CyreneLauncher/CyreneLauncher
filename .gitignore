@@ -1,7 +1,8 @@
 # Build outputs and local notes stay out of the repository.
 /orbis-java-app/build/
 /orbis-java-app/build-*/
-/graphics-probe/build/
+/graphics-probe/build
+/graphics-probe/build-*/
 /graphics-probe/results/
 __pycache__/
 

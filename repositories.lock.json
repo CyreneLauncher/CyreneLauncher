@@ -57,7 +57,7 @@
     },
     "orbis-openjdk": {
       "directory": "orbis-openjdk",
-      "revision": "c9ca2f3601cabf47e56283391d6ca70f2a74c146",
+      "revision": "dd6e35fbf2401816b28943437c5d3e71cbb615f8",
       "url": "https://github.com/CyreneLauncher/orbis-openjdk.git"
     }
   },
