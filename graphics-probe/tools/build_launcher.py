@@ -14,6 +14,7 @@ import zipfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import launcher_secrets  # noqa: E402
 import lwjgl_sources  # noqa: E402
 import launcher_deps  # noqa: E402
 
@@ -101,4 +102,10 @@ with zipfile.ZipFile(jar, 'w', zipfile.ZIP_DEFLATED) as archive:
                 merged += 1
     archive.write(ROOT / 'launcher/legal/twelvemonkeys-LICENSE.txt', 'META-INF/licenses/twelvemonkeys-LICENSE.txt')
     archive.write(ROOT / 'launcher/twelvemonkeys.lock.json', 'META-INF/twelvemonkeys.lock.json')
+    # The Microsoft application ID: ORBIS_MSA_CLIENT_ID or the untracked secrets.env, never the sources.
+    secret = launcher_secrets.resource()
+    if secret:
+        archive.writestr(*secret)
+    else:
+        print('launcher: no ORBIS_MSA_CLIENT_ID; sign-in reads microsoft-auth.properties (development build)')
 print(f'launcher: {jar.name}, {sum(1 for _ in classes.rglob("*.class"))} classes, {merged} TwelveMonkeys classes')

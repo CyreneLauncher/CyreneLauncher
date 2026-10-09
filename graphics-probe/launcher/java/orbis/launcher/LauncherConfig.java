@@ -86,7 +86,10 @@ final class LauncherConfig {
                 ? Files.readAllLines(runnerRoot.resolve("app-args.txt"), StandardCharsets.UTF_8) : List.of();
         for (int i = 0; i + 1 < arguments.size(); i++)
             if (arguments.get(i).trim().equals("--assetsDir")) assets = Path.of(arguments.get(i + 1).trim());
-        versions = new VersionStore(home, libraries, assets, metadata);
+        versions = new VersionStore(home, libraries, assets, metadata, () -> {
+            if (!new AccountStore(home, runnerRoot).hasOwnedMinecraft())
+                throw new IOException(AccountStore.OWNERSHIP_REQUIRED);
+        });
         instances = new InstanceStore(home, gameDir, metadata, versions.versionsRoot(), heapMib, arenaMib, launcherOnly);
         instances.load();
         use(instances.selected());

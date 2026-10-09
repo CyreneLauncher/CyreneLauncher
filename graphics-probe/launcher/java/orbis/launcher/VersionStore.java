@@ -109,16 +109,23 @@ final class VersionStore {
     private static final Pattern PROFILE_ID = Pattern.compile("[A-Za-z0-9._+-]{1,96}");
     private static final Pattern HASH = Pattern.compile("[0-9a-f]{40}");
 
-    private final Path versionsRoot, libraries, assets, builtInProfile;
+    /** Refuses a game download unless a Minecraft owner has signed in. */
+    interface Ownership { void require() throws IOException; }
 
-    VersionStore(Path launcherHome, Path libraries, Path assets, Path builtInProfile) {
+    private final Path versionsRoot, libraries, assets, builtInProfile;
+    private final Ownership ownership;
+
+    VersionStore(Path launcherHome, Path libraries, Path assets, Path builtInProfile, Ownership ownership) {
         this.versionsRoot = launcherHome.toAbsolutePath().normalize().resolve("versions");
         this.libraries = libraries.toAbsolutePath().normalize();
         this.assets = assets.toAbsolutePath().normalize();
         this.builtInProfile = builtInProfile.toAbsolutePath().normalize();
+        this.ownership = ownership;
     }
 
     Path versionsRoot() { return versionsRoot; }
+    /** Where install() puts asset indexes and objects; the game must be given the same --assetsDir. */
+    Path assets() { return assets; }
 
     // ------------------------------------------------------------------ catalog
 
@@ -230,6 +237,7 @@ final class VersionStore {
     /** Host checks skip the assets (hundreds of MiB); the console always downloads them. */
     Installed install(GameVersion version, Loader loader, InstanceStore.Operation op, boolean withAssets)
             throws IOException {
+        ownership.require();
         op.progress("Reading Minecraft " + version.id() + "...");
         JsonObject vanilla = json(verified(version.url(), version.sha1(), -1, MAX_JSON));
         String loaderVersion = latestLoader(loader, version.id());

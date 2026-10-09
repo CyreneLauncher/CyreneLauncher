@@ -1,6 +1,7 @@
 package orbis.launcher;
 
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
@@ -9,18 +10,23 @@ import java.util.Set;
 final class LaunchArguments {
     private static final Set<String> MANAGED = Set.of("--username", "--uuid", "--accessToken", "--userType",
             "--xuid", "--clientId", "--gameDir", "--userProperties");
-    /** Replaced only for a downloaded version; the built-in runtime keeps the configured values. */
-    private static final Set<String> VERSION = Set.of("--version", "--assetIndex", "--versionType");
+    /**
+     * Replaced only for a downloaded version; the built-in runtime keeps the configured values. The
+     * installed PKG has no app-args.txt, so without --assetsDir the game looked in its own empty
+     * gameDir/assets instead of where VersionStore downloaded them.
+     */
+    private static final Set<String> VERSION = Set.of("--version", "--assetIndex", "--versionType", "--assetsDir");
 
     private LaunchArguments() {}
 
     static String[] build(String[] existing, InstanceStore.Instance instance, AccountStore.Session session)
             throws IOException {
-        return build(existing, instance, session, null);
+        return build(existing, instance, session, null, null);
     }
 
     static String[] build(String[] existing, InstanceStore.Instance instance, AccountStore.Session session,
-                          VersionStore.Installed version) throws IOException {
+                          VersionStore.Installed version, Path assetsDir) throws IOException {
+        if (version != null && assetsDir == null) throw new IOException("A downloaded version needs its assets directory");
         List<String> args = new ArrayList<>();
         for (int i = 0; i < existing.length; i++) {
             String value = existing[i];
@@ -43,6 +49,7 @@ final class LaunchArguments {
         if (!session.clientId().isEmpty()) add(args, "--clientId", session.clientId());
         if (version != null) {
             add(args, "--version", version.id());
+            add(args, "--assetsDir", assetsDir.toString());
             add(args, "--assetIndex", version.assetIndex());
             add(args, "--versionType", version.versionType());
         }

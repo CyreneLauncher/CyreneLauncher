@@ -315,14 +315,35 @@ final class MicrosoftAuthClient {
         return false;
     }
 
+    /** Written by graphics-probe/tools/launcher_secrets.py at build time; absent in development builds. */
+    private static final String EMBEDDED = "msa-client.bin";
+    private static final byte[] KEY = {0x5f, 0x1c, (byte) 0xa7, (byte) 0xe2, 0x09, 0x3b, (byte) 0xd4, 0x71,
+            (byte) 0x8e, 0x26, (byte) 0xc0, 0x5b, (byte) 0xa4, (byte) 0xf3, 0x19, 0x6d};
+    private static final String GUID = "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}";
+
+    /** The application ID built into the launcher, or null when this build has none. */
+    static String embeddedClientId() {
+        try (java.io.InputStream in = MicrosoftAuthClient.class.getResourceAsStream(EMBEDDED)) {
+            if (in == null) return null;
+            byte[] data = in.readNBytes(64);
+            for (int i = 0; i < data.length; i++) data[i] ^= (byte) (KEY[i % KEY.length] ^ (i * 31));
+            String id = new String(data, java.nio.charset.StandardCharsets.US_ASCII);
+            return id.matches(GUID) ? id : null;
+        } catch (IOException failure) {
+            return null;
+        }
+    }
+
     private String clientId() throws AuthException {
+        String embedded = embeddedClientId();
+        if (embedded != null) return embedded;
         try {
             Properties values = new Properties();
             values.load(new java.io.ByteArrayInputStream(LauncherFiles.read(configuration, 8192)));
             if (values.containsKey("client_secret")) throw error(Category.CONFIGURATION, "configuration", 0,
                     "Remove client_secret from microsoft-auth.properties; device sign-in uses a public client.");
             String id = values.getProperty("client_id", "").strip();
-            if (!id.matches("[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"))
+            if (!id.matches(GUID))
                 throw error(Category.CONFIGURATION, "configuration", 0,
                     "Set client_id in launcher/microsoft-auth.properties to your Microsoft public app ID.");
             return id;

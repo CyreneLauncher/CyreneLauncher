@@ -48,6 +48,30 @@ and replaces the generated stage only after verification. It does not download
 games, rebuild native ports, deploy to the console, or delete user data.
 Changing a runtime export requires an intentional inventory update and testing.
 
+## Versions and updates
+
+Releases use the console's `XX.YY` application version: 01.00 is the baseline, then 01.01 and on.
+`VERSION` in `orbis-java-app/Makefile` sets both `param.sfo` and the runner's reported version.
+Every release is a complete PKG with the same content ID, so a newer one installs over the older one.
+PS4 patch packages (`pkg_ps4_patch`) are not possible with this toolchain: LibOrbisPkg rejects that
+volume type, and its patch content flags are unfinished.
+
+## Build secrets
+
+Release launchers embed the Microsoft application (client) ID. It is never committed: put it in the
+untracked `secrets.env` (copy `secrets.env.example`), or in CI set `ORBIS_MSA_CLIENT_ID` from a
+repository secret, for example in a GitHub Actions step:
+
+```yaml
+env:
+  ORBIS_MSA_CLIENT_ID: ${{ secrets.ORBIS_MSA_CLIENT_ID }}
+```
+
+`graphics-probe/tools/build_launcher.py` encodes it into `orbis-launcher.jar`. A build without it
+falls back to `/data/orbis-jdk/launcher/microsoft-auth.properties`. The encoding only prevents
+casual discovery; a public client ID is visible in every sign-in request. Keep a private copy of
+`secrets.env`: the repository bundles in `orbis-port-backups` do not include untracked files.
+
 ## Console acceptance and upgrade
 
 Host verification does not establish console compatibility. Test a fresh data

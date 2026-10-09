@@ -21,6 +21,8 @@ import com.google.gson.JsonParser;
 /** Account metadata is separate from the locally stored Microsoft refresh credentials. */
 final class AccountStore {
     static final String OFFLINE_ID = "offline";
+    static final String OWNERSHIP_REQUIRED =
+            "Sign in once with a Microsoft account that owns Minecraft: Java Edition to install Minecraft.";
     private static final int SCHEMA = 1;
     private static final int MAX_METADATA = 65536;
     private static final int MAX_CREDENTIAL = 16384;
@@ -60,6 +62,10 @@ final class AccountStore {
     }
 
     synchronized List<Account> list() { return List.copyOf(accounts); }
+    /** Microsoft accounts are saved only after Minecraft ownership was confirmed (MicrosoftAuthClient). */
+    synchronized boolean hasOwnedMinecraft() {
+        return accounts.stream().anyMatch(account -> "microsoft".equals(account.kind()));
+    }
     synchronized Account get(String id) {
         return accounts.stream().filter(account -> account.id().equals(id)).findFirst().orElse(null);
     }

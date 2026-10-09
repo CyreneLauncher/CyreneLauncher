@@ -54,7 +54,8 @@ public final class Launcher {
                     throw new java.io.IOException("Install and select a Minecraft version before playing");
                 if (version == null && !instance.runtimeProfile().equals(config.metadata.toAbsolutePath().normalize()))
                     throw new java.io.IOException("The instance's Minecraft version is no longer installed");
-                String[] gameArgs = LaunchArguments.build(base.toArray(String[]::new), instance, session, version);
+                String[] gameArgs = LaunchArguments.build(base.toArray(String[]::new), instance, session, version,
+                        config.versions.assets());
                 config.recordPlay(instance);
                 System.out.println("launcher: starting instance " + instance.id() + " ("
                         + config.describe(instance) + ")");

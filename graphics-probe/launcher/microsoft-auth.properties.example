@@ -1,3 +1,5 @@
+# Development builds only: release builds embed the application ID from ORBIS_MSA_CLIENT_ID
+# (secrets.env or a CI secret; see secrets.env.example) and ignore this file.
 # Copy to /data/orbis-jdk/launcher/microsoft-auth.properties on the console.
 # Register your own Microsoft public application that is approved for Minecraft/Xbox access.
 # Configure it for personal Microsoft accounts and enable public client/device code flows.

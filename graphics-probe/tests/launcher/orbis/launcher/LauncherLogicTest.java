@@ -27,6 +27,7 @@ public final class LauncherLogicTest {
         lwjglUpgrade();
         runtimeSelection();
         installedBootstrap();
+        ownershipAndAssets();
         consoleModSettings();
         scroller();
         packRules();
@@ -117,7 +118,8 @@ public final class LauncherLogicTest {
         String jars = System.getenv("ORBIS_LWJGL_JARS");
         Path root = Files.createTempDirectory("lwjgl-upgrade");
         Path libraries = Files.createDirectories(root.resolve("libraries"));
-        VersionStore store = new VersionStore(root.resolve("home"), libraries, root.resolve("assets"), root.resolve("x.json"));
+        VersionStore store = new VersionStore(root.resolve("home"), libraries, root.resolve("assets"), root.resolve("x.json"),
+                () -> { });
         Path dir = Files.createDirectories(store.versionsRoot().resolve("1.20.1-vanilla"));
         String profile = "{\"libraries\":[{\"name\":\"com.mojang:brigadier:1.1.8\"},{\"name\":\"org.lwjgl:lwjgl:3.2.2\"},"
                 + "{\"name\":\"org.lwjgl:lwjgl:3.2.2:natives-linux\"},{\"name\":\"org.lwjgl:lwjgl-glfw:3.2.2\"},"
@@ -240,6 +242,38 @@ public final class LauncherLogicTest {
         Files.write(home.resolve("lib/server/libjvm.prx"), new byte[]{1});
         Files.writeString(home.resolve("release"), "JAVA_VERSION=\"" + version + "\"\nMODULES=\"java.base\"\n");
         return home;
+    }
+
+    /** Game downloads need a signed-in owner; a downloaded version is told where its assets are. */
+    private static void ownershipAndAssets() throws IOException {
+        Path root = Files.createTempDirectory("ownership");
+        VersionStore refusing = new VersionStore(root.resolve("home"), root.resolve("libraries"), root.resolve("assets"),
+                root.resolve("x.json"), () -> { throw new IOException(AccountStore.OWNERSHIP_REQUIRED); });
+        try {
+            refusing.install(new VersionStore.GameVersion("1.20.4", "https://example.invalid/1.20.4", "0"),
+                    VersionStore.Loader.VANILLA, new InstanceStore.Operation(), false);
+            check(false, "an install without a Minecraft owner is refused");
+        } catch (IOException refused) {
+            check(AccountStore.OWNERSHIP_REQUIRED.equals(refused.getMessage()),
+                    "refused before any download: " + refused.getMessage());
+        }
+        AccountStore accounts = new AccountStore(root.resolve("home"), Files.createDirectories(root.resolve("runner")));
+        check(!accounts.hasOwnedMinecraft(), "the offline account does not unlock installs");
+        accounts.putMicrosoft("0123456789abcdef0123456789abcdef", "Tester", "00000000-0000-0000-0000-000000000000",
+                "refresh");
+        check(accounts.hasOwnedMinecraft(), "a saved Microsoft account unlocks installs");
+
+        InstanceStore.Instance instance = new InstanceStore.Instance("i", "I", root.resolve("game"), root.resolve("x.json"),
+                "", 1024, 0, false);
+        String[] configured = {"--assetsDir", "/elsewhere", "--width", "854"};
+        List<String> built = List.of(LaunchArguments.build(configured, instance, accounts.offlineSession(),
+                installed("1.20.4", 17), root.resolve("assets")));
+        check(built.indexOf("--assetsDir") >= 0 && built.lastIndexOf("--assetsDir") == built.indexOf("--assetsDir")
+                && built.get(built.indexOf("--assetsDir") + 1).equals(root.resolve("assets").toString()),
+                "a downloaded version uses the launcher's asset directory: " + built);
+        check(built.contains("--width"), "unrelated arguments are kept");
+        List<String> builtIn = List.of(LaunchArguments.build(configured, instance, accounts.offlineSession()));
+        check(builtIn.get(builtIn.indexOf("--assetsDir") + 1).equals("/elsewhere"), "the built-in profile keeps its own");
     }
 
     private static VersionStore.Installed installed(String minecraft, int required) {
