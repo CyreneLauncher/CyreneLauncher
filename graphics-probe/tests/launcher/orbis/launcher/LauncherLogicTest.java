@@ -258,21 +258,50 @@ public final class LauncherLogicTest {
                     "refused before any download: " + refused.getMessage());
         }
         AccountStore accounts = new AccountStore(root.resolve("home"), Files.createDirectories(root.resolve("runner")));
-        check(!accounts.hasOwnedMinecraft(), "the offline account does not unlock installs");
+        check(accounts.list().isEmpty(), "a fresh launcher does not create a user");
+        check(accounts.defaultAccount() == null, "a fresh launcher has no default account");
+        check(!accounts.hasOwnedMinecraft(), "a fresh launcher asks for an account before installing");
+        try {
+            accounts.putMicrosoft("ffffffffffffffffffffffffffffffff", "TooLarge", "client", "x".repeat(20000));
+            check(false, "oversized credentials must be rejected");
+        } catch (IOException rejected) {
+            check(accounts.list().isEmpty() && accounts.defaultAccount() == null,
+                    "rejected credentials leave no in-memory user or default");
+        }
         accounts.putMicrosoft("0123456789abcdef0123456789abcdef", "Tester", "00000000-0000-0000-0000-000000000000",
                 "refresh");
         check(accounts.hasOwnedMinecraft(), "a saved Microsoft account unlocks installs");
+        check(accounts.defaultAccount().username().equals("Tester"), "the first own account becomes default");
+        AccountStore reopened = new AccountStore(root.resolve("home"), root.resolve("runner"));
+        check(reopened.list().size() == 1, "reopening retains only the user account");
+        Path savedAccounts = root.resolve("home/accounts/accounts.json");
+        com.google.gson.JsonObject legacy = com.google.gson.JsonParser.parseString(Files.readString(savedAccounts)).getAsJsonObject();
+        com.google.gson.JsonObject seeded = new com.google.gson.JsonObject();
+        seeded.addProperty("id", "offline");
+        seeded.addProperty("kind", "offline");
+        seeded.addProperty("username", "OrbisOffline");
+        seeded.addProperty("uuid", "00000000000000000000000000000000");
+        legacy.getAsJsonArray("accounts").add(seeded);
+        legacy.addProperty("defaultId", "offline");
+        Files.writeString(savedAccounts, legacy.toString());
+        reopened = new AccountStore(root.resolve("home"), root.resolve("runner"));
+        check(reopened.list().size() == 1 && reopened.defaultAccount().username().equals("Tester"),
+                "migration removes the seeded user and preserves the user's own account");
+        check(!Files.readString(savedAccounts).contains("OrbisOffline"), "the seeded user is removed from metadata");
+        reopened.remove(reopened.defaultAccountId());
+        check(reopened.list().isEmpty() && reopened.defaultAccount() == null,
+                "signing out the last account does not generate a replacement user");
 
         InstanceStore.Instance instance = new InstanceStore.Instance("i", "I", root.resolve("game"), root.resolve("x.json"),
                 "", 1024, 0, false);
         String[] configured = {"--assetsDir", "/elsewhere", "--width", "854"};
-        List<String> built = List.of(LaunchArguments.build(configured, instance, accounts.offlineSession(),
+        List<String> built = List.of(LaunchArguments.build(configured, instance, new AccountStore.Session("Tester", "0123456789abcdef0123456789abcdef", "token", "msa", "", ""),
                 installed("1.20.4", 17), root.resolve("assets")));
         check(built.indexOf("--assetsDir") >= 0 && built.lastIndexOf("--assetsDir") == built.indexOf("--assetsDir")
                 && built.get(built.indexOf("--assetsDir") + 1).equals(root.resolve("assets").toString()),
                 "a downloaded version uses the launcher's asset directory: " + built);
         check(built.contains("--width"), "unrelated arguments are kept");
-        List<String> builtIn = List.of(LaunchArguments.build(configured, instance, accounts.offlineSession()));
+        List<String> builtIn = List.of(LaunchArguments.build(configured, instance, new AccountStore.Session("Tester", "0123456789abcdef0123456789abcdef", "token", "msa", "", "")));
         check(builtIn.get(builtIn.indexOf("--assetsDir") + 1).equals("/elsewhere"), "the built-in profile keeps its own");
     }
 
@@ -803,7 +832,7 @@ public final class LauncherLogicTest {
         screen.apply("", List.of(Input.Action.FOCUS, Input.Action.CONFIRM));
         for (long deadline = System.nanoTime() + 5_000_000_000L; screen.applyResults(); Thread.sleep(1))
             if (System.nanoTime() > deadline) throw new AssertionError("Play did not finish");
-        check(screen.relaunches == 1, "direct Play reaches the restart");
+        check(screen.relaunches == 0, "Play waits for the user's own valid sign-in");
         check(conf.equals(Files.readString(runner.resolve("runner.conf"))), "failed restart restores runner.conf");
         check(options.equals(Files.readString(runner.resolve("jvm-options.txt"))), "failed restart restores jvm-options");
         check(!Files.exists(config.home.resolve("next-start")), "failed restart leaves no pending launch");

@@ -38,7 +38,7 @@ class LauncherScreen {
     private enum Tab { DESCRIPTION, GALLERY, VERSIONS }
     private enum Zone { ACTIONS, TABS, CONTENT }
     private enum Focus { LIST, DETAIL }
-    private enum Field { SEARCH, INSTANCE_NAME, OFFLINE_NAME }
+    private enum Field { SEARCH, INSTANCE_NAME }
     private enum NameMode { CREATE, CLONE, RENAME }
 
     private final LauncherConfig config;
@@ -377,7 +377,6 @@ class LauncherScreen {
     private void beginEdit(Field field, Input.Source source) {
         editingField = field;
         String initial = field == Field.SEARCH ? query.toString()
-                : field == Field.OFFLINE_NAME ? offlineName()
                 : nameMode == NameMode.RENAME ? config.instances.get(nameTargetId).name()
                 : nameMode == NameMode.CLONE ? config.instances.get(nameTargetId).name() + " Copy"
                 : pendingVersion != null ? pendingLoader.title + " " + pendingVersion.id()
@@ -386,7 +385,6 @@ class LauncherScreen {
         input.releaseBarrier();
         if (source == Input.Source.CONTROLLER) {
             systemKeyboardOpen = field == Field.SEARCH ? beginSystemKeyboard("Search mods", 100)
-                    : field == Field.OFFLINE_NAME ? beginSystemKeyboard("Offline player name", 16)
                     : beginSystemKeyboard("Instance name", 80);
             if (!systemKeyboardOpen) setStatus("System keyboard unavailable. Use a physical keyboard to edit.", WARN);
         }
@@ -458,15 +456,6 @@ class LauncherScreen {
             query.setLength(0);
             query.append(value);
             if (accepted) search(true);
-        } else if (editingField == Field.OFFLINE_NAME) {
-            if (accepted) {
-                try {
-                    accounts().renameOffline(value.strip());
-                    setStatus("Offline name is now " + offlineName() + ".", ACCENT);
-                } catch (IOException | IllegalArgumentException failure) {
-                    setStatus("Cannot use that name: " + failure.getMessage(), ERROR);
-                }
-            }
         } else if (accepted) {
             try {
                 if (nameMode == NameMode.RENAME) {
@@ -1049,17 +1038,11 @@ class LauncherScreen {
         catch (IOException failure) { return List.of(); }
     }
 
-    private String offlineName() {
-        try { return accounts().get(AccountStore.OFFLINE_ID).username(); }
-        catch (IOException failure) { return "Player"; }
-    }
-
     private String accountName(String id) {
-        if (id == null || id.isEmpty()) return "Default";
+        if (id == null || id.isEmpty()) return "Add your own account";
         try {
             AccountStore.Account account = accounts().get(id);
-            return account == null ? "Missing account" : account.username()
-                    + (AccountStore.OFFLINE_ID.equals(id) ? " (offline)" : "");
+            return account == null ? "Add your own account" : account.username();
         } catch (IOException failure) { return "Unavailable"; }
     }
 
@@ -1081,8 +1064,8 @@ class LauncherScreen {
         List<AccountStore.Account> list = accountList();
         if (selected >= list.size()) return;
         AccountStore.Account account = list.get(selected);
-        if (AccountStore.OFFLINE_ID.equals(account.id())) beginEdit(Field.OFFLINE_NAME, source);
-        else { accountRemovePending = account.id(); removeConfirmed = false; }
+        accountRemovePending = account.id();
+        removeConfirmed = false;
     }
 
     /** Follow default, then each account in turn; the choice is saved with the instance. */
@@ -1920,7 +1903,7 @@ class LauncherScreen {
         for (AccountStore.Account account : accountList()) {
             boolean isDefault = account.id().equals(defaultId);
             rows.add((isDefault ? "* " : "  ") + account.username()
-                    + (AccountStore.OFFLINE_ID.equals(account.id()) ? "   (offline)" : "   (Microsoft)")
+                    + "   (Microsoft)"
                     + (isDefault ? "   default" : ""));
             colors.add(TEXT);
         }

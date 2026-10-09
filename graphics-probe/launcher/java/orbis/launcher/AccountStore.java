@@ -11,7 +11,6 @@ import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
-import java.util.UUID;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
@@ -22,7 +21,7 @@ import com.google.gson.JsonParser;
 final class AccountStore {
     static final String OFFLINE_ID = "offline";
     static final String OWNERSHIP_REQUIRED =
-            "Sign in once with a Microsoft account that owns Minecraft: Java Edition to install Minecraft.";
+            "Create or sign in to your own Microsoft account that owns Minecraft: Java Edition before installing.";
     private static final int SCHEMA = 1;
     private static final int MAX_METADATA = 65536;
     private static final int MAX_CREDENTIAL = 16384;
@@ -41,16 +40,14 @@ final class AccountStore {
     private final Path metadata;
     private final Path credentials;
     private final Path pending;
-    private final Path runnerRoot;
     private final List<Account> accounts = new ArrayList<>();
-    private String defaultId = OFFLINE_ID;
+    private String defaultId = "";
 
     AccountStore(Path home, Path runnerRoot) throws IOException {
         this.root = home.toAbsolutePath().normalize().resolve("accounts");
         this.metadata = root.resolve("accounts.json");
         this.credentials = root.resolve("credentials");
         this.pending = credentials.resolve("pending-account.json");
-        this.runnerRoot = runnerRoot.toAbsolutePath().normalize();
         LauncherFiles.rejectSymlinks(root);
         LauncherFiles.rejectSymlinks(credentials);
         Files.createDirectories(root);
@@ -75,7 +72,7 @@ final class AccountStore {
     synchronized Account resolveAccount(String instanceOverride) throws IOException {
         String id = instanceOverride == null || instanceOverride.isBlank() ? defaultId : instanceOverride;
         Account account = get(id);
-        if (account == null) throw new IOException("The selected account no longer exists");
+        if (account == null) throw new IOException(OWNERSHIP_REQUIRED);
         return account;
     }
 
@@ -88,43 +85,32 @@ final class AccountStore {
         return account;
     }
 
-    synchronized Account renameOffline(String name) throws IOException {
-        String username = validUsername(name);
-        Account previous = get(OFFLINE_ID);
-        Account changed = offline(username);
-        int index = accounts.indexOf(previous);
-        accounts.set(index, changed);
-        try { save(); } catch (IOException failure) { accounts.set(index, previous); throw failure; }
-        return changed;
-    }
-
-    synchronized Session offlineSession() {
-        Account account = get(OFFLINE_ID);
-        return new Session(account.username(), account.uuid(), "0", "legacy", "", "");
-    }
-
     synchronized void putMicrosoft(String uuid, String username, String clientId, String refreshToken)
             throws IOException {
         String id = compactUuid(uuid);
         String cleanName = validUsername(username);
         if (clientId == null || clientId.isBlank() || refreshToken == null || refreshToken.isBlank())
             throw new IOException("Incomplete account credentials");
+        byte[] newCredential = credentialBytes(id, new Credential(clientId, refreshToken));
         Account account = new Account(id, "microsoft", cleanName, id);
         Account previous = get(id);
         byte[] oldCredential = previous == null ? null : existingCredentialBytes(id);
         if (previous != null) accounts.remove(previous);
         accounts.add(account);
+        String previousDefault = defaultId;
+        if (get(defaultId) == null) defaultId = id;
         byte[] newMetadata;
         try { newMetadata = metadataBytes(); }
         catch (IOException failure) {
+            defaultId = previousDefault;
             accounts.remove(account);
             if (previous != null) accounts.add(previous);
             throw failure;
         }
-        byte[] newCredential = credentialBytes(id, new Credential(clientId, refreshToken));
         // The private pending record permits crash recovery between the two atomic replacements.
         try { writePending(id, oldCredential, newCredential, newMetadata); }
         catch (IOException failure) {
+            defaultId = previousDefault;
             accounts.remove(account);
             if (previous != null) accounts.add(previous);
             throw failure;
@@ -134,6 +120,7 @@ final class AccountStore {
             LauncherFiles.write(metadata, newMetadata, false);
         } catch (IOException failure) {
             if (!metadataMatches(newMetadata)) {
+                defaultId = previousDefault;
                 accounts.remove(account);
                 if (previous != null) accounts.add(previous);
                 try { restoreCredentialIfCurrent(id, oldCredential, newCredential); }
@@ -185,13 +172,12 @@ final class AccountStore {
     }
 
     synchronized void remove(String id) throws IOException {
-        if (OFFLINE_ID.equals(id)) throw new IOException("The offline account is required");
         Account old = requireMicrosoft(id);
         // Sign-out revokes local use first, even if metadata persistence subsequently fails.
         clearCredential(id);
         accounts.remove(old);
         String previous = defaultId;
-        if (id.equals(defaultId)) defaultId = OFFLINE_ID;
+        if (id.equals(defaultId)) defaultId = accounts.isEmpty() ? "" : accounts.get(0).id();
         try { save(); }
         catch (IOException failure) {
             accounts.add(old);
@@ -214,33 +200,19 @@ final class AccountStore {
                     String kind = entry.get("kind").getAsString();
                     String name = validUsername(entry.get("username").getAsString());
                     String uuid = entry.get("uuid").getAsString();
-                    if (OFFLINE_ID.equals(id) && "offline".equals(kind)) accounts.add(offline(name));
+                    if (OFFLINE_ID.equals(id) && "offline".equals(kind)) continue;
                     else if ("microsoft".equals(kind) && id.equals(compactUuid(uuid)))
                         accounts.add(new Account(id, kind, name, id));
                     else throw new IOException("Invalid saved account");
                 }
-                if (accounts.stream().filter(a -> a.id().equals(OFFLINE_ID)).count() != 1
-                        || accounts.stream().map(Account::id).distinct().count() != accounts.size())
+                if (accounts.stream().map(Account::id).distinct().count() != accounts.size())
                     throw new IOException("Invalid saved account list");
-                if (get(defaultId) == null) defaultId = OFFLINE_ID;
+                if (get(defaultId) == null) defaultId = accounts.isEmpty() ? "" : accounts.get(0).id();
+                save();
                 return;
             } catch (RuntimeException failure) { throw new IOException("Saved account metadata is invalid"); }
         }
-        accounts.add(offline(migratedUsername()));
         save();
-    }
-
-    private String migratedUsername() {
-        Path args = runnerRoot.resolve("app-args.txt");
-        try {
-            String text = new String(LauncherFiles.read(args, 65536), StandardCharsets.UTF_8);
-            List<String> values = new ArrayList<>();
-            for (String line : text.split("\\R"))
-                if (!line.isEmpty() && !line.startsWith("#")) values.add(line);
-            for (int i = 0; i + 1 < values.size(); i++)
-                if ("--username".equals(values.get(i))) return validUsername(values.get(i + 1));
-        } catch (IOException | IllegalArgumentException ignored) { /* first-run fallback */ }
-        return "OrbisOffline";
     }
 
     private void save() throws IOException {
@@ -360,12 +332,6 @@ final class AccountStore {
         Account account = get(id);
         if (account == null || !"microsoft".equals(account.kind())) throw new IOException("Unknown Microsoft account");
         return account;
-    }
-
-    private static Account offline(String username) {
-        String uuid = UUID.nameUUIDFromBytes(("OfflinePlayer:" + username).getBytes(StandardCharsets.UTF_8))
-                .toString().replace("-", "");
-        return new Account(OFFLINE_ID, "offline", username, uuid);
     }
 
     static String compactUuid(String value) throws IOException {
