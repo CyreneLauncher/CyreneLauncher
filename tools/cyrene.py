@@ -83,10 +83,20 @@ class Runner:
         print('  log: '+str(path), flush=True)
         with path.open('a') as output:
             output.write('\n$ '+shlex.join(map(str,args))+'\n'); output.flush()
-            result = subprocess.run(list(map(str,args)), cwd=cwd, env=env, stdout=output, stderr=subprocess.STDOUT)
-        if result.returncode:
+            if os.environ.get('GITHUB_ACTIONS') == 'true':
+                with subprocess.Popen(list(map(str,args)), cwd=cwd, env=env,
+                                      stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                                      text=True, encoding='utf-8', errors='replace') as process:
+                    for line in process.stdout:
+                        output.write(line)
+                        output.flush()
+                        print(line, end='', flush=True)
+                    code = process.wait()
+            else:
+                code = subprocess.run(list(map(str,args)), cwd=cwd, env=env, stdout=output, stderr=subprocess.STDOUT).returncode
+        if code:
             tail = '\n'.join(path.read_text(errors='replace').splitlines()[-25:])
-            raise RuntimeError(f'{name} failed ({result.returncode}); see {path}\n{tail}')
+            raise RuntimeError(f'{name} failed ({code}); see {path}\n{tail}')
 
 
 def script(runner, name, path, *args, **kwargs):

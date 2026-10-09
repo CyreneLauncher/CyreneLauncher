@@ -60,7 +60,7 @@ Both workflows run on **GitHub-hosted Ubuntu 24.04**. No self-hosted runner, loc
 
 `Build Cyrene Launcher` provisions LLVM 18, pinned Temurin host JDKs, .NET 8, OpenOrbis v0.5.4 and payload SDK v0.9. SDK archive SHA-256 values and the accepted OpenOrbis ABI files are checked before compilation. The PKG CLI is built from pinned OpenOrbis/LibOrbisPkg source. These upstream SDKs match the installed build inputs; no custom SDK fork is needed.
 
-Three matrix jobs build and audit JDK 17, 21 and 25. A parallel assets job builds native radeonsi/RADV, LWJGL, OpenAL, SDL, the launcher and desktop support. The package job downloads their compressed artifacts, verifies hashes, file inventories and source/SDK provenance, then assembles and validates the PKG. Tar archives preserve executable permissions across Actions artifact transfers. All jobs save their build logs.
+Three matrix jobs build and audit JDK 17, 21 and 25. A parallel assets job builds native radeonsi/RADV, LWJGL, OpenAL, SDL, the launcher and desktop support. The package job downloads their compressed artifacts, verifies hashes, file inventories and source/SDK provenance, then assembles and validates the PKG. Tar archives preserve executable permissions across Actions artifact transfers. All jobs save their build logs, including nested compiler diagnostics. The CLI streams compiler output live when running in Actions.
 
 Run a complete build from the GitHub **Actions → Build Cyrene Launcher → Run workflow** page, or use:
 

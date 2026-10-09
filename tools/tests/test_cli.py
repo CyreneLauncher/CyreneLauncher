@@ -1,5 +1,7 @@
 import importlib.util
 import io
+import contextlib
+import os
 import json
 import tarfile
 import subprocess
@@ -96,6 +98,18 @@ class CliTests(unittest.TestCase):
     def test_recorded_inventory_rejects_escape(self):
         with tempfile.TemporaryDirectory() as d:
             with self.assertRaises(ValueError):cli.verify_inventories(Path(d),{'../escape':{}})
+    def test_ci_runner_streams_and_retains_compiler_output(self):
+        with tempfile.TemporaryDirectory() as directory:
+            runner=cli.Runner(Path(directory))
+            display=io.StringIO()
+            source=Path(directory)/'compiler.py'
+            source.write_text("import sys; print('compiled module'); print('compiler warning', file=sys.stderr)")
+            with patch.dict(os.environ,{'GITHUB_ACTIONS':'true'}), contextlib.redirect_stdout(display):
+                runner.run('compiler',['python3',str(source)])
+            for text in ('compiled module','compiler warning'):
+                self.assertIn(text,display.getvalue())
+                self.assertIn(text,(Path(directory)/'compiler.log').read_text())
+
     def test_failed_stage_is_not_recorded(self):
         with tempfile.TemporaryDirectory() as d:
             runner=cli.Runner(Path(d))

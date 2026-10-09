@@ -19,4 +19,6 @@
 
 SDK content hashes must match the accepted ABI. Artifacts must retain executable permissions. Matrix artifacts must not overwrite each other. Packaging must reject modified or mismatched exports. Hosted steps must not use local SDK/cache paths.
 
-Verified: 18 orchestration tests pass; actionlint v1.7.12 passes; real JDK17 transfer preserves mode/content and passes runtime provenance checks. Stock SDK provisioning and source PKG build/SFO commands pass locally. Independent review found no critical/important findings. Hosted end-to-end verification remains pending.
+Verified: 20 orchestration tests pass; actionlint v1.7.12 passes; real JDK17 transfer preserves mode/content and passes runtime provenance checks. Stock SDK provisioning and source PKG build/SFO commands pass locally. Independent review found no critical/important findings. Hosted end-to-end verification remains pending.
+
+Hosted probes corrected exact Adoptium LTS identifiers, the SDK’s absolute LLVM_CONFIG requirement, and Mesa’s required glslangValidator host program. Nested build diagnostics are collected and the CLI streams CI compiler output. The final full PKG run remains under verification.
