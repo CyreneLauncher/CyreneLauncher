@@ -67,4 +67,8 @@ public final class NativePlatform {
     public static int nImePoll() { return imeStatus; }
     public static String nImeResult() { return ""; }
     public static int nImeCancel() { return 0; }
+    public static int browserOpenResult = -1, browserStatus = 0;
+    public static String browserUrl;
+    public static int nBrowserOpen(String url) { browserUrl = url; return browserOpenResult; }
+    public static int nBrowserPoll() { return browserStatus; }
 }

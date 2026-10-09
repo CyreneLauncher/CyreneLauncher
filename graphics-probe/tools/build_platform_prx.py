@@ -88,7 +88,7 @@ def link_platform(mal_offset=0):
     orbis_prx.link(tools, script, runtime, elf,
                    [bridge, *heap_objects, '--start-group', egl, gallium, '--whole-archive', radv, '--no-whole-archive', zlib,
                     '--end-group', '--whole-archive', compat_archive, '--no-whole-archive', *libc16],
-                   system_libraries=('SceGnmDriver', 'SceVideoOut', 'ScePad', 'SceUserService', 'SceSystemService', 'SceSysmodule', 'SceImeDialog', 'SceCommonDialog'),
+                   system_libraries=('SceGnmDriver', 'SceVideoOut', 'ScePad', 'SceUserService', 'SceSystemService', 'SceSysmodule', 'SceImeDialog', 'SceCommonDialog', 'SceWebBrowserDialog'),
                    # Mesa's thread creation passes through the bridge's diagnostic wrapper.
                    extra=('--allow-multiple-definition', '--wrap=pthread_create', *heap_wraps, *defsym), why_extract=why)
 
@@ -113,8 +113,8 @@ wchar = orbis_prx.run('sh', kit / 'scripts/ps4/check-wchar-link.sh', why, stdout
 
 audit, natives = orbis_prx.audit(elf, allowed_needed=('libkernel.so', 'libSceGnmDriver.so', 'libSceVideoOut.so', 'libScePad.so',
                                                  'libSceUserService.so', 'libSceSystemService.so', 'libSceSysmodule.so',
-                                                 'libSceImeDialog.so', 'libSceCommonDialog.so'),
-                                 jni_prefix='Java_orbis_graphics_NativePlatform_', jni_count=21)
+                                                 'libSceImeDialog.so', 'libSceCommonDialog.so', 'libSceWebBrowserDialog.so'),
+                                 jni_prefix='Java_orbis_graphics_NativePlatform_', jni_count=23)
 if audit['tls'] is None:
     raise SystemExit('platform PRX has no TLS image; Mesa TLS was expected')
 audit['jni_natives'] = natives

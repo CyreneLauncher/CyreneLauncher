@@ -246,7 +246,8 @@ modern34 = release.startswith('3.4')
 own = sorted(FACADE.rglob('*.java')) + (sorted(FACADE_34.rglob('*.java')) if modern34 else []) + [
     ROOT / 'lwjgl/java/orbis/graphics/NativePlatform.java',
                                       ROOT / 'lwjgl/java/orbis/graphics/TextInput.java',
-                                      ROOT / 'lwjgl/java/orbis/graphics/Gamepad.java']
+                                      ROOT / 'lwjgl/java/orbis/graphics/Gamepad.java',
+                                      ROOT / 'lwjgl/java/orbis/graphics/WebBrowser.java']
 # The official GLFW jar supplies the unchanged classes; the generated GLFW source overrides its GLFW.
 classpath = ':'.join(map(str, (core_jar, opengl_jar, glfw_jar, runner_classes)))
 
@@ -316,7 +317,7 @@ if platform_built is None or platform_built.exported_members() != official_platf
     problems.append(f'Platform shim exported members differ from lwjgl-{release}.jar')
 allowed = set(official) | {'org/lwjgl/system/Platform.class', 'orbis/graphics/NativePlatform.class',
                            'orbis/graphics/TextInput.class', 'orbis/graphics/Gamepad.class',
-                           'orbis/graphics/Gamepad$Source.class',
+                           'orbis/graphics/Gamepad$Source.class', 'orbis/graphics/WebBrowser.class',
                            'org/lwjgl/glfw/OrbisGLFW.class', 'org/lwjgl/glfw/OrbisGLFW$EglFunctionProvider.class',
                            'org/lwjgl/glfw/OrbisKeys.class', 'org/lwjgl/glfw/OrbisGLFW$JavaErrorCallback.class',
                            'org/lwjgl/glfw/OrbisGLFW$JavaMonitorCallback.class'}

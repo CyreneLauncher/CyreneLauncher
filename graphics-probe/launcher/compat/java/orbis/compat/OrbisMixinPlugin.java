@@ -27,7 +27,8 @@ public final class OrbisMixinPlugin implements IMixinConfigPlugin {
     }
 
     @Override public List<String> getMixins() {
-        return mojangNames ? Arrays.asList("ClientTickMixin26", "UtilMixin26") : Arrays.asList("ClientTickMixin", "UtilMixin");
+        return mojangNames ? Arrays.asList("ClientTickMixin26", "UtilMixin26", "WebLinkMixin26")
+                : Arrays.asList("ClientTickMixin", "UtilMixin", "WebLinkMixin");
     }
 
     @Override public String getRefMapperConfig() { return null; }

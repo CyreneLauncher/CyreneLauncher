@@ -68,4 +68,10 @@ public final class NativePlatform {
     public static native String nImeResult();
     /** 0 closed, 1 closing (keep polling before reopening). */
     public static native int nImeCancel();
+
+    /** Opens a link in the system web browser dialog: 1 open, 2 the Browser application launched instead, negative on failure. */
+    public static native int nBrowserOpen(String url);
+
+    /** 1 while the web browser dialog is open, 0 once it has closed. */
+    public static native int nBrowserPoll();
 }

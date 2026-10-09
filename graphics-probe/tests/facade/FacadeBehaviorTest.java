@@ -322,6 +322,25 @@ public final class FacadeBehaviorTest {
         NativePlatform.padState = new int[8];
         glfwPollEvents();
         check(!orbis.graphics.Gamepad.read(new int[8]), "Gamepad.read is false without a controller");
+        // A link opens the system web browser; while it is open the pad stays out of the game.
+        check(!orbis.graphics.WebBrowser.open("https://example.org/"), "a refused browser leaves nothing open");
+        NativePlatform.browserOpenResult = 1;
+        NativePlatform.browserStatus = 1;
+        check(orbis.graphics.WebBrowser.open("https://example.org/") && orbis.graphics.WebBrowser.active()
+                && "https://example.org/".equals(NativePlatform.browserUrl), "the link opens in the browser dialog");
+        check(!orbis.graphics.WebBrowser.open("https://example.com/"), "one browser at a time");
+        NativePlatform.padState = new int[]{1, 0x4000, 128, 128, 128, 128, 0, 0};
+        glfwPollEvents();
+        try (org.lwjgl.glfw.GLFWGamepadState state = org.lwjgl.glfw.GLFWGamepadState.calloc()) {
+            check(glfwGetGamepadState(GLFW_JOYSTICK_1, state) && state.buttons(GLFW_GAMEPAD_BUTTON_A) == GLFW_RELEASE,
+                "the pad steers the browser, not the game");
+        }
+        NativePlatform.browserStatus = 0;
+        glfwPollEvents();
+        check(!orbis.graphics.WebBrowser.active(), "the browser closes when the dialog finishes");
+        NativePlatform.browserOpenResult = -1;
+        NativePlatform.padState = new int[8];
+        glfwPollEvents();
         NativePlatform.imeBeginResult = -1;
         NativePlatform.imeStatus = 0;
 

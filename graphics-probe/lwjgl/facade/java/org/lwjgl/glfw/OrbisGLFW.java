@@ -1252,10 +1252,10 @@ final class OrbisGLFW {
         NativePlatform.nPadRead(pad);
         padPolled = true;
         boolean connected = pad[0] != 0;
-        // While the system keyboard is open the player steers it with the pad; the game sees a neutral
+        // While the system keyboard (or web browser) is open the player steers it with the pad; the game sees a neutral
         // pad meanwhile (Controlify moved the focus around the book under the dialog), and afterwards
         // until every button is up, so the press that accepted the dialog does not land in the game.
-        if (orbis.graphics.TextInput.active()) padSwallowed = true;
+        if (orbis.graphics.TextInput.active() || orbis.graphics.WebBrowser.active()) padSwallowed = true;
         else if (padSwallowed && (!connected || pad[1] == 0)) padSwallowed = false;
         if (padSwallowed && connected) {
             pad[1] = 0;
@@ -1467,6 +1467,7 @@ final class OrbisGLFW {
 
     private static void drain(long waitNanos, boolean wait) {
         if (!dispatching) reconcileSize();
+        if (!dispatching) orbis.graphics.WebBrowser.poll();
         if (!dispatching && window != NULL) pollPad();
         if (!dispatching && window != NULL) pollSystem();
         if (dispatching || window == NULL || !inputAvailable) {

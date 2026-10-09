@@ -1080,3 +1080,122 @@ JNIEXPORT jint JNICALL Java_orbis_graphics_NativePlatform_nImeCancel(JNIEnv *env
     pthread_mutex_unlock(&platform_lock);
     return result;
 }
+
+/* The system web browser for links the game opens (the compatibility mod routes Minecraft's
+ * "open link" here): libSceWebBrowserDialog, a common dialog over the game like the IME. The SDK
+ * declares its functions without parameters; the parameter block is Sony's SceWebBrowserDialogParam,
+ * 328 bytes, the same layout in two independent PS4 sources (a GoldHEN Black Ops 3 payload's
+ * sce_struct.h and the RomM Sync launcher, which also opens it this way). When the dialog cannot
+ * open, the Browser application is launched instead. */
+typedef struct {
+    OrbisCommonDialogBaseParam base;
+    uint64_t size;
+    int32_t mode;                   /* 1: the browser's own layout, 2: the rectangle below */
+    int32_t user_id;
+    const char *url;
+    void *callback_init;
+    uint16_t width, height, position_x, position_y;
+    uint32_t parts;
+    uint16_t header_width, header_x, header_y, padding;
+    uint32_t control;
+    void *ime_param;
+    void *webview_param;
+    uint32_t animation;
+    uint8_t reserved[202];
+    uint16_t tail;
+} orbis_web_browser_param;
+_Static_assert(sizeof(orbis_web_browser_param) == 328, "SceWebBrowserDialogParam is 328 bytes");
+_Static_assert(offsetof(orbis_web_browser_param, url) == 64, "SceWebBrowserDialogParam url offset");
+
+int32_t orbis_web_browser_initialize(void) __asm__("sceWebBrowserDialogInitialize");
+int32_t orbis_web_browser_open(const orbis_web_browser_param *param) __asm__("sceWebBrowserDialogOpen");
+int32_t orbis_web_browser_update_status(void) __asm__("sceWebBrowserDialogUpdateStatus");
+int32_t orbis_web_browser_close(void) __asm__("sceWebBrowserDialogClose");
+int32_t orbis_web_browser_terminate(void) __asm__("sceWebBrowserDialogTerminate");
+int32_t orbis_launch_web_browser(const char *uri, void *param) __asm__("sceSystemServiceLaunchWebBrowser");
+
+#define BROWSER_URL_CAPACITY 2048
+/* The dialog's magic encodes the block's address, so the block stays put. */
+static orbis_web_browser_param browser_parameter __attribute__((aligned(16)));
+static char browser_url[BROWSER_URL_CAPACITY];
+static int browser_active;
+static int browser_module_ready;
+
+static int32_t browser_open_mode(int32_t user, int32_t mode) {
+    memset(&browser_parameter, 0, sizeof(browser_parameter));
+    browser_parameter.base.size = sizeof(browser_parameter.base);
+    browser_parameter.base.magic = (uint32_t)(ORBIS_COMMON_DIALOG_MAGIC_NUMBER + (uint64_t)(uintptr_t)&browser_parameter.base);
+    browser_parameter.size = sizeof(browser_parameter);
+    browser_parameter.mode = mode;
+    browser_parameter.user_id = user;
+    browser_parameter.url = browser_url;
+    if (mode == 2) {
+        browser_parameter.width = 1920;
+        browser_parameter.height = 1080;
+        browser_parameter.header_width = 1920;
+    }
+    return orbis_web_browser_open(&browser_parameter);
+}
+
+/* 1 the dialog is open, 2 the Browser application was launched instead, negative on failure. */
+JNIEXPORT jint JNICALL Java_orbis_graphics_NativePlatform_nBrowserOpen(JNIEnv *env, jclass klass, jstring url) {
+    (void)klass;
+    pthread_mutex_lock(&platform_lock);
+    int32_t rc = -1;
+    if (browser_active || ime_active) { record("A system dialog is already open"); goto done; }
+    if (!url) { record("No link to open"); goto done; }
+    jsize length = (*env)->GetStringUTFLength(env, url);
+    if (length < 1 || length >= BROWSER_URL_CAPACITY) { record("Link length %d unsupported", (int)length); goto done; }
+    memset(browser_url, 0, sizeof(browser_url));
+    (*env)->GetStringUTFRegion(env, url, 0, (*env)->GetStringLength(env, url), browser_url);
+    if ((*env)->ExceptionCheck(env)) goto done;
+    rc = ime_modules();
+    if (rc < 0) goto done;
+    if (!browser_module_ready) {
+        if (sceSysmoduleIsLoaded(ORBIS_SYSMODULE_WEB_BROWSER_DIALOG) != 0) {
+            rc = sceSysmoduleLoadModule(ORBIS_SYSMODULE_WEB_BROWSER_DIALOG);
+            if (rc < 0) { record("Web browser dialog module load failed (0x%08x)", (unsigned)rc); goto launch; }
+        }
+        browser_module_ready = 1;
+    }
+    int32_t user = -1;
+    rc = sceUserServiceGetInitialUser(&user);
+    if (rc < 0) { record("Web browser initial user failed (0x%08x)", (unsigned)rc); goto launch; }
+    rc = orbis_web_browser_initialize();
+    if (rc < 0) { record("Web browser dialog initialization failed (0x%08x)", (unsigned)rc); goto launch; }
+    /* The browser's own layout; the full-screen rectangle only when that one is refused. */
+    rc = browser_open_mode(user, 1);
+    if (rc < 0) {
+        record("Web browser dialog layout failed (0x%08x); trying full screen", (unsigned)rc);
+        rc = browser_open_mode(user, 2);
+    }
+    if (rc >= 0) { browser_active = 1; rc = 1; goto done; }
+    record("Web browser dialog failed (0x%08x)", (unsigned)rc);
+    orbis_web_browser_terminate();
+launch:
+    rc = orbis_launch_web_browser(browser_url, NULL);
+    if (rc < 0) record("Browser application launch failed (0x%08x)", (unsigned)rc);
+    else rc = 2;
+done:
+    pthread_mutex_unlock(&platform_lock);
+    return rc;
+}
+
+/* 1 while the dialog is open, 0 once it has closed (it is then terminated). */
+JNIEXPORT jint JNICALL Java_orbis_graphics_NativePlatform_nBrowserPoll(JNIEnv *env, jclass klass) {
+    (void)env; (void)klass;
+    pthread_mutex_lock(&platform_lock);
+    int result = 0;
+    if (browser_active) {
+        int32_t status = orbis_web_browser_update_status();
+        if (status == ORBIS_COMMON_DIALOG_STATUS_RUNNING || status == ORBIS_COMMON_DIALOG_STATUS_INITIALIZED) {
+            result = 1;
+        } else {
+            orbis_web_browser_close();
+            orbis_web_browser_terminate();
+            browser_active = 0;
+        }
+    }
+    pthread_mutex_unlock(&platform_lock);
+    return result;
+}
