@@ -1,7 +1,8 @@
 # Self-contained PKG results — 2026-10-09
 
 Release: Orbis Launcher 0.57, title OJDK00003.
-Artifact: `orbis-java-app/build-selfcontained/output/IV0000-OJDK00003_00-ORBISJARRUNNER01.pkg`.
+Artifact originally built at: `orbis-java-app/build-selfcontained/output/IV0000-OJDK00003_00-ORBISJARRUNNER01.pkg`.
+After workspace cleanup, preserved at: `../releases/Orbis-Craft-0.57-bundled.pkg`.
 Size: 776,601,600 bytes (740.625 MiB).
 SHA256: `257030e3e6db29f1b948d150b33ba58685695f86ea3966031b22a8d061b09ec7`.
 

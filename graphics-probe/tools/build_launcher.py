@@ -33,7 +33,7 @@ parser.add_argument('--mixin', default=str(ROOT / 'build/minecraft-1.18.2-fabric
 parser.add_argument('--asm-tree', default=str(ROOT / 'build/minecraft-1.18.2-fabric/libraries/org/ow2/asm/asm-tree/'
                                               '9.10.1/asm-tree-9.10.1.jar'))
 # A JDK 22+ for the compatibility mod's Java 22 part (launcher/compat/java22: the foreign function API).
-parser.add_argument('--java22-jdk', default='/home/wonder/projects/jdk25u/.boot-jdks/jdk-25')
+parser.add_argument('--java22-jdk', default=str(ROOT.parent.parent / 'jdk25u/.boot-jdks/jdk-25'))
 arguments = parser.parse_args()
 out = Path(arguments.output).resolve()
 classes = out / 'classes'
