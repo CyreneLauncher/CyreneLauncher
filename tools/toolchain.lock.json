@@ -1,0 +1,38 @@
+{
+  "schema": 1,
+  "archives": {
+    "openorbis": {
+      "version": "v0.5.4",
+      "filename": "toolchain-llvm-18.tar.gz",
+      "directory": "OpenOrbis/PS4Toolchain",
+      "url": "https://github.com/OpenOrbis/OpenOrbis-PS4-Toolchain/releases/download/v0.5.4/toolchain-llvm-18.tar.gz",
+      "sha256": "3c7cd5bb593ca74fa1c13fd59f3938dc0fc07985167f7275063019e63abe4526"
+    },
+    "payload": {
+      "version": "v0.9",
+      "filename": "ps4-payload-sdk.zip",
+      "directory": "ps4-payload-sdk",
+      "url": "https://github.com/ps4-payload-dev/sdk/releases/download/v0.9/ps4-payload-sdk.zip",
+      "sha256": "3190e88255a72161e5ce2f22a8ae8f638a2c5a9d1ff1e0209ed692d36b4d9ec5"
+    }
+  },
+  "pkgtool": {
+    "url": "https://github.com/OpenOrbis/LibOrbisPkg.git",
+    "revision": "c1caa3ba25097fe602c0d842a0357bf7037b0838",
+    "framework": "net8.0"
+  },
+  "toolchain_files": {
+    "link.x": "e52b4bf39ecf6db66c861d130fe89a67aec6e34c5af394faf60331a1655769c1",
+    "include/pthread.h": "697639ba04b6d7623f87a8b391cdb7333c07c2c66c6081bea055a9008f3aaff1",
+    "lib/libc.a": "dd3f25830490bc0aab6a87a1bce890a502e2ec874ac8c3169e37210c4e49aef7",
+    "lib/libc++.a": "9c0ddc37ccba2ab11b2a61a330af941c1bc0c806c8f6fade92db682049836e9a",
+    "lib/crt1.o": "4173c4401c0b5d0a72c2641f712982bb38a78e346515278a32fa99d4bbf9dd86"
+  },
+  "host_jdks": {
+    "17": "17.0.18+8",
+    "21": "21.0.10+7",
+    "25": "25.0.2+10"
+  },
+  "dotnet_sdk": "8.0.408",
+  "llvm_major": 18
+}

@@ -15,6 +15,22 @@ cli = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(cli)
 
 class CliTests(unittest.TestCase):
+    def test_single_jdk_build_selects_matching_boot_jdk(self):
+        with tempfile.TemporaryDirectory() as directory:
+            args=SimpleNamespace(jdk='21',boot_jdk21=Path('/boot21'),sdk=Path('/sdk'),toolchain=Path('/tc'),jobs=2)
+            with patch.object(cli,'WORK',Path(directory)), patch.object(cli,'script') as script:
+                cli.jdks(args,object())
+            self.assertEqual(script.call_count,1)
+            self.assertEqual(script.call_args.args[1],'jdk21')
+            self.assertIn(Path('/boot21'),script.call_args.args)
+
+    def test_assets_build_does_not_require_runtime_exports(self):
+        with tempfile.TemporaryDirectory() as directory:
+            with patch('sys.argv',['orbis','assets']), patch.object(cli,'Runner'), patch.object(cli,'doctor') as doctor, patch.object(cli,'bootstrap'), patch.object(cli,'dependencies'), patch.object(cli,'native') as native, patch.object(cli,'launcher') as launcher, patch.object(cli,'record_components') as record:
+                self.assertEqual(cli.main(),0)
+                self.assertEqual(doctor.call_args.args[1],(17,25))
+                native.assert_called_once();launcher.assert_called_once();record.assert_not_called()
+
     def test_wrapper_loads_local_configuration(self):
         with tempfile.TemporaryDirectory() as d:
             root=Path(d);shutil.copyfile(Path(__file__).parents[2]/'orbis',root/'orbis')

@@ -14,70 +14,159 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: cyrene-release
+  group: cyrene-hosted-release
   cancel-in-progress: false
 jobs:
-  package:
-    runs-on: [self-hosted, linux, x64, cyrene]
-    permissions:
-      contents: write
+  checks:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          path: orbis-launcher
+          persist-credentials: false
+      - name: Require application registration
+        env:
+          ORBIS_MSA_CLIENT_ID: ${{ secrets.ORBIS_MSA_CLIENT_ID }}
+        run: test -n "$ORBIS_MSA_CLIENT_ID"
+      - name: Test orchestration
+        run: python3 -m unittest discover -s orbis-launcher/tools/tests -v
+  jdks:
+    needs: checks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 350
+    strategy:
+      fail-fast: false
+      matrix:
+        jdk: ['17', '21', '25']
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          path: orbis-launcher
+          persist-credentials: false
+      - uses: ./orbis-launcher/.github/actions/build-host
+        with:
+          jdks: ${{ matrix.jdk }}
+      - name: Build and audit runtime
+        env:
+          JDK_VERSION: ${{ matrix.jdk }}
+        run: orbis-launcher/orbis jdks --jdk "$JDK_VERSION" --jobs 4
+      - name: Archive runtime with provenance and file modes
+        env:
+          JDK_VERSION: ${{ matrix.jdk }}
+        run: |
+          python3 orbis-launcher/tools/build_artifacts.py pack --root "$GITHUB_WORKSPACE" \
+            --archive "orbis-launcher/dist/jdk${JDK_VERSION}.tar.gz" \
+            "orbis-openjdk/output/jdk${JDK_VERSION}"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: cyrene-runtime-${{ matrix.jdk }}
+          path: orbis-launcher/dist/jdk*.tar.gz*
+          if-no-files-found: error
+          retention-days: 14
+      - name: Save logs
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: cyrene-jdk-${{ matrix.jdk }}-logs
+          path: orbis-launcher/build-logs/
+          retention-days: 14
+  assets:
+    needs: checks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 350
     env:
-      ORBIS_SDK: ${{ vars.ORBIS_SDK }}
-      PS4_TOOLCHAIN: ${{ vars.PS4_TOOLCHAIN }}
-      BOOT_JDK17: ${{ vars.BOOT_JDK17 }}
-      BOOT_JDK21: ${{ vars.BOOT_JDK21 }}
-      BOOT_JDK25: ${{ vars.BOOT_JDK25 }}
-      PKGTOOL: ${{ vars.PKGTOOL }}
       ORBIS_MSA_CLIENT_ID: ${{ secrets.ORBIS_MSA_CLIENT_ID }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           path: orbis-launcher
           persist-credentials: false
-      - name: Attach optional local native cache
-        if: vars.CYRENE_NATIVE_CACHE != ''
-        env:
-          CACHE_PATH: ${{ vars.CYRENE_NATIVE_CACHE }}
+      - uses: ./orbis-launcher/.github/actions/build-host
+        with:
+          jdks: '17 25'
+      - name: Build native drivers, launcher and desktop support
+        run: orbis-launcher/orbis assets --jobs 4
+      - name: Archive audited assets
+        run: |
+          python3 orbis-launcher/tools/build_artifacts.py pack --root "$GITHUB_WORKSPACE" \
+            --archive orbis-launcher/dist/assets.tar.gz \
+            orbis-launcher/graphics-probe/build/graphics-bundle-native \
+            orbis-launcher/graphics-probe/build/platform-native \
+            orbis-launcher/orbis-java-app/build-cacio/export
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: cyrene-assets
+          path: orbis-launcher/dist/assets.tar.gz*
+          if-no-files-found: error
+          retention-days: 14
+      - name: Save logs
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: cyrene-assets-logs
+          path: orbis-launcher/build-logs/
+          retention-days: 14
+  package:
+    needs: [jdks, assets]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    permissions:
+      contents: write
+    env:
+      ORBIS_MSA_CLIENT_ID: ${{ secrets.ORBIS_MSA_CLIENT_ID }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          path: orbis-launcher
+          persist-credentials: false
+      - uses: ./orbis-launcher/.github/actions/build-host
+        with:
+          jdks: '17 25'
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          pattern: cyrene-runtime-*
+          path: incoming/jdks
+          merge-multiple: true
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: cyrene-assets
+          path: incoming/assets
+      - name: Verify and import components
         shell: bash
         run: |
-          python3 - <<'PYTHON'
-          import os
-          from pathlib import Path
-          source = Path(os.environ['CACHE_PATH']).resolve()
-          if not source.is_dir():
-              raise SystemExit('Configured native cache is missing')
-          target = Path('orbis-launcher/graphics-probe/build')
-          if not target.exists():
-              target.symlink_to(source, target_is_directory=True)
-          PYTHON
-      - name: Require application registration
-        shell: bash
-        run: test -n "$ORBIS_MSA_CLIENT_ID"
-      - name: Test orchestration
-        run: python3 -m unittest discover -s orbis-launcher/tools/tests -v
-      - name: Build and validate package
+          orbis-launcher/orbis bootstrap
+          for version in 17 21 25; do
+            python3 orbis-launcher/tools/build_artifacts.py unpack --root "$GITHUB_WORKSPACE" \
+              --archive "incoming/jdks/jdk${version}.tar.gz"
+          done
+          python3 orbis-launcher/tools/build_artifacts.py unpack --root "$GITHUB_WORKSPACE" \
+            --archive incoming/assets/assets.tar.gz
+          orbis-launcher/orbis seal
+      - name: Assemble and validate PKG
         env:
           APP_VERSION: ${{ inputs.version }}
-        run: orbis-launcher/orbis build --version "$APP_VERSION"
-      - name: Collect reusable components
-        run: orbis-launcher/orbis export
-      - name: Update release checksums
+        run: orbis-launcher/orbis package --version "$APP_VERSION"
+      - name: Export reusable components and checksum release files
         shell: bash
         run: |
+          orbis-launcher/orbis export
+          cp orbis-launcher/tools/toolchain.lock.json orbis-launcher/dist/toolchain.lock.json
           cd orbis-launcher/dist
           sha256sum ./*.pkg ./*.json ./*.tar.gz ./*.sha256 > SHA256SUMS
-      - name: Save build outputs
+      - name: Save release outputs
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: cyrene-release-${{ inputs.version }}
           path: orbis-launcher/dist/
           if-no-files-found: error
+          retention-days: 14
       - name: Save logs
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: cyrene-build-logs
+          name: cyrene-package-logs
           path: orbis-launcher/build-logs/
+          retention-days: 14
       - name: Create draft release
         if: inputs.draft_release
         env:
@@ -88,4 +177,4 @@ jobs:
           gh release create "v${APP_VERSION}" orbis-launcher/dist/* \
             --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --draft \
             --title "Cyrene Launcher ${APP_VERSION}" \
-            --notes "Verified PS4 package, pinned component exports, SHA-256 checksums and runtime manifest. Console testing status must be recorded before publishing this draft."
+            --notes "Built on GitHub-hosted Ubuntu from pinned sources and SDKs. Includes the verified PKG, reusable components, checksums and runtime manifest. Console testing status must be recorded before publishing this draft."

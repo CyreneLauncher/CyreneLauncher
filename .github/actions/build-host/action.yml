@@ -1,0 +1,66 @@
+name: Provision Cyrene build host
+description: Install locked SDKs, LLVM 18, host JDKs and the source-built PKG CLI
+inputs:
+  jdks:
+    description: Space-separated host JDK majors needed by this job
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Make room on the disposable runner
+      shell: bash
+      run: |
+        sudo rm -rf /usr/local/lib/android /usr/share/swift /opt/ghc
+        df -h "$GITHUB_WORKSPACE"
+    - name: Install build dependencies
+      shell: bash
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential clang-18 lld-18 llvm-18 llvm-18-dev \
+          autoconf cmake ninja-build pkg-config zip unzip python3-venv python3-pip \
+          python3-pyelftools libx11-dev libxext-dev libxrender-dev libxtst-dev \
+          libxt-dev libasound2-dev libcups2-dev libfontconfig1-dev
+        echo /usr/lib/llvm-18/bin >> "$GITHUB_PATH"
+    - name: Read pinned host versions
+      id: versions
+      shell: bash
+      run: |
+        python3 - <<'PYTHON'
+        import json, os
+        from pathlib import Path
+        lock = json.loads(Path('orbis-launcher/tools/toolchain.lock.json').read_text())
+        with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+            for version, release in lock['host_jdks'].items():
+                output.write(f'jdk{version}={release}\n')
+            output.write('dotnet=' + lock['dotnet_sdk'] + '\n')
+        PYTHON
+    - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4
+      if: contains(inputs.jdks, '17')
+      with:
+        distribution: temurin
+        java-version: ${{ steps.versions.outputs.jdk17 }}
+    - if: contains(inputs.jdks, '17')
+      shell: bash
+      run: echo "BOOT_JDK17=$JAVA_HOME" >> "$GITHUB_ENV"
+    - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4
+      if: contains(inputs.jdks, '21')
+      with:
+        distribution: temurin
+        java-version: ${{ steps.versions.outputs.jdk21 }}
+    - if: contains(inputs.jdks, '21')
+      shell: bash
+      run: echo "BOOT_JDK21=$JAVA_HOME" >> "$GITHUB_ENV"
+    - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4
+      if: contains(inputs.jdks, '25')
+      with:
+        distribution: temurin
+        java-version: ${{ steps.versions.outputs.jdk25 }}
+    - if: contains(inputs.jdks, '25')
+      shell: bash
+      run: echo "BOOT_JDK25=$JAVA_HOME" >> "$GITHUB_ENV"
+    - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
+      with:
+        dotnet-version: ${{ steps.versions.outputs.dotnet }}
+    - name: Provision exact SDKs and PKG CLI
+      shell: bash
+      run: python3 orbis-launcher/tools/provision_toolchain.py --destination "$RUNNER_TEMP/cyrene-toolchain"

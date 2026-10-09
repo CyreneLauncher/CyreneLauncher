@@ -144,7 +144,8 @@ def doctor(args, required_versions=(17,21,25)):
 
 def jdks(args, runner):
     builder = WORK/'orbis-openjdk/build.py'
-    for version in (17,21,25):
+    versions = (17,21,25) if args.jdk == 'all' else (int(args.jdk),)
+    for version in versions:
         output = WORK/'orbis-openjdk/output'/f'jdk{version}'
         if output.exists():
             lock=builder.parent/'versions.lock.json'
@@ -330,7 +331,8 @@ def import_artifacts(args):
 
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('command',choices=['doctor','bootstrap','build','jdks','native','launcher','package','export','import'])
+    parser.add_argument('command',choices=['doctor','bootstrap','build','jdks','native','assets','launcher','seal','package','export','import'])
+    parser.add_argument('--jdk',choices=['all','17','21','25'],default='all',help='Select one runtime for the jdks command')
     parser.add_argument('--sdk',type=Path,default=Path(os.environ.get('ORBIS_SDK') or '/home/wonder/ps4-payload-sdk'))
     parser.add_argument('--toolchain',type=Path,default=Path(os.environ.get('PS4_TOOLCHAIN') or '/home/wonder/PS4Toolchain'))
     parser.add_argument('--pkgtool',type=Path,default=Path(os.environ.get('PKGTOOL') or '/home/wonder/pkgtool-net8/PkgTool.Core.dll'))
@@ -339,6 +341,7 @@ def main():
     parser.add_argument('--version',default='01.06')
     parser.add_argument('--archive',type=Path,default=ROOT/'dist/cyrene-components.tar.gz')
     args=parser.parse_args()
+    if args.jdk != 'all' and args.command != 'jdks':parser.error('--jdk is only supported by the jdks command')
     import re
     if args.jobs<1 or not re.fullmatch(r'\d{2}\.\d{2}',args.version):parser.error('Use positive jobs and a PS4 version such as 01.06')
     runner=Runner(ROOT/'build-logs')
@@ -347,13 +350,15 @@ def main():
         elif args.command=='bootstrap':bootstrap(runner)
         elif args.command=='export':artifacts(args)
         elif args.command=='import':bootstrap(runner);import_artifacts(args)
+        elif args.command=='seal':bootstrap(runner);record_components(args)
         else:
-            versions=(17,21,25) if args.command in ('build','jdks') else ((17,) if args.command=='native' else (17,25))
+            versions=((17,21,25) if args.jdk=='all' else (int(args.jdk),)) if args.command in ('build','jdks') else ((17,) if args.command=='native' else (17,25))
             doctor(args,versions);bootstrap(runner);dependencies(runner)
             if args.command in ('build','jdks'):jdks(args,runner)
-            if args.command in ('build','native'):native(args,runner)
-            if args.command in ('build','launcher'):
-                launcher(args,runner);record_components(args)
+            if args.command in ('build','native','assets'):native(args,runner)
+            if args.command in ('build','launcher','assets'):
+                launcher(args,runner)
+                if args.command != 'assets':record_components(args)
             if args.command in ('build','package'):package(args,runner)
         return 0
     except (ValueError,RuntimeError,OSError,KeyError,subprocess.CalledProcessError) as error:

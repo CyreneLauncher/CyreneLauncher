@@ -22,7 +22,7 @@ export PKGTOOL=/path/to/PkgTool.Core.dll
 ./orbis build
 ```
 
-Linux x86_64 with Python 3.12, OpenJDK host build dependencies, LLVM/Clang, CMake, Ninja, .NET, and the exact compatible SDK/toolchain is required. Mesa verifies the SDK and dependency hashes in `graphics-probe/deps.lock.json`. SDKs and proprietary files are not supplied by this repository.
+Linux x86_64 with Python 3.12, OpenJDK host build dependencies, LLVM/Clang, CMake, Ninja, .NET, and the exact compatible SDK/toolchain is required. Mesa verifies the SDK and dependency hashes in `graphics-probe/deps.lock.json`. The open-source SDK distributions are pinned in `tools/toolchain.lock.json`; `tools/provision_toolchain.py` downloads and verifies them and builds LibOrbisPkg from its pinned source revision.
 
 The build executes serial JDK builds, all LWJGL profiles, native Mesa, audio/SDL, launcher, desktop support, runner, and package checks. Logs live in `build-logs/`. The validated PKG appears in `dist/`. Installation is manual. Title ID and `/data/orbis-jdk` paths remain compatible with earlier packages.
 
@@ -31,8 +31,11 @@ The build executes serial JDK builds, all LWJGL profiles, native Mesa, audio/SDL
 ```bash
 ./orbis bootstrap       # Restore missing pinned repositories; never reset existing work
 ./orbis jdks            # Build all three runtimes, reuse matching completed exports
+./orbis jdks --jdk 21   # Build only JDK 21 with BOOT_JDK21
 ./orbis native          # Build graphics/audio/controller modules
 ./orbis launcher        # Build launcher, desktop export and graphics bundle
+./orbis assets          # Build native/desktop assets without JDK exports
+./orbis seal            # Verify completed JDK/native exports and record inventories
 ./orbis package         # Assemble existing verified exports; no JDK/native rebuild
 ./orbis export          # Produce dist/cyrene-components.tar.gz and its checksum
 ./orbis import --archive /path/to/cyrene-components.tar.gz
@@ -53,14 +56,28 @@ gh release download v01.06 -R CyreneLauncher/CyreneLauncher \
 
 ## GitHub Actions
 
-`CLI checks` runs on GitHub-hosted Ubuntu. `Build Cyrene Launcher` is manually dispatched on a dedicated self-hosted Linux x64 runner labeled `cyrene`. Set repository variables `ORBIS_SDK`, `PS4_TOOLCHAIN`, `BOOT_JDK17`, `BOOT_JDK21`, `BOOT_JDK25`, and `PKGTOOL` to absolute runner paths, and the `ORBIS_MSA_CLIENT_ID` secret to the launcher application's registration ID. This workflow is for trusted manually selected source revisions. An optional `CYRENE_NATIVE_CACHE` variable can point to a local graphics build directory on the same runner; owned recipes still check pins, inputs and audits before reuse.
+Both workflows run on **GitHub-hosted Ubuntu 24.04**. No self-hosted runner, local SDK paths or local build cache is required. The only required repository secret is `ORBIS_MSA_CLIENT_ID`, the launcher application's registration ID; player accounts are never supplied to CI.
+
+`Build Cyrene Launcher` provisions LLVM 18, pinned Temurin host JDKs, .NET 8, OpenOrbis v0.5.4 and payload SDK v0.9. SDK archive SHA-256 values and the accepted OpenOrbis ABI files are checked before compilation. The PKG CLI is built from pinned OpenOrbis/LibOrbisPkg source. These upstream SDKs match the installed build inputs; no custom SDK fork is needed.
+
+Three matrix jobs build and audit JDK 17, 21 and 25. A parallel assets job builds native radeonsi/RADV, LWJGL, OpenAL, SDL, the launcher and desktop support. The package job downloads their compressed artifacts, verifies hashes, file inventories and source/SDK provenance, then assembles and validates the PKG. Tar archives preserve executable permissions across Actions artifact transfers. All jobs save their build logs.
+
+Run a complete build from the GitHub **Actions → Build Cyrene Launcher → Run workflow** page, or use:
 
 ```bash
 gh workflow run release.yml -R CyreneLauncher/CyreneLauncher \
   -f version=01.06 -F draft_release=true
+gh run list -R CyreneLauncher/CyreneLauncher --workflow release.yml
 ```
 
-The workflow runs the same CLI, validates the PKG, uploads outputs/logs, and optionally creates a draft release with the PKG, component archive, checksums, and runtime manifests. Runner registration and SDK provisioning must be completed before it can run. A build passing package audits does not establish console compatibility; record console testing before publishing a draft.
+The successful package job uploads `cyrene-release-XX.YY`, containing the PKG, reusable component archive, SHA-256 checksums, runtime manifests and SDK/tool lock. Intermediate runtimes and logs are retained as Actions artifacts for 14 days. To download the final output without creating a release:
+
+```bash
+gh run download RUN_ID -R CyreneLauncher/CyreneLauncher \
+  --name cyrene-release-01.06 --dir dist
+```
+
+`draft_release=true` additionally creates a draft GitHub release after every package check passes. Installation remains manual. Package validation does not establish console compatibility; record console testing before publishing the draft. Initial builds compile everything from source and can take several hours; no previous build on your computer is required.
 
 ## Source ownership
 
