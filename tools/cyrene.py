@@ -120,13 +120,13 @@ def dependencies(runner):
     script(runner,'runner-libraries',APP/'tools/runtime_package.py','prepare-libraries')
 
 
-def doctor(args):
+def doctor(args, required_versions=(17,21,25)):
     missing = []
     for name in ('git','make','clang','clang++','llvm-ar','llvm-readelf','llvm-strip','cmake','ninja','autoconf','pkg-config','dotnet'):
         if not shutil.which(name): missing.append(name)
     paths = [args.sdk/'bin/orbis-clang',args.sdk/'bin/clang',args.toolchain/'link.x',
              args.toolchain/'bin/linux/create-fself',args.pkgtool]
-    for v in (17,21,25):
+    for v in required_versions:
         boot = getattr(args,'boot_jdk'+str(v))
         if boot is None:
             missing.append('BOOT_JDK'+str(v)); continue
@@ -348,7 +348,8 @@ def main():
         elif args.command=='export':artifacts(args)
         elif args.command=='import':bootstrap(runner);import_artifacts(args)
         else:
-            doctor(args);bootstrap(runner);dependencies(runner)
+            versions=(17,21,25) if args.command in ('build','jdks') else ((17,) if args.command=='native' else (17,25))
+            doctor(args,versions);bootstrap(runner);dependencies(runner)
             if args.command in ('build','jdks'):jdks(args,runner)
             if args.command in ('build','native'):native(args,runner)
             if args.command in ('build','launcher'):

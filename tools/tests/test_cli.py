@@ -4,6 +4,8 @@ import json
 import tarfile
 import subprocess
 import shutil
+from types import SimpleNamespace
+from unittest.mock import patch
 import tempfile
 import unittest
 from pathlib import Path
@@ -20,6 +22,17 @@ class CliTests(unittest.TestCase):
             (root/'.cyrene.env').write_text('CYRENE_CONFIG_TEST="path with spaces"\n')
             result=subprocess.run(['bash',str(root/'orbis')],capture_output=True,text=True,check=True)
             self.assertEqual(result.stdout.strip(),'path with spaces')
+    def test_package_prerequisites_do_not_require_boot_jdk21(self):
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d)
+            args=SimpleNamespace(sdk=root/'sdk',toolchain=root/'tc',pkgtool=root/'PkgTool.dll',boot_jdk17=root/'jdk17',boot_jdk25=root/'jdk25',boot_jdk21=None)
+            for path in [args.sdk/'bin/orbis-clang',args.sdk/'bin/clang',args.toolchain/'link.x',args.toolchain/'bin/linux/create-fself',args.pkgtool,*[root/f'jdk{v}'/'bin'/name for v in (17,25) for name in ('java','javac')]]:
+                path.parent.mkdir(parents=True,exist_ok=True);path.touch()
+            def java_version(command,**kwargs):
+                version='17' if 'jdk17' in str(command[0]) else '25'
+                return SimpleNamespace(returncode=0,stdout='',stderr='openjdk version "'+version+'.0.1"')
+            with patch.object(cli.shutil,'which',return_value='/tool'),patch.object(cli.subprocess,'run',side_effect=java_version):
+                cli.doctor(args,required_versions=(17,25))
     def test_corrupt_download_rejected(self):
         with tempfile.TemporaryDirectory() as d:
             p = Path(d)/'x'; p.write_bytes(b'bad')
