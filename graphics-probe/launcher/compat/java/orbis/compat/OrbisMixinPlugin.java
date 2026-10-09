@@ -1,6 +1,7 @@
 package orbis.compat;
 
 import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 
@@ -27,8 +28,13 @@ public final class OrbisMixinPlugin implements IMixinConfigPlugin {
     }
 
     @Override public List<String> getMixins() {
-        return mojangNames ? Arrays.asList("ClientTickMixin26", "UtilMixin26", "WebLinkMixin26")
-                : Arrays.asList("ClientTickMixin", "UtilMixin", "WebLinkMixin");
+        List<String> mixins = new ArrayList<>(mojangNames
+                ? Arrays.asList("ClientTickMixin26", "UtilMixin26", "WebLinkMixin26")
+                : Arrays.asList("ClientTickMixin", "UtilMixin", "WebLinkMixin"));
+        if (present("net/minecraft/client/gui/components/debug/DebugEntrySystemSpecs.class")) {
+            mixins.add("CpuInfoMixin");
+        }
+        return mixins;
     }
 
     @Override public String getRefMapperConfig() { return null; }
