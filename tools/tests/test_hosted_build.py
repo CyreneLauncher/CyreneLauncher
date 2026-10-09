@@ -10,6 +10,7 @@ import shutil
 import tarfile
 import tempfile
 import unittest
+from unittest.mock import patch
 import zipfile
 
 
@@ -21,6 +22,20 @@ def load(name):
 
 
 class ToolchainTests(unittest.TestCase):
+    def test_llvm_override_is_an_absolute_executable_path(self):
+        provision = load('provision_toolchain')
+        with tempfile.TemporaryDirectory() as directory:
+            executable = Path(directory) / 'llvm-config-18'
+            executable.write_text('#!/bin/sh\nprintf "18.1.3\\n"\n')
+            executable.chmod(0o755)
+            with patch.object(provision.shutil, 'which', return_value=str(executable)):
+                resolved = provision.llvm_config_path(18)
+            self.assertTrue(Path(resolved).is_absolute())
+            self.assertEqual(Path(resolved), executable.resolve())
+            with patch.object(provision.shutil, 'which', return_value=None):
+                with self.assertRaises(ValueError):
+                    provision.llvm_config_path(18)
+
     def test_action_exports_separate_host_version_lines(self):
         root = Path(__file__).parents[2]
         action = (root / '.github/actions/build-host/action.yml').read_text()

@@ -68,7 +68,11 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: cyrene-jdk-${{ matrix.jdk }}-logs
-          path: orbis-launcher/build-logs/
+          path: |
+            orbis-launcher/build-logs/
+            orbis-openjdk/work/jdk${{ matrix.jdk }}u/config.log
+            orbis-openjdk/work/jdk${{ matrix.jdk }}u/build/**/configure.log
+            orbis-openjdk/work/jdk${{ matrix.jdk }}u/build/**/failure-summary*
           retention-days: 14
   assets:
     needs: checks
@@ -104,7 +108,9 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: cyrene-assets-logs
-          path: orbis-launcher/build-logs/
+          path: |
+            orbis-launcher/build-logs/
+            orbis-launcher/graphics-probe/build/**/*.log
           retention-days: 14
   package:
     needs: [jdks, assets]

@@ -6,6 +6,7 @@ import json
 import os
 from pathlib import Path
 import stat
+import shutil
 import subprocess
 import tarfile
 import urllib.request
@@ -60,6 +61,14 @@ def run(*args, **kwargs):
     subprocess.run([str(arg) for arg in args], check=True, **kwargs)
 
 
+def llvm_config_path(major):
+    executable = shutil.which('llvm-config-' + str(major))
+    if not executable:
+        raise ValueError('Missing LLVM ' + str(major) + ' development tools')
+    # The SDK resolves this value as a filename, not as a PATH command name.
+    return str(Path(executable).resolve(strict=True))
+
+
 def provision(destination, lock_path):
     lock = json.loads(lock_path.read_text())
     destination = destination.resolve()
@@ -103,7 +112,8 @@ def provision(destination, lock_path):
         cwd=destination, env=build_env)
     env = {'ORBIS_SDK': str(sdk), 'PS4_TOOLCHAIN': str(toolchain),
            'PKGTOOL': str(destination / 'pkgtool/PkgTool.Core.dll'),
-           'LLVM_CONFIG': 'llvm-config-18'}
+           'LLVM_CONFIG': llvm_config_path(lock['llvm_major'])}
+    run(sdk / 'bin/clang', '--version', cwd=destination, env={**build_env, **env})
     env_path = os.environ.get('GITHUB_ENV')
     if env_path:
         with Path(env_path).open('a') as output:
