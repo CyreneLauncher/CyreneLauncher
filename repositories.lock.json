@@ -47,17 +47,17 @@
     },
     "jdk17u": {
       "directory": "jdk17u",
-      "revision": "140b38f08241dc40a157840681b26ad0128926bf",
+      "revision": "bed874559f78f1c55a04428bbd7e5da9ddda27d4",
       "url": null
     },
     "jdk21u": {
       "directory": "jdk21u",
-      "revision": "c35fb5ecc37ae16a426b12346cbbec323e6a9813",
+      "revision": "4d02099a2f12ea5e1c84f91b60911538bc6ba6bf",
       "url": null
     },
     "jdk25u": {
       "directory": "jdk25u",
-      "revision": "424fb3759523484ada60b1b5d711163a3badd419",
+      "revision": "ee087fb75371851ea84902086a4e6a72ca2dd044",
       "url": null
     },
     "orbis-compat": {

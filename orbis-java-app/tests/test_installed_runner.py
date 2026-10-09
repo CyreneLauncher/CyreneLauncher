@@ -46,4 +46,8 @@ with tempfile.TemporaryDirectory() as directory:
         assert config.desktop_bundle == home + b'/lib/orbis/desktop'
     config.java_home = b'/unknown/runtime'
     assert api.runner_config_installed(ctypes.byref(config), error, len(error)) < 0
+# The SDK's musl lstat/fstatat reach a syscall Orbis lacks; first start then failed with ENOSYS.
+import re
+source = (ROOT / 'tools/runner_config.c').read_text()
+assert not re.search(r'\b(lstat|fstatat|stat)\s*\(', source), 'runner_config.c must not use the stat family on Orbis'
 print('Installed runtime selection and exclusive first-start defaults passed')

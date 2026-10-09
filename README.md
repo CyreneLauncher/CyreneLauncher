@@ -11,8 +11,8 @@ runtimes it runs on.
 
 ## Java runtimes
 
-The JDK ports are separate projects that only export runtimes: `~/projects/jdk17u` and
-`~/projects/jdk21u`, each with its own `orbis-export/` (`make -C orbis-export jdk-export ...`).
+The JDK ports are separate sibling projects that only export runtimes: `../jdk17u`,
+`../jdk21u` and `../jdk25u`, each with its own `orbis-export/` (`make -C orbis-export jdk-export ...`).
 Upload an export's contents to `/data/orbis-jdk/<name>/release-desktop/`.
 
 - JDK 17 (`/data/orbis-jdk/jdk/release-desktop`) is the default runner: `runner.conf`'s

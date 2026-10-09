@@ -6,9 +6,9 @@
     "openal-soft-orbis": "277e07c70b78aa25fba7d6dd7499cf680c3ac002",
     "sdl-orbis": "443ad2bffab8eeb603279abc00c40757dbba21dc",
     "orbis-runtime-support": "fc3fcc7f508dcb3c9d947f5b67f0fb2bcda2c2c5",
-    "jdk17u": "140b38f08241dc40a157840681b26ad0128926bf",
-    "jdk21u": "c35fb5ecc37ae16a426b12346cbbec323e6a9813",
-    "jdk25u": "424fb3759523484ada60b1b5d711163a3badd419",
+    "jdk17u": "bed874559f78f1c55a04428bbd7e5da9ddda27d4",
+    "jdk21u": "4d02099a2f12ea5e1c84f91b60911538bc6ba6bf",
+    "jdk25u": "ee087fb75371851ea84902086a4e6a72ca2dd044",
     "orbis-compat": "6922a7b6f4291a28edd239f1a4db50ed7aa00359",
     "orbis-porting-kit": "213b0c38ff25ea7ca402c8844a6494086d0f1cae"
   },

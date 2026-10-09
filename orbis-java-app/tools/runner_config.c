@@ -35,8 +35,9 @@ int runner_config_seed_defaults(const char *defaults, const char *root, char *er
         if (snprintf(source, sizeof(source), "%s/%s", defaults, names[i]) >= (int)sizeof(source) ||
             snprintf(target, sizeof(target), "%s/%s", root, names[i]) >= (int)sizeof(target))
             return fail(error, size, "runner defaults path too long");
-        struct stat existing;
-        if (lstat(target, &existing) == 0) continue;
+        // Probe by opening: the SDK's lstat is musl's fstatat wrapper, which Orbis lacks (ENOSYS).
+        int present = open(target, O_RDONLY);
+        if (present >= 0) { close(present); continue; }
         if (errno != ENOENT) return fail(error, size, "cannot inspect %s: %s", target, strerror(errno));
         snprintf(temporary, sizeof(temporary), "%s.seed-XXXXXX", target);
         int out = mkstemp(temporary);
