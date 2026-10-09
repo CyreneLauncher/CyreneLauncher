@@ -53,7 +53,7 @@ gh release download v01.06 -R CyreneLauncher/CyreneLauncher \
 
 ## GitHub Actions
 
-`CLI checks` runs on GitHub-hosted Ubuntu. `Build Cyrene Launcher` is manually dispatched on a dedicated self-hosted Linux x64 runner labeled `cyrene`. Set repository variables `ORBIS_SDK`, `PS4_TOOLCHAIN`, `BOOT_JDK17`, `BOOT_JDK21`, `BOOT_JDK25`, and `PKGTOOL` to absolute runner paths, and the `ORBIS_MSA_CLIENT_ID` secret to the launcher application's registration ID. This workflow is for trusted manually selected source revisions.
+`CLI checks` runs on GitHub-hosted Ubuntu. `Build Cyrene Launcher` is manually dispatched on a dedicated self-hosted Linux x64 runner labeled `cyrene`. Set repository variables `ORBIS_SDK`, `PS4_TOOLCHAIN`, `BOOT_JDK17`, `BOOT_JDK21`, `BOOT_JDK25`, and `PKGTOOL` to absolute runner paths, and the `ORBIS_MSA_CLIENT_ID` secret to the launcher application's registration ID. This workflow is for trusted manually selected source revisions. An optional `CYRENE_NATIVE_CACHE` variable can point to a local graphics build directory on the same runner; owned recipes still check pins, inputs and audits before reuse.
 
 ```bash
 gh workflow run release.yml -R CyreneLauncher/CyreneLauncher \

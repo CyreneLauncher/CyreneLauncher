@@ -34,6 +34,22 @@ jobs:
         with:
           path: orbis-launcher
           persist-credentials: false
+      - name: Attach optional local native cache
+        if: vars.CYRENE_NATIVE_CACHE != ''
+        env:
+          CACHE_PATH: ${{ vars.CYRENE_NATIVE_CACHE }}
+        shell: bash
+        run: |
+          python3 - <<'PYTHON'
+          import os
+          from pathlib import Path
+          source = Path(os.environ['CACHE_PATH']).resolve()
+          if not source.is_dir():
+              raise SystemExit('Configured native cache is missing')
+          target = Path('orbis-launcher/graphics-probe/build')
+          if not target.exists():
+              target.symlink_to(source, target_is_directory=True)
+          PYTHON
       - name: Require application registration
         shell: bash
         run: test -n "$ORBIS_MSA_CLIENT_ID"
