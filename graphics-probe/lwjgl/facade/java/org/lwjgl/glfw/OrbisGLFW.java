@@ -375,9 +375,7 @@ final class OrbisGLFW {
             return false;
         }
         try {
-            // Before GL's static initializer runs, or it loads libGL.so itself.
-            Configuration.OPENGL_EXPLICIT_INIT.set(true);
-            if (GL.getFunctionProvider() == null) GL.create(new EglFunctionProvider());
+            installGlProvider();
         } catch (RuntimeException | LinkageError failure) {
             NativePlatform.nTerminate();
             error(GLFW_PLATFORM_ERROR, "OpenGL function provider unavailable: " + failure);
@@ -386,6 +384,12 @@ final class OrbisGLFW {
         initialized = true;
         orbis.graphics.Gamepad.install(OrbisGLFW::readPad);
         return true;
+    }
+
+    /** Before GL's static initializer runs, or it loads libGL.so itself; GL.create only stores the provider. */
+    private static void installGlProvider() {
+        Configuration.OPENGL_EXPLICIT_INIT.set(true);
+        if (GL.getFunctionProvider() == null) GL.create(new EglFunctionProvider());
     }
 
     /** OpenGL entry points from Mesa through EGL; explicit init keeps GL from loading libGL. */
@@ -1273,6 +1277,24 @@ final class OrbisGLFW {
             if (joystickCallback != null)
                 joystickCallback.invoke(GLFW_JOYSTICK_1, connected ? GLFW_CONNECTED : GLFW_DISCONNECTED);
         }
+    }
+
+    /**
+     * GLFW's native library. The facade has none: Minecraft 26.2 calls this only to load GLFW before
+     * the window opens, so a library that resolves nothing stands in for it.
+     */
+    private static final org.lwjgl.system.SharedLibrary LIBRARY = new org.lwjgl.system.SharedLibrary() {
+        @Override public String getName() { return "Orbis GLFW facade"; }
+        @Override public String getPath() { return null; }
+        @Override public long getFunctionAddress(ByteBuffer functionName) { return NULL; }
+        @Override public long address() { return NULL; }
+        @Override public void free() { }
+    };
+
+    static org.lwjgl.system.SharedLibrary getLibrary() {
+        // 26.2 preloads GLFW, then requires GL.getFunctionProvider() before glfwInit.
+        installGlProvider();
+        return LIBRARY;
     }
 
     /** orbis.graphics.Gamepad's reader: the pad as of the last event poll. */

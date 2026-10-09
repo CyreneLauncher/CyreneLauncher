@@ -48,6 +48,9 @@ CURRENT_MODULES = {module: '3.4.1' for module in MODERN_MODULES}
 CURRENT_ADAPTER = 'orbis-lwjgl-3.4.1-adapter.jar'
 CURRENT_DIR = 'lwjgl-3.4.1'
 CURRENT_NATIVES = tuple(name.replace(MODERN_DIR, CURRENT_DIR) for name in MODERN_NATIVES)
+# Minecraft 26.2: the same natives; its shaderc, spvc, vma and vulkan modules serve only the Vulkan backend.
+NEXT_ID = 'minecraft-26.2-lwjgl-3.4.1-orbis-v1'
+NEXT_MODULES = CURRENT_MODULES | {f'org.lwjgl:{m}': '3.4.1' for m in ('lwjgl-shaderc', 'lwjgl-spvc', 'lwjgl-vma', 'lwjgl-vulkan')}
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--boot-jdk', default='/usr/lib/jvm/java-17-openjdk-amd64')
@@ -190,7 +193,7 @@ porting kit note that file as GPL-3.0). Review these before distributing the bun
 
 build_info = {
     'profile': PROFILE_ID,
-    'profiles': [PROFILE_ID, MODERN_ID, CURRENT_ID],
+    'profiles': [PROFILE_ID, MODERN_ID, CURRENT_ID, NEXT_ID],
     'sources': json.loads((ROOT / 'lwjgl/lwjgl-sources.lock.json').read_text()),
     'mesa_lock': json.loads((ROOT / 'deps.lock.json').read_text())['sources'],
     'platform': {k: platform_audit[k] for k in ('needed', 'imports', 'tls')},
@@ -256,6 +259,13 @@ manifest = {
     }, {
         'id': CURRENT_ID,
         'modules': CURRENT_MODULES,
+        'java_adapter_paths': [f'lib/{CURRENT_ADAPTER}', f'lib/{LAUNCHER}'],
+        'native_library_paths': [f'lib/{name}' for name in CURRENT_NATIVES],
+        'glfw_operations': current_operations,
+        'gl_features': ['egl-desktop-opengl', 'single-fullscreen-window', 'eglGetProcAddress'],
+    }, {
+        'id': NEXT_ID,
+        'modules': NEXT_MODULES,
         'java_adapter_paths': [f'lib/{CURRENT_ADAPTER}', f'lib/{LAUNCHER}'],
         'native_library_paths': [f'lib/{name}' for name in CURRENT_NATIVES],
         'glfw_operations': current_operations,

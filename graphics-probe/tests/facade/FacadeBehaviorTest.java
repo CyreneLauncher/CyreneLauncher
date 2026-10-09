@@ -40,6 +40,8 @@ public final class FacadeBehaviorTest {
         check(glfwGetError(null) == GLFW_INVALID_ENUM, "unknown init hint rejected");
 
         check(glfwInit(), "glfwInit");
+        // Minecraft 26.2 loads GLFW's native library before the window opens.
+        check(org.lwjgl.glfw.GLFW.getLibrary() != null, "GLFW.getLibrary stands in for the native library");
         // Other platforms' hints are accepted and ignored (Cubes Without Borders sets the Cocoa Retina one).
         int hintErrors = errors.size();
         glfwWindowHint(0x23001, GLFW_TRUE);

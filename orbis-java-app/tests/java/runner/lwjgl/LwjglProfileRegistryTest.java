@@ -19,7 +19,8 @@ public final class LwjglProfileRegistryTest {
     public static void main(String[] args) throws Exception {
         equal("minecraft-1.18.2-lwjgl-3.2.2-orbis-v1", AUDITED.id(), "audited profile id");
         equal(7, AUDITED.modules().size(), "seven exact coordinates");
-        equal(List.of(AUDITED, LwjglProfileRegistry.MINECRAFT_1_20_5, LwjglProfileRegistry.MINECRAFT_26_1),
+        equal(List.of(AUDITED, LwjglProfileRegistry.MINECRAFT_1_20_5, LwjglProfileRegistry.MINECRAFT_26_1,
+                        LwjglProfileRegistry.MINECRAFT_26_2),
                 LwjglProfileRegistry.profiles(),
                 "only the audited profiles are registered");
         LwjglProfile modern = LwjglProfileRegistry.MINECRAFT_1_20_5;
@@ -39,6 +40,10 @@ public final class LwjglProfileRegistryTest {
         withVulkan.put("org.lwjgl:lwjgl-vulkan", "3.4.1");
         fails(PROFILE_UNSUPPORTED, "26.2's set (vulkan, shaderc, spvc) is not 26.1's",
                 () -> LwjglProfileRegistry.select(plan(withVulkan, current.javaSha1())));
+
+        LwjglProfile next = LwjglProfileRegistry.MINECRAFT_26_2;
+        equal(12, next.modules().size(), "26.2: twelve modules, with shaderc, spvc, vma and vulkan");
+        equal(next, LwjglProfileRegistry.select(plan(next.modules(), next.javaSha1())), "26.2 set selected");
 
         equal(AUDITED, LwjglProfileRegistry.select(plan(AUDITED.modules(), AUDITED.javaSha1())), "exact set selected");
 

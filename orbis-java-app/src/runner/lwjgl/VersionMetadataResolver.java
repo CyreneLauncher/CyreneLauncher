@@ -111,7 +111,9 @@ public final class VersionMetadataResolver {
                             + entry.getKey());
             classpath.put(name, verified.path);
 
-            if (coordinate[0].equals(LWJGL_GROUP) && coordinate.length == 3) {
+            // An LWJGL module may come as a classified variant of its JAR: Minecraft 26.2 declares the core
+            // as org.lwjgl:lwjgl:3.4.1:unsafe (the core without its Java 25 FFM classes). It is that module.
+            if (coordinate[0].equals(LWJGL_GROUP)) {
                 String module = LWJGL_GROUP + ":" + coordinate[1];
                 String existing = lwjglModules.putIfAbsent(module, coordinate[2]);
                 if (existing != null)

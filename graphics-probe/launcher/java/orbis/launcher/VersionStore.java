@@ -74,11 +74,12 @@ final class VersionStore {
     /** The runner's own JAR stays a system library: the GLFW adapter reaches runner.gpu.NativeInput in it. */
     static final String SYSTEM_LIBRARIES = "/app0/app.jar";
     private static final int[] OLDEST = {1, 14}, NEWEST_17 = {1, 20, 4}, NEWEST_21 = {1, 21, 11},
-            NEWEST_25 = {26, 1, 2};
+            NEWEST_25 = {26, 2};
     /**
      * The newest Java a runner on the console provides (Runtimes.newest()); LauncherConfig sets it.
      * Java 17 stops at 1.20.4; a Java 21 runner adds 1.20.5 to 1.21.11 (LWJGL 3.3.3) and a Java 25
-     * runner 26.1 to 26.1.2 (LWJGL 3.4.1). 26.2 needs shaderc and SPIRV-Cross natives, 26.3 SDL3.
+     * runner 26.1 to 26.2 (LWJGL 3.4.1; 26.2's OpenGL backend needs none of its Vulkan-side modules).
+     * 26.3 needs SDL3 in place of GLFW and shaderc and SPIRV-Cross natives.
      */
     static volatile int offeredJava = Runtime.version().feature();
     /** The LWJGL release whose Java artifacts a version keeps (the runner has a profile and natives for it). */
@@ -157,7 +158,7 @@ final class VersionStore {
 
     /** The newest release offered, for messages. */
     static String newest() {
-        return offeredJava >= 25 ? "26.1.2" : offeredJava >= 21 ? "1.21.11" : "1.20.4";
+        return offeredJava >= 25 ? "26.2" : offeredJava >= 21 ? "1.21.11" : "1.20.4";
     }
 
     static boolean inRange(String id) {

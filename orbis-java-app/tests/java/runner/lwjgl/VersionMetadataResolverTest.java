@@ -138,6 +138,18 @@ public final class VersionMetadataResolverTest {
         equal(1, modernPlan.classpath().size(), "classifier-named natives are not on the classpath");
         equal(List.of("org.lwjgl:lwjgl:3.3.1:natives-linux"), modernPlan.skippedNatives(), "classifier natives recorded");
 
+        // Minecraft 26.2 declares the core only as its "unsafe" variant; it is still the core module.
+        Fixture unsafe = new Fixture();
+        unsafe.library("org.lwjgl:lwjgl:3.4.1:unsafe", unsafe.artifact("org/lwjgl/lwjgl/3.4.1/lwjgl-3.4.1-unsafe.jar", "core"), null);
+        unsafe.library("org.lwjgl:lwjgl:3.4.1:natives-linux", unsafe.artifact("n/lwjgl-natives-linux.jar", "n"), null);
+        ResolvedLaunchPlan unsafePlan = unsafe.resolve();
+        equal(Map.of("org.lwjgl:lwjgl", "3.4.1"), unsafePlan.lwjglModules(), "the unsafe core is the core module");
+        equal(1, unsafePlan.classpath().size(), "the unsafe core is on the classpath");
+        Fixture both = new Fixture();
+        both.library("org.lwjgl:lwjgl:3.4.1", both.lwjgl("lwjgl", "3.4.1"), null);
+        both.library("org.lwjgl:lwjgl:3.4.1:unsafe", both.artifact("org/lwjgl/lwjgl/3.4.1/lwjgl-3.4.1-unsafe.jar", "core"), null);
+        fails(LWJGL_CONFLICT, "core declared plain and unsafe", both::resolve);
+
         // Artifact problems.
         Fixture missing = new Fixture().minecraftShape();
         Files.delete(missing.libraries.resolve("com/google/guava/guava/31.0.1-jre/guava-31.0.1-jre.jar"));

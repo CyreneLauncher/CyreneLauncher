@@ -77,7 +77,42 @@ public final class LwjglProfileRegistry {
                     "org.lwjgl:lwjgl-stb", "f077c3dafc31924fbe8acb0b913f08977ba27f8e",
                     "org.lwjgl:lwjgl-tinyfd", "562697d40dbd2ed0424bf24dcf65d51170f81adf"));
 
-    private static final List<LwjglProfile> PROFILES = List.of(MINECRAFT_1_18_2, MINECRAFT_1_20_5, MINECRAFT_26_1);
+    /**
+     * Minecraft 26.2: LWJGL 3.4.1 with shaderc, spvc, vma and vulkan added, and the core as its "unsafe"
+     * variant (no Java 25 FFM layer; calls go through JNI and libffi). The OpenGL backend uses none of
+     * the four: Minecraft loads them only when a Vulkan loader is present, which the console has not.
+     */
+    public static final LwjglProfile MINECRAFT_26_2 = new LwjglProfile(
+            "minecraft-26.2-lwjgl-3.4.1-orbis-v1",
+            Map.ofEntries(
+                    Map.entry("org.lwjgl:lwjgl", "3.4.1"),
+                    Map.entry("org.lwjgl:lwjgl-freetype", "3.4.1"),
+                    Map.entry("org.lwjgl:lwjgl-glfw", "3.4.1"),
+                    Map.entry("org.lwjgl:lwjgl-jemalloc", "3.4.1"),
+                    Map.entry("org.lwjgl:lwjgl-openal", "3.4.1"),
+                    Map.entry("org.lwjgl:lwjgl-opengl", "3.4.1"),
+                    Map.entry("org.lwjgl:lwjgl-shaderc", "3.4.1"),
+                    Map.entry("org.lwjgl:lwjgl-spvc", "3.4.1"),
+                    Map.entry("org.lwjgl:lwjgl-stb", "3.4.1"),
+                    Map.entry("org.lwjgl:lwjgl-tinyfd", "3.4.1"),
+                    Map.entry("org.lwjgl:lwjgl-vma", "3.4.1"),
+                    Map.entry("org.lwjgl:lwjgl-vulkan", "3.4.1")),
+            Map.ofEntries(
+                    Map.entry("org.lwjgl:lwjgl", "129e06a04f93992cb2a45172435b21fc4b60dd7d"),
+                    Map.entry("org.lwjgl:lwjgl-freetype", "caa75a37e857efc9b0686e434d708d6420c5b6ea"),
+                    Map.entry("org.lwjgl:lwjgl-glfw", "a782b1ddd175c9107bf300fd92920579ea65e2a4"),
+                    Map.entry("org.lwjgl:lwjgl-jemalloc", "16b663092854fc6adfe0a941e61cae2bb2e437b6"),
+                    Map.entry("org.lwjgl:lwjgl-openal", "8508bd60589de0539aa465b78fcf838efd07ae9a"),
+                    Map.entry("org.lwjgl:lwjgl-opengl", "830412cab823c029cda6b9729f9d2ed36cf79959"),
+                    Map.entry("org.lwjgl:lwjgl-shaderc", "5c02c88f0d879529014c78463b76f43fdecfd272"),
+                    Map.entry("org.lwjgl:lwjgl-spvc", "188553592e97b5ab2dba54a1b403ee80b48dad4c"),
+                    Map.entry("org.lwjgl:lwjgl-stb", "f077c3dafc31924fbe8acb0b913f08977ba27f8e"),
+                    Map.entry("org.lwjgl:lwjgl-tinyfd", "562697d40dbd2ed0424bf24dcf65d51170f81adf"),
+                    Map.entry("org.lwjgl:lwjgl-vma", "2c54ce10154feb1ede4d23c5947438cdbfdcc003"),
+                    Map.entry("org.lwjgl:lwjgl-vulkan", "d0601fdc38890755e5638048c14cc0f7b990964b")));
+
+    private static final List<LwjglProfile> PROFILES = List.of(MINECRAFT_1_18_2, MINECRAFT_1_20_5, MINECRAFT_26_1,
+            MINECRAFT_26_2);
 
     private LwjglProfileRegistry() {}
 

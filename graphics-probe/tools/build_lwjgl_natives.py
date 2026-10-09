@@ -105,8 +105,10 @@ else:
 core_sources = (sorted((lwjgl / 'core/src/main/c').glob('*.c')) + sorted((lwjgl / 'core/src/generated/c').glob('*.c'))
                 + sorted(p for p in (lwjgl / 'core/src/generated/c/linux').glob('*.c') if 'liburing' not in p.name))
 core_objects = compile_all(core_sources, out / 'obj/core', *lwjgl_flags, *ffi_flags)
+# 3.4.1: JNI_OnLoad installs the GLFW facade's EGL provider while GL initializes (Minecraft 26.2).
 opengl_objects = compile_all(sorted(p for p in (lwjgl / 'opengl/src/generated/c').glob('*.c')
-                                    if p.name != 'org_lwjgl_opengl_WGL.c'),
+                                    if p.name != 'org_lwjgl_opengl_WGL.c')
+                             + ([ROOT / 'lwjgl/opengl/orbis_opengl_onload.c'] if arguments.release == '3.4.1' else []),
                              out / 'obj/opengl', *lwjgl_flags, '-I', lwjgl / 'opengl/src/main/c')
 stb_sources = sorted((lwjgl / 'stb/src/generated/c').glob('*.c'))
 if len(stb_sources) != 11:
@@ -115,7 +117,7 @@ stb_objects = compile_all(stb_sources, out / 'obj/stb', *lwjgl_flags,
                           '-isystem' if modern else '-I', lwjgl / 'stb/src/main/c')
 
 builds = [('liblwjgl', core_objects + ffi_objects, 'Java_org_lwjgl_system_', True),
-          ('liblwjgl_opengl', opengl_objects, 'Java_org_lwjgl_opengl_', False),
+          ('liblwjgl_opengl', opengl_objects, 'Java_org_lwjgl_opengl_', arguments.release == '3.4.1'),
           ('liblwjgl_stb', stb_objects, 'Java_org_lwjgl_stb_', False)]
 if 'liblwjgl_tinyfd' in MODULES:
     tinyfd = lwjgl / 'tinyfd/src'

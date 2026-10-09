@@ -100,7 +100,7 @@ public final class TextEntry {
     }
 
     private static void step(Object client) throws ReflectiveOperationException {
-        Object screen = field(client, "field_1755");
+        Object screen = currentScreen(client);
         if (closing) {
             closing = !(Boolean) call(input, "cancel");
             return;
@@ -377,6 +377,13 @@ public final class TextEntry {
         } catch (ClassNotFoundException absent) {
             return false;
         }
+    }
+
+    /** The screen shown: Minecraft.screen (field_1755), or Minecraft.gui.screen from 26.2. */
+    private static Object currentScreen(Object client) throws IllegalAccessException {
+        if (field(client.getClass(), "field_1755") != null) return field(client, "field_1755");
+        Object gui = mojang ? field(client, "gui") : null;
+        return gui == null ? null : field(gui, "screen");
     }
 
     /** The name to look up in the running game: the intermediary one, or its Mojang name on 26.1+. */

@@ -265,7 +265,8 @@ implemented = {}
 for owner in ('OrbisGLFW',) + (('OrbisGLFW34',) if modern34 else ()):
     implementation = classfile.parse((first / f'org/lwjgl/glfw/{owner}.class').read_bytes())
     for m in implementation.methods:
-        if m.access & classfile.ACC_STATIC and m.name.startswith(('glfw', 'nglfw')):
+        # OrbisGLFW: every static method (getLibrary too); OrbisGLFW34: only GLFW calls.
+        if m.access & classfile.ACC_STATIC and (owner == 'OrbisGLFW' or m.name.startswith(('glfw', 'nglfw'))):
             if (m.name, m.descriptor) in implemented:
                 raise SystemExit(f'{m.name}{m.descriptor} is implemented twice')
             implemented[(m.name, m.descriptor)] = owner

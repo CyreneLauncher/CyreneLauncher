@@ -102,6 +102,10 @@ public final class TextEntryBookTest {
         private boolean lambda$init$2(String text) { return text.length() <= 12; }
     }
 
+    static final class Fake262Gui { Object screen = new Object(); }
+    static final class Fake262Client { Fake262Gui gui = new Fake262Gui(); }
+    static final class FakeMojangClient { Object screen = new Object(); }
+
     static final class FakeMojangSelection {
         int ends;
         void setCursorToEnd() { ++ends; }
@@ -196,6 +200,13 @@ public final class TextEntryBookTest {
         check(java.util.Arrays.asList(signScreen.messages).equals(List.of("one two", "three four", "five six", ""))
               && signScreen.signField.ends == 1, "26.1+: a sign wraps by its own width check: "
               + java.util.Arrays.toString(signScreen.messages));
+        // 26.2 keeps the screen shown in Minecraft.gui.
+        Method screenOf = entry.getDeclaredMethod("currentScreen", Object.class);
+        screenOf.setAccessible(true);
+        Fake262Client client262 = new Fake262Client();
+        check(screenOf.invoke(null, client262) == client262.gui.screen, "26.2: the screen comes from Minecraft.gui");
+        FakeMojangClient client261 = new FakeMojangClient();
+        check(screenOf.invoke(null, client261) == client261.screen, "26.1: the screen is Minecraft.screen");
         mojang.setBoolean(null, false);
 
         if (failures > 0) System.exit(1);
