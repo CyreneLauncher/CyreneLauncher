@@ -34,6 +34,9 @@ class ToolchainTests(unittest.TestCase):
                            env={**os.environ, 'GITHUB_OUTPUT': str(output)}, check=True)
             lines = dict(line.split('=', 1) for line in output.read_text().splitlines())
             self.assertEqual(set(lines), {'jdk17', 'jdk21', 'jdk25', 'dotnet'})
+            # Exact versions returned by Adoptium and accepted by setup-java.
+            self.assertEqual(lines['jdk21'], '21.0.10+7.0.LTS')
+            self.assertEqual(lines['jdk25'], '25.0.2+10.0.LTS')
 
     def test_zip_keeps_executable_mode_and_rejects_escape(self):
         provision = load('provision_toolchain')
