@@ -3,7 +3,7 @@
   "components": {
     "mesa-orbis": {
       "directory": "mesa-orbis",
-      "revision": "97f9e341c9ccc3abe900b1662f7f8dcd5d0bd619",
+      "revision": "5172bebe74226f1e157b6d3cc5598582251c924d",
       "url": null,
       "dependencies": [
         "orbis-compat",

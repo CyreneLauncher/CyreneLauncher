@@ -2,14 +2,16 @@
 
 ## Update
 
-Install the matching **runner 0.45 PKG** from `orbis-java-app/build-runner/output/`.
-Then, with the PS4 application closed, upload the complete rebuilt graphics bundle to the
-directory named by `graphics_bundle` in `/data/orbis-jdk/runner/runner.conf`, and upload its
-manifest last: `graphics-probe/build/graphics-bundle-radeonsi/` to `/data/orbis-jdk/graphics-radeonsi`
-(radeonsi, the active driver), and `graphics-probe/build/graphics-bundle/` to
-`/data/orbis-jdk/graphics-neo` (the Zink fallback). The launcher JAR and native
-platform must be from the same build; uploading only the JAR is insufficient for system
-keyboard and restart support. The JDK does not need rebuilding for this update.
+Install the matching self-contained Orbis Launcher PKG from `releases/` with the PS4
+application closed. Its `runtimes/jdk17`, `jdk21` and `jdk25` graphics directories all
+contain the native graphics bundle: radeonsi for OpenGL and RADV for Vulkan. Zink is
+not compiled into the bundle. The application uses the selected JDK's packaged graphics;
+uploading an old external bundle alone does not update those packaged files.
+
+The release graphics input is `graphics-probe/build/graphics-bundle-native/`. The
+launcher JAR and native platform must be from the same verified package. Minecraft 26.3
+chooses OpenGL first for `preferredGraphicsBackend:"default"`; selecting Prefer Vulkan
+stores `preferredGraphicsBackend:"vulkan"`. Either choice uses a native AMD driver.
 
 Keep the existing launcher entrypoint metadata, Minecraft profile, assets and libraries.
 The launcher entrypoint remains `orbis.launcher.Launcher`; the installed game profile remains

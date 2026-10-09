@@ -98,6 +98,8 @@ def load_audit(path):
 
 
 platform_audit = load_audit(platform / 'platform-audit.json')
+if platform_audit.get('graphics_drivers') != {'opengl': 'radeonsi', 'vulkan': 'radv', 'zink_compiled': False}:
+    raise SystemExit('graphics bundle requires an audited native radeonsi/RADV platform without Zink')
 lwjgl_audit = load_audit(lwjgl / 'lwjgl-audit.json')
 facade_audit = load_audit(facade / 'facade-audit.json')
 optional_audit = load_audit(optional / 'optional-audit.json')

@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "component_revisions": {
-    "mesa-orbis": "97f9e341c9ccc3abe900b1662f7f8dcd5d0bd619",
+    "mesa-orbis": "5172bebe74226f1e157b6d3cc5598582251c924d",
     "lwjgl-orbis": "42c7f730d4956de43ee069c7dbd7ec081dd7ded7",
     "openal-soft-orbis": "277e07c70b78aa25fba7d6dd7499cf680c3ac002",
     "sdl-orbis": "443ad2bffab8eeb603279abc00c40757dbba21dc",
@@ -881,8 +881,8 @@
     }
   },
   "graphics": {
-    "source": "graphics-probe/build/graphics-bundle-vulkan",
-    "manifest_sha256": "c504ea016e89ed596ae240d14af1ddbf6b15b8c9463405f25dcfd0397c8da7ed"
+    "source": "graphics-probe/build/graphics-bundle-native",
+    "manifest_sha256": "5ba79cbbeede3cc9d7126848bec2c0d5f304b4ce0c8db311ec382360cd852e51"
   },
   "desktop": {
     "source": "orbis-java-app/build-cacio/export",

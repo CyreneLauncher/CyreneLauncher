@@ -2,6 +2,8 @@
 
 Minecraft 26.3 / LWJGL 3.4.3 can load RADV from the same platform PRX that supplies EGL. OpenGL remains the default: the supplied 26.3 client orders its default backends as OpenGL, then Vulkan. Only its explicit Vulkan preference reverses that order. This implementation does not modify `options.txt` or any saved renderer preference.
 
+The current native bundle compiles **radeonsi for OpenGL and RADV for Vulkan**, without Zink. EGL always uses the native radeonsi image loader; no `ORBIS_GL_DRIVER` override is required. A saved `preferredGraphicsBackend:"vulkan"` selects Minecraft's Vulkan-first order, while `"default"` selects OpenGL first. Both APIs use native AMD drivers. The self-contained package includes this bundle for every installed JDK, including JDK 25.
+
 ## Integration
 
 - `vkGetInstanceProcAddr` is exported by `liborbis_lwjgl_platform.so`. There is no second driver PRX or Linux Vulkan loader; RADV and radeonsi share the Orbis runtime, GPU arena and VideoOut infrastructure.
@@ -41,7 +43,7 @@ make -C graphics-probe vulkan-probe LWJGL_343_JARS=/path/to/official-lwjgl-3.4.3
 make -C orbis-java-app package
 ```
 
-The bundle target consumes the existing, audited native builds for the other LWJGL profiles. Outputs: `graphics-probe/build/graphics-bundle-vulkan/`, `graphics-probe/build/vulkan-probe/`, and the runner package from `orbis-java-app/build-runner/output/`. Passing `--vma-sdl` to `package_graphics_bundle.py` explicitly enables this optional capability; ordinary packaging continues to produce a GL-only bundle.
+The bundle target consumes the existing, audited native builds for the other LWJGL profiles. Outputs: `graphics-probe/build/graphics-bundle-native/`, `graphics-probe/build/vulkan-probe/`, and the runner package from `orbis-java-app/build-runner/output/`. Passing `--vma-sdl` to `package_graphics_bundle.py` explicitly enables Vulkan capability; ordinary packaging continues to produce a GL-only bundle using native radeonsi.
 
 ## Console acceptance and rollback
 

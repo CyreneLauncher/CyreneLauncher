@@ -45,7 +45,8 @@ MINECRAFT_CACHE ?= $(PROJECT_DIR)/build/downloads/minecraft
 minecraft-prepare:
 	$(PYTHON) $(PROJECT_DIR)/tools/prepare_minecraft.py --version 1.18.2 --output $(MINECRAFT_OUTPUT) --cache $(MINECRAFT_CACHE) --username $(MINECRAFT_USERNAME)
 
-# Explicit optional Vulkan bundle; OpenGL remains Minecraft's default.
+# Native AMD graphics bundle: radeonsi for OpenGL and RADV for Vulkan.
+# Minecraft's saved backend preference selects the API; Zink is not built.
 # Requires the pinned Mesa build and the existing component builds for all bundle profiles.
 LWJGL_343_JARS ?= /tmp/lwjgl-3.4.3
 VULKAN_MESA_BUILD ?= $(PROJECT_DIR)/build/vulkan-mesa
@@ -54,6 +55,6 @@ vulkan-bundle:
 	$(PYTHON) $(PROJECT_DIR)/tools/build_platform_prx.py --build $(VULKAN_MESA_BUILD) --output $(PROJECT_DIR)/build/platform-vulkan --sdk $(ORBIS_SDK) --toolchain $(SDK)
 	$(PYTHON) $(PROJECT_DIR)/tools/build_vma.py --jars $(LWJGL_343_JARS) --sdk $(ORBIS_SDK) --toolchain $(SDK) $(FETCH)
 	$(PYTHON) $(PROJECT_DIR)/tools/build_lwjgl_facade.py --release 3.4.3 --jars $(LWJGL_343_JARS) --output $(PROJECT_DIR)/build/lwjgl-facade-vulkan-3.4.3
-	$(PYTHON) $(PROJECT_DIR)/tools/package_graphics_bundle.py --platform $(PROJECT_DIR)/build/platform-vulkan --facade-sdl $(PROJECT_DIR)/build/lwjgl-facade-vulkan-3.4.3 --vma-sdl $(PROJECT_DIR)/build/vma-3.4.3 --output $(PROJECT_DIR)/build/graphics-bundle-vulkan
+	$(PYTHON) $(PROJECT_DIR)/tools/package_graphics_bundle.py --platform $(PROJECT_DIR)/build/platform-vulkan --facade-sdl $(PROJECT_DIR)/build/lwjgl-facade-vulkan-3.4.3 --vma-sdl $(PROJECT_DIR)/build/vma-3.4.3 --output $(PROJECT_DIR)/build/graphics-bundle-native
 vulkan-probe:
 	$(PYTHON) $(PROJECT_DIR)/tools/build_vulkan_probe.py --jars $(LWJGL_343_JARS)

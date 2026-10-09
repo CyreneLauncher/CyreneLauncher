@@ -14,6 +14,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import orbis_prx  # noqa: E402
+import native_driver_contract  # noqa: E402
 
 ROOT = orbis_prx.ROOT
 NAME = 'orbis_lwjgl_platform'
@@ -132,6 +133,7 @@ audit['vulkan_wsi'] = (manifest.get('status') == 'success'
                        and manifest.get('archives', {}).get('mesa/src/amd/vulkan/libvulkan_radeon.a', {}).get('sha256')
                            == hashlib.sha256(radv.read_bytes()).hexdigest())
 audit['jni_natives'] = natives
+audit['graphics_drivers'] = native_driver_contract.verify(elf, build / 'mesa')
 audit['prx'] = str(orbis_prx.fself(tools, elf, arguments.paid))
 (out / 'platform-audit.json').write_text(json.dumps(audit, indent=2) + '\n')
 print(f"platform PRX: {audit['prx']}, TLS 0x{audit['tls']['size']:x} align {audit['tls']['align']}, "
