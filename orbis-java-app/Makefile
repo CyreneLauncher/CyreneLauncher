@@ -5,6 +5,7 @@ TOOLCHAIN ?= /home/wonder/PS4Toolchain
 # A host JDK 17: javac for app.jar (--release 17, so JDK 17 and 21 runtimes both load it) and the
 # JNI headers the eboot compiles against (the JNI invocation API both runtimes export).
 BOOT_JDK ?= /usr/lib/jvm/java-17-openjdk-amd64
+JAVA22_JDK ?= $(PROJECT_DIR)/../../jdk25u/.boot-jdks/jdk-25
 JNI_HEADERS ?= $(BOOT_JDK)/include
 JNI_PLATFORM ?= linux
 PYTHON ?= python3
@@ -14,8 +15,8 @@ CC = $(SDK)/bin/orbis-clang
 CXX = $(SDK)/bin/orbis-clang++
 LD = $(SDK)/bin/orbis-ld
 FSELF ?= $(TOOLCHAIN)/bin/linux/create-fself
-TITLE ?= Orbis Launcher
-VERSION ?= 01.05
+TITLE ?= Cyrene Launcher
+VERSION ?= 01.06
 TITLE_ID ?= OJDK00003
 CONTENT_ID ?= IV0000-OJDK00003_00-ORBISJARRUNNER01
 PAID ?= 0x3800000000000011
@@ -113,7 +114,7 @@ RELEASE_JARS := $(PROJECT_DIR)/../graphics-probe/build/downloads/runner-jars
 runtime-stage: runner $(STAGE)/sce_sys/param.sfo
 	$(PYTHON) $(PROJECT_DIR)/../graphics-probe/tools/repositories.py verify
 	$(PYTHON) $(PROJECT_DIR)/tools/runtime_package.py prepare-libraries --inputs $(RELEASE_INPUTS) --library-output $(RELEASE_JARS)
-	$(PYTHON) $(PROJECT_DIR)/../graphics-probe/tools/build_launcher.py --jars $(RELEASE_JARS) --gson $(RELEASE_JARS)/gson-2.8.9.jar --output $(dir $(RELEASE_LAUNCHER))
+	$(PYTHON) $(PROJECT_DIR)/../graphics-probe/tools/build_launcher.py --boot-jdk $(BOOT_JDK) --java22-jdk $(JAVA22_JDK) --jars $(RELEASE_JARS) --gson $(RELEASE_JARS)/gson-2.8.9.jar --output $(dir $(RELEASE_LAUNCHER))
 	$(PYTHON) $(PROJECT_DIR)/tools/runtime_package.py assemble --inputs $(RELEASE_INPUTS) --stage $(STAGE) --launcher-jar $(RELEASE_LAUNCHER)
 
 $(STAGE)/package.gp4: runtime-stage $(PROJECT_DIR)/tools/make_gp4.py

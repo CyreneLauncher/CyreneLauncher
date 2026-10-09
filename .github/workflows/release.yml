@@ -1,0 +1,75 @@
+name: Build Cyrene Launcher
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: PS4 application version (XX.YY)
+        default: '01.06'
+        required: true
+        type: string
+      draft_release:
+        description: Create a draft GitHub release after verification
+        default: false
+        type: boolean
+permissions:
+  contents: read
+concurrency:
+  group: cyrene-release
+  cancel-in-progress: false
+jobs:
+  package:
+    runs-on: [self-hosted, linux, x64, cyrene]
+    permissions:
+      contents: write
+    env:
+      ORBIS_SDK: ${{ vars.ORBIS_SDK }}
+      PS4_TOOLCHAIN: ${{ vars.PS4_TOOLCHAIN }}
+      BOOT_JDK17: ${{ vars.BOOT_JDK17 }}
+      BOOT_JDK21: ${{ vars.BOOT_JDK21 }}
+      BOOT_JDK25: ${{ vars.BOOT_JDK25 }}
+      PKGTOOL: ${{ vars.PKGTOOL }}
+      ORBIS_MSA_CLIENT_ID: ${{ secrets.ORBIS_MSA_CLIENT_ID }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          path: orbis-launcher
+          persist-credentials: false
+      - name: Require application registration
+        shell: bash
+        run: test -n "$ORBIS_MSA_CLIENT_ID"
+      - name: Test orchestration
+        run: python3 -m unittest discover -s orbis-launcher/tools/tests -v
+      - name: Build and validate package
+        env:
+          APP_VERSION: ${{ inputs.version }}
+        run: orbis-launcher/orbis build --version "$APP_VERSION"
+      - name: Collect reusable components
+        run: orbis-launcher/orbis export
+      - name: Update release checksums
+        shell: bash
+        run: |
+          cd orbis-launcher/dist
+          sha256sum ./*.pkg ./*.json ./*.tar.gz ./*.sha256 > SHA256SUMS
+      - name: Save build outputs
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: cyrene-release-${{ inputs.version }}
+          path: orbis-launcher/dist/
+          if-no-files-found: error
+      - name: Save logs
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: cyrene-build-logs
+          path: orbis-launcher/build-logs/
+      - name: Create draft release
+        if: inputs.draft_release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          APP_VERSION: ${{ inputs.version }}
+        shell: bash
+        run: |
+          gh release create "v${APP_VERSION}" orbis-launcher/dist/* \
+            --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --draft \
+            --title "Cyrene Launcher ${APP_VERSION}" \
+            --notes "Verified PS4 package, pinned component exports, SHA-256 checksums and runtime manifest. Console testing status must be recorded before publishing this draft."

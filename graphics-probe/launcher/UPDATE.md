@@ -2,7 +2,7 @@
 
 ## Update
 
-Install the matching self-contained Orbis Launcher PKG from `releases/` with the PS4
+Install the matching self-contained Cyrene Launcher PKG from `releases/` with the PS4
 application closed. Its `runtimes/jdk17`, `jdk21` and `jdk25` graphics directories all
 contain the native graphics bundle: radeonsi for OpenGL and RADV for Vulkan. Zink is
 not compiled into the bundle. The application uses the selected JDK's packaged graphics;

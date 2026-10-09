@@ -178,7 +178,7 @@ class LauncherScreen {
         glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 2);
         glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
         glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GLFW_TRUE);
-        window = glfwCreateWindow(1920, 1080, "Orbis Launcher", 0, 0);
+        window = glfwCreateWindow(1920, 1080, "Cyrene Launcher", 0, 0);
         if (window == 0) throw new IllegalStateException("window creation failed");
         glfwMakeContextCurrent(window);
         glfwSwapInterval(1);

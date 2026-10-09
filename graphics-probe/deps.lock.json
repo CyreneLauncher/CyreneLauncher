@@ -49,8 +49,8 @@
   "compat_archive_sha256": "85e5ad890a1abbef602281c73e43809f632b7b534c9301a344ada867df89b5f7",
   "sources": {
     "mesa": {
-      "url": "https://github.com/orbis-ports/mesa-ps4.git",
-      "revision": "1a59cc147b54e3970814b37313e2f27357672e9d",
+      "url": "https://github.com/CyreneLauncher/mesa-orbis.git",
+      "revision": "58dd7b0b458b9a471fa5dfef8d5c4ba7d8742b06",
       "seed": "../../mesa-orbis"
     },
     "orbis-compat": {

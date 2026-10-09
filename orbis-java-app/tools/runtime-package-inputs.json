@@ -1,21 +1,19 @@
 {
   "schema": 1,
   "component_revisions": {
-    "mesa-orbis": "5172bebe74226f1e157b6d3cc5598582251c924d",
-    "lwjgl-orbis": "42c7f730d4956de43ee069c7dbd7ec081dd7ded7",
-    "openal-soft-orbis": "277e07c70b78aa25fba7d6dd7499cf680c3ac002",
-    "sdl-orbis": "443ad2bffab8eeb603279abc00c40757dbba21dc",
-    "orbis-runtime-support": "fc3fcc7f508dcb3c9d947f5b67f0fb2bcda2c2c5",
-    "jdk17u": "bed874559f78f1c55a04428bbd7e5da9ddda27d4",
-    "jdk21u": "4d02099a2f12ea5e1c84f91b60911538bc6ba6bf",
-    "jdk25u": "ee087fb75371851ea84902086a4e6a72ca2dd044",
+    "mesa-orbis": "728f563146ec893c6fdd13152ce65e6217da5bb2",
+    "lwjgl-orbis": "fd8777e88b8ddd1018e25c185d55a9d04f39e113",
+    "openal-soft-orbis": "99fa9adfdedaf8ac127cea5c00fc9ad562037cb0",
+    "sdl-orbis": "1e3c507a6e4e365f5166a6a77fc4cffe838b67bc",
+    "orbis-runtime-support": "637f2596d38d49271535c061a82dc1a1fbd16c9b",
     "orbis-compat": "6922a7b6f4291a28edd239f1a4db50ed7aa00359",
-    "orbis-porting-kit": "213b0c38ff25ea7ca402c8844a6494086d0f1cae"
+    "orbis-porting-kit": "213b0c38ff25ea7ca402c8844a6494086d0f1cae",
+    "orbis-openjdk": "a2dda1b215428d782f5f636540880bb2dd2b7471"
   },
   "runtimes": {
     "jdk17": {
       "feature": 17,
-      "source": "../jdk17u/orbis-export/build-jdk-orbis-x86_64-server-release-desktop/export",
+      "source": "../orbis-openjdk/output/jdk17",
       "files": {
         "conf/logging.properties": "b62d2733ab99556b108a1951d894c5a8d76b1ac7a00c02c388f9eb9be046c56f",
         "conf/management/jmxremote.access": "0c25d26ee212ca1e8c33f67c3c460d43fe849c3a1d23dbe341148517602b280c",
@@ -302,7 +300,7 @@
     },
     "jdk21": {
       "feature": 21,
-      "source": "../jdk21u/orbis-export/build-jdk-orbis-x86_64-server-release-desktop/export",
+      "source": "../orbis-openjdk/output/jdk21",
       "files": {
         "conf/jaxp.properties": "7d95c49465d0c836d608d02856d3b097934dfb5dc4bd2279affaf337d045b708",
         "conf/logging.properties": "b62d2733ab99556b108a1951d894c5a8d76b1ac7a00c02c388f9eb9be046c56f",
@@ -587,7 +585,7 @@
     },
     "jdk25": {
       "feature": 25,
-      "source": "../jdk25u/orbis-export/build-jdk-orbis-x86_64-server-release-desktop/export",
+      "source": "../orbis-openjdk/output/jdk25",
       "files": {
         "conf/jaxp-strict.properties.template": "3cc9b87633769414b22c24c97ecded8a15df630fe5ab12abca2398d88e31b32b",
         "conf/jaxp.properties": "d4f45052a100e5aef02b6638a3b9c69b2bdd46155ceb58a52671e5d594c30100",

@@ -87,7 +87,7 @@ bundle for licensing items still open.
 
 ### Minecraft 1.18.2 host preparation
 
-Run `make -C graphics-probe minecraft-prepare MINECRAFT_USERNAME=OrbisOffline` to
+Run `make -C graphics-probe minecraft-prepare MINECRAFT_USERNAME=YourProfileName` to
 create `graphics-probe/build/minecraft-1.18.2/`. The tool verifies the official
 version metadata, client, common libraries, asset index and individual asset
 objects. It uses the runner's Java metadata resolver and exact Orbis LWJGL
@@ -99,7 +99,7 @@ under ignored `build/` directories. This target does not upload or install files
 For a different host Java installation, use
 `python3 graphics-probe/tools/prepare_minecraft.py --version 1.18.2 --output
 graphics-probe/build/minecraft-1.18.2 --cache graphics-probe/build/downloads/minecraft
---username OrbisOffline --boot-jdk /path/to/jdk17`. The default device Java home
+--username YourProfileName --boot-jdk /path/to/jdk17`. The default device Java home
 is `/data/orbis-jdk/jdk/release`; `--java-home` selects another absolute device
 path. The offline identity is for a local title-screen test and uses a
 placeholder token. The initial heap and graphics arena values are documented

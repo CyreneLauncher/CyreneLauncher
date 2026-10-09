@@ -3,8 +3,13 @@
 /orbis-java-app/build-*/
 /graphics-probe/build/
 /graphics-probe/results/
-/docs/
 __pycache__/
 
 # Build secrets (the Microsoft application ID); CI supplies ORBIS_MSA_CLIENT_ID from GitHub Secrets.
 /secrets.env
+
+/build-logs/
+/dist/
+/.cyrene.env
+/BOOKKEEPING*
+/bookkeeping/

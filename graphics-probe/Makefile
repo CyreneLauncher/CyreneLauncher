@@ -39,10 +39,11 @@ lwjgl-compat:
 	$(PYTHON) $(PROJECT_DIR)/tools/build_lwjgl_compat.py --jars $(LWJGL_JARS)
 
 # Official Minecraft 1.18.2 host-only file tree; it is never copied to a console automatically.
-MINECRAFT_USERNAME ?= OrbisOffline
+MINECRAFT_USERNAME ?=
 MINECRAFT_OUTPUT ?= $(PROJECT_DIR)/build/minecraft-1.18.2
 MINECRAFT_CACHE ?= $(PROJECT_DIR)/build/downloads/minecraft
 minecraft-prepare:
+	@test -n "$(MINECRAFT_USERNAME)" || (echo "Set MINECRAFT_USERNAME to your own profile name for this host probe." >&2; exit 1)
 	$(PYTHON) $(PROJECT_DIR)/tools/prepare_minecraft.py --version 1.18.2 --output $(MINECRAFT_OUTPUT) --cache $(MINECRAFT_CACHE) --username $(MINECRAFT_USERNAME)
 
 # Native AMD graphics bundle: radeonsi for OpenGL and RADV for Vulkan.
