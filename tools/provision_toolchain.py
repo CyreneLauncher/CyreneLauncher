@@ -111,6 +111,7 @@ def provision(destination, lock_path):
         '--configuration', 'Release', '--output', destination / 'pkgtool',
         cwd=destination, env=build_env)
     env = {'ORBIS_SDK': str(sdk), 'PS4_TOOLCHAIN': str(toolchain),
+           'OO_PS4_TOOLCHAIN': str(toolchain),
            'PKGTOOL': str(destination / 'pkgtool/PkgTool.Core.dll'),
            'LLVM_CONFIG': llvm_config_path(lock['llvm_major'])}
     run(sdk / 'bin/clang', '--version', cwd=destination, env={**build_env, **env})
