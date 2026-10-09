@@ -1,4 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 root=$(cd -- "$(dirname -- "$0")" && pwd)
+if [[ -f "$root/.cyrene.env" ]]; then
+    set -a
+    source "$root/.cyrene.env"
+    set +a
+fi
 exec python3 "$root/tools/cyrene.py" "$@"

@@ -2,6 +2,8 @@ import importlib.util
 import io
 import json
 import tarfile
+import subprocess
+import shutil
 import tempfile
 import unittest
 from pathlib import Path
@@ -11,6 +13,13 @@ cli = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(cli)
 
 class CliTests(unittest.TestCase):
+    def test_wrapper_loads_local_configuration(self):
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d);shutil.copyfile(Path(__file__).parents[2]/'orbis',root/'orbis')
+            (root/'tools').mkdir();(root/'tools/cyrene.py').write_text("import os;print(os.environ.get('CYRENE_CONFIG_TEST','missing'))")
+            (root/'.cyrene.env').write_text('CYRENE_CONFIG_TEST="path with spaces"\n')
+            result=subprocess.run(['bash',str(root/'orbis')],capture_output=True,text=True,check=True)
+            self.assertEqual(result.stdout.strip(),'path with spaces')
     def test_corrupt_download_rejected(self):
         with tempfile.TemporaryDirectory() as d:
             p = Path(d)/'x'; p.write_bytes(b'bad')

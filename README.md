@@ -38,6 +38,8 @@ The build executes serial JDK builds, all LWJGL profiles, native Mesa, audio/SDL
 ./orbis import --archive /path/to/cyrene-components.tar.gz
 ```
 
+You can save these path variables in `.cyrene.env` instead of exporting them each time; copy `.cyrene.env.example` and edit it. The CLI loads that local Bash environment file automatically. It is excluded from Git.
+
 Keep source checkouts clean and pinned. Component recipes reuse unchanged successful builds. Existing JDK exports require matching lock/libc provenance and their original build inventory; preserve stale exports before rebuilding. Import requires the archive checksum and matching repository/JDK lock files, refuses existing outputs, and rejects archive links and traversal. Assembly checks every packaged file's hash against the inventory recorded after successful builds. Missing or altered recorded inventories are rejected; package assembly does not certify arbitrary files on disk.
 
 To reuse exports from a release, check out that release's source first, download its `cyrene-components.tar.gz` and `.sha256`, run `import`, then `package`. Dependencies needed for compilation are fetched and verified automatically.
