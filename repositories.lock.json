@@ -3,7 +3,7 @@
   "components": {
     "mesa-orbis": {
       "directory": "mesa-orbis",
-      "revision": "728f563146ec893c6fdd13152ce65e6217da5bb2",
+      "revision": "44141c121a1cf4fb969b1b8490c3fa879642ee81",
       "url": "https://github.com/CyreneLauncher/mesa-orbis.git",
       "dependencies": [
         "orbis-compat",
@@ -57,7 +57,7 @@
     },
     "orbis-openjdk": {
       "directory": "orbis-openjdk",
-      "revision": "dd6e35fbf2401816b28943437c5d3e71cbb615f8",
+      "revision": "813a5622ca9a09fe548191ac3ed839e308e3615d",
       "url": "https://github.com/CyreneLauncher/orbis-openjdk.git"
     }
   },

@@ -46,6 +46,10 @@ jobs:
       - uses: ./orbis-launcher/.github/actions/build-host
         with:
           jdks: ${{ matrix.jdk }}
+      - name: Bootstrap and check recorded link inputs
+        run: |
+          orbis-launcher/orbis bootstrap
+          python3 -m unittest discover -s orbis-openjdk/tests -v
       - name: Build and audit runtime
         env:
           JDK_VERSION: ${{ matrix.jdk }}
