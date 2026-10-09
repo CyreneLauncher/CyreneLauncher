@@ -54,7 +54,7 @@ with tempfile.TemporaryDirectory() as directory:
                     '--downloads', str(root / 'build/downloads'), '--output', str(tmp / 'facade')],
                    check=True, stdout=subprocess.DEVNULL)
     fakes = tmp / 'fakes'
-    subprocess.run([str(boot_jdk / 'bin/javac'), '--release', '17', '-nowarn', '-d', str(fakes),
+    subprocess.run([str(boot_jdk / 'bin/javac'), '--release', '17', '-nowarn', '-cp', str(jars / 'lwjgl-3.2.2.jar'), '-d', str(fakes),
                     str(root / 'tests/facade/orbis/graphics/NativePlatform.java'),
                     str(root / 'tests/facade/runner/gpu/NativeInput.java')], check=True)
     classpath = ':'.join(map(str, [fakes, tmp / 'facade/orbis-lwjgl-3.2.2-adapter.jar',

@@ -27,6 +27,10 @@ public final class FacadeVulkanTest {
         long window = SDL_CreateWindow("Vulkan", 854, 480, SDL_WINDOW_VULKAN);
         check(window != 0 && NativePlatform.vulkanWindows == 1 && NativePlatform.lastContext == null,
                 "Vulkan window creates no EGL context");
+        check(!runner.gpu.NativeInput.started, "Vulkan input waits until VideoOut exists");
+        NativePlatform.vulkanScanoutReady = true;
+        org.lwjgl.glfw.GLFW.glfwPollEvents();
+        check(runner.gpu.NativeInput.started, "Vulkan input starts after scanout creation");
         check((SDL_GetWindowFlags(window) & SDL_WINDOW_VULKAN) != 0
                 && (SDL_GetWindowFlags(window) & SDL_WINDOW_OPENGL) == 0, "window flags preserve Vulkan");
         check(SDL_GL_CreateContext(window) == 0, "Vulkan window rejects GL context");

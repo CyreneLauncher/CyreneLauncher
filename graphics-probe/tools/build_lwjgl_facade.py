@@ -98,6 +98,8 @@ REQUIRED_SDL = {
     'SDLVideo SDL_SetWindowMinimumSize (JII)Z', 'SDLVideo SDL_SetWindowMouseGrab (JZ)Z',
     'SDLVideo SDL_SetWindowPosition (JII)Z', 'SDLVideo SDL_SetWindowSize (JII)Z',
     'SDLVideo SDL_SetWindowTitle (JLjava/lang/CharSequence;)Z', 'SDLVideo SDL_SyncWindow (J)Z',
+    'SDLVulkan SDL_Vulkan_LoadLibrary (Ljava/lang/CharSequence;)Z',
+    'SDLVulkan SDL_Vulkan_UnloadLibrary ()V',
     'SDLVulkan SDL_Vulkan_GetVkGetInstanceProcAddr ()J',
     'SDLVulkan SDL_Vulkan_GetInstanceExtensions ()Lorg/lwjgl/PointerBuffer;',
     'SDLVulkan SDL_Vulkan_GetPresentationSupport (Lorg/lwjgl/vulkan/VkInstance;Lorg/lwjgl/vulkan/VkPhysicalDevice;I)Z',

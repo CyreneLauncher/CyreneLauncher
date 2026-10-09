@@ -60,6 +60,7 @@ static void release_window_locked(void) {
     context = EGL_NO_CONTEXT;
     surface = EGL_NO_SURFACE;
     vulkan_window = 0;
+    orbis_vulkan_set_pointer(0, 0, 0);
     surface_width = surface_height = 0;
 }
 
@@ -532,6 +533,11 @@ JNIEXPORT jlong JNICALL Java_orbis_graphics_NativePlatform_nCreateVulkanWindow(J
     return result;
 }
 
+JNIEXPORT jboolean JNICALL Java_orbis_graphics_NativePlatform_nVulkanScanoutReady(JNIEnv *env, jclass klass) {
+    (void)env; (void)klass;
+    return orbis_vulkan_scanout_ready() ? JNI_TRUE : JNI_FALSE;
+}
+
 JNIEXPORT jint JNICALL Java_orbis_graphics_NativePlatform_nVulkanCreateSurface(
         JNIEnv *env, jclass klass, jlong instance, jlong allocator, jlong output) {
     (void)env; (void)klass;
@@ -724,6 +730,14 @@ static const struct {
 JNIEXPORT void JNICALL Java_orbis_graphics_NativePlatform_nDrawPointer(
         JNIEnv *env, jclass klass, jint x, jint top, jint scale) {
     (void)env; (void)klass;
+    pthread_mutex_lock(&platform_lock);
+    int is_vulkan = vulkan_window;
+    int height = surface_height;
+    pthread_mutex_unlock(&platform_lock);
+    if (is_vulkan) {
+        orbis_vulkan_set_pointer(x, height - top, scale);
+        return;
+    }
     for (size_t i = 0; i < sizeof(shadowed) / sizeof(shadowed[0]); i++) {
         if (!*shadowed[i].real) return;
     }

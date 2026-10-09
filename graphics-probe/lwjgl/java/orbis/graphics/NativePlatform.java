@@ -22,6 +22,7 @@ public final class NativePlatform {
 
     /** Reserves the console window without creating an EGL surface or GL context. */
     public static native long nCreateVulkanWindow();
+    public static native boolean nVulkanScanoutReady();
 
     /** Creates the Orbis headless/VideoOut VkSurfaceKHR using caller allocation callbacks. */
     public static native int nVulkanCreateSurface(long instance, long allocator, long output);

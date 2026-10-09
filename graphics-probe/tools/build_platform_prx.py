@@ -117,9 +117,20 @@ wchar = orbis_prx.run('sh', kit / 'scripts/ps4/check-wchar-link.sh', why, stdout
 audit, natives = orbis_prx.audit(elf, allowed_needed=('libkernel.so', 'libSceGnmDriver.so', 'libSceVideoOut.so', 'libScePad.so',
                                                  'libSceUserService.so', 'libSceSystemService.so', 'libSceSysmodule.so',
                                                  'libSceImeDialog.so', 'libSceCommonDialog.so', 'libSceWebBrowserDialog.so'),
-                                 jni_prefix='Java_orbis_graphics_NativePlatform_', jni_count=26, required_c_exports=('vkGetInstanceProcAddr',))
+                                 jni_prefix='Java_orbis_graphics_NativePlatform_', jni_count=27, required_c_exports=('vkGetInstanceProcAddr',))
 if audit['tls'] is None:
     raise SystemExit('platform PRX has no TLS image; Mesa TLS was expected')
+# JNI symbols alone cannot prove that an older Mesa archive calls the WSI hooks.
+# Record audited driver provenance and require it when packaging optional Vulkan.
+manifest_path = build / 'build-manifest.json'
+manifest = json.loads(manifest_path.read_text()) if manifest_path.is_file() else {}
+required_patch = ROOT / 'patches/mesa/0049-wsi-orbis-vulkan-input-and-pointer-hooks.patch'
+import hashlib
+audit['mesa_patches'] = manifest.get('mesa_patches', {})
+audit['vulkan_wsi'] = (manifest.get('status') == 'success'
+                       and audit['mesa_patches'].get(required_patch.name) == hashlib.sha256(required_patch.read_bytes()).hexdigest()
+                       and manifest.get('archives', {}).get('mesa/src/amd/vulkan/libvulkan_radeon.a', {}).get('sha256')
+                           == hashlib.sha256(radv.read_bytes()).hexdigest())
 audit['jni_natives'] = natives
 audit['prx'] = str(orbis_prx.fself(tools, elf, arguments.paid))
 (out / 'platform-audit.json').write_text(json.dumps(audit, indent=2) + '\n')

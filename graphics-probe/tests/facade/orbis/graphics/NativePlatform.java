@@ -24,6 +24,8 @@ public final class NativePlatform {
         return 1;
     }
 
+    public static boolean vulkanScanoutReady;
+    public static boolean nVulkanScanoutReady() { return vulkanScanoutReady; }
     public static int vulkanWindows, vulkanSurfaceResult;
     public static long vulkanInstance, vulkanAllocator;
     public static long nCreateVulkanWindow() { vulkanWindows++; return 1; }

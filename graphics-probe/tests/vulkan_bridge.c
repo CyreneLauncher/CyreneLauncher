@@ -34,7 +34,33 @@ VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL radv_GetInstanceProcAddr(VkInstance ins
     if (!strcmp(name, "vkGetPhysicalDeviceQueueFamilyProperties")) return (PFN_vkVoidFunction)queue_properties;
     return NULL;
 }
+void orbis_vulkan_scanout_state(int delta);
+int orbis_vulkan_scanout_ready(void);
+void orbis_vulkan_set_pointer(int x, int y, int scale);
+void orbis_vulkan_draw_pointer(void *pixels, uint32_t width, uint32_t height, uint32_t pitch);
 int main(void) {
+    assert(!orbis_vulkan_scanout_ready());
+    orbis_vulkan_scanout_state(1);
+    assert(orbis_vulkan_scanout_ready());
+    orbis_vulkan_scanout_state(1);
+    orbis_vulkan_scanout_state(-1);
+    assert(orbis_vulkan_scanout_ready());
+    orbis_vulkan_scanout_state(-1);
+    assert(!orbis_vulkan_scanout_ready());
+    uint32_t pixels[16 * 16 + 2];
+    for (unsigned i = 0; i < 16 * 16 + 2; i++) pixels[i] = 0x12345678;
+    orbis_vulkan_set_pointer(0, 0, 1);
+    orbis_vulkan_draw_pointer(pixels + 1, 16, 16, 16 * 4);
+    assert(pixels[0] == 0x12345678 && pixels[257] == 0x12345678);
+    assert(pixels[1] == 0xff000000 && pixels[1 + 16 + 1] == 0xffffffff);
+    orbis_vulkan_set_pointer(15, 15, 2);
+    orbis_vulkan_draw_pointer(pixels + 1, 16, 16, 16 * 4);
+    assert(pixels[257] == 0x12345678);
+    orbis_vulkan_set_pointer(0, 0, 0);
+    pixels[1] = 0x12345678;
+    orbis_vulkan_draw_pointer(pixels + 1, 16, 16, 16 * 4);
+    assert(pixels[1] == 0x12345678);
+
     VkInstance instance = (VkInstance)(uintptr_t)0x1234;
     VkPhysicalDevice physical = (VkPhysicalDevice)(uintptr_t)0x4321;
     VkAllocationCallbacks allocator = {0};

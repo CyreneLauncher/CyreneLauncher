@@ -632,7 +632,7 @@ final class OrbisGLFW {
         }
         window = handle;
         windowClientApi = hintClientApi;
-        startInput();
+        if (windowClientApi != GLFW_NO_API) startInput();
         framebufferWidth = NativePlatform.nFramebufferWidth(handle);
         framebufferHeight = NativePlatform.nFramebufferHeight(handle);
         fullscreen = monitor != NULL;
@@ -957,6 +957,12 @@ final class OrbisGLFW {
      * touch no shader, texture or buffer state, and every piece of state used is restored.
      */
     private static void drawPointer() {
+        if (windowClientApi == GLFW_NO_API) {
+            int scale = DRAW_POINTER && pointerSeen && cursorMode == GLFW_CURSOR_NORMAL && !systemOwnsScreen()
+                    ? Math.max(1, framebufferHeight / 540) : 0;
+            NativePlatform.nDrawPointer((int) cursorX, framebufferHeight - (int) cursorY, scale);
+            return;
+        }
         if (!DRAW_POINTER || !pointerSeen || cursorMode != GLFW_CURSOR_NORMAL) return;
         try {
             if (GL.getCapabilities() == null) return;
@@ -1206,6 +1212,7 @@ final class OrbisGLFW {
                 }
                 if (value == GLFW_CURSOR_DISABLED && cursorMode != GLFW_CURSOR_DISABLED) recentre();
                 cursorMode = value;
+                if (windowClientApi == GLFW_NO_API) drawPointer();
                 break;
             case GLFW_STICKY_KEYS:
                 stickyKeysMode = value != GLFW_FALSE;
@@ -1507,6 +1514,9 @@ final class OrbisGLFW {
 
     private static void drain(long waitNanos, boolean wait) {
         if (!dispatching) reconcileSize();
+        if (!dispatching && window != NULL && windowClientApi == GLFW_NO_API && !inputAvailable
+                && NativePlatform.nVulkanScanoutReady()) startInput();
+        if (!dispatching && window != NULL && windowClientApi == GLFW_NO_API) drawPointer();
         if (!dispatching) orbis.graphics.WebBrowser.poll();
         if (!dispatching && window != NULL) pollPad();
         if (!dispatching && window != NULL) pollSystem();
@@ -1539,6 +1549,7 @@ final class OrbisGLFW {
                 ++handled;
             }
             if (cursorMode == GLFW_CURSOR_DISABLED) recentreIfNeeded();
+            if (windowClientApi == GLFW_NO_API) drawPointer();
         } finally {
             dispatching = false;
         }

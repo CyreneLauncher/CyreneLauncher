@@ -62,7 +62,7 @@ SDL_ADAPTER = 'orbis-lwjgl-3.4.3-adapter.jar'
 SDL_DIR = 'lwjgl-3.4.3'
 SDL_NATIVES = tuple(f'{SDL_DIR}/{name}' for name in
                     ('liblwjgl.so', 'liblwjgl_opengl.so', 'liblwjgl_stb.so', 'libfreetype.so', 'libshaderc.so',
-                     'libspirv-cross.so', 'liblwjgl_vma.so')) + ('libopenal.so', 'liborbis_lwjgl_platform.so')
+                     'libspirv-cross.so')) + ('libopenal.so', 'liborbis_lwjgl_platform.so')
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--boot-jdk', default='/usr/lib/jvm/java-17-openjdk-amd64')
@@ -82,7 +82,7 @@ parser.add_argument('--lwjgl-sdl', default=str(ROOT / 'build/lwjgl-3.4.3'))
 parser.add_argument('--facade-sdl', default=str(ROOT / 'build/lwjgl-facade-3.4.3'))
 parser.add_argument('--freetype-sdl', default=str(ROOT / 'build/freetype-3.4.3'))
 parser.add_argument('--spirv-sdl', default=str(ROOT / 'build/spirv-3.4.3'))
-parser.add_argument('--vma-sdl', default=str(ROOT / 'build/vma-3.4.3'))
+parser.add_argument('--vma-sdl', help='enable optional Minecraft 26.3 Vulkan using this audited VMA build')
 parser.add_argument('--sdl3', default=str(ROOT / 'build/sdl3'))
 parser.add_argument('--output', default=str(ROOT / 'build/graphics-bundle'))
 arguments = parser.parse_args()
@@ -129,10 +129,22 @@ sdl_lwjgl_audit = load_audit(lwjgl_sdl / 'lwjgl-audit.json')
 facade_sdl_audit = load_audit(facade_sdl / 'facade-audit.json')
 freetype_sdl_audit = load_audit(freetype_sdl / 'freetype-audit.json')
 spirv_sdl_audit = load_audit(spirv_sdl / 'spirv-audit.json')
-vma_sdl = Path(arguments.vma_sdl).resolve()
-vma_sdl_audit = load_audit(vma_sdl / 'vma-audit.json')
-if vma_sdl_audit['release'] != '3.4.3':
-    raise SystemExit('the SDL Vulkan profile requires pinned LWJGL VMA 3.4.3')
+vma_sdl = Path(arguments.vma_sdl).resolve() if arguments.vma_sdl else None
+vma_sdl_audit = None
+if vma_sdl:
+    vma_sdl_audit = load_audit(vma_sdl / 'vma-audit.json')
+    if vma_sdl_audit['release'] != '3.4.3':
+        raise SystemExit('the SDL Vulkan profile requires pinned LWJGL VMA 3.4.3')
+    if not platform_audit.get('vulkan_wsi'):
+        raise SystemExit('optional Vulkan requires a verified Mesa build with the Orbis WSI input/pointer hooks')
+    if 'vkGetInstanceProcAddr' not in platform_audit.get('c_exports', []):
+        raise SystemExit('optional Vulkan requires a platform PRX exporting vkGetInstanceProcAddr')
+    required = {f'Java_orbis_graphics_NativePlatform_{name}' for name in
+                ('nCreateVulkanWindow', 'nVulkanCreateSurface', 'nVulkanPresentationSupport', 'nVulkanScanoutReady')}
+    if not required <= set(platform_audit.get('jni_exports', [])):
+        raise SystemExit('optional Vulkan requires the platform Vulkan window/input JNI bridge')
+    SDL_NATIVES += (f'{SDL_DIR}/liblwjgl_vma.so',)
+
 sdl_tree = next((lwjgl_sdl / 'sources/lwjgl').iterdir())
 libffi_sdl_tree = next((lwjgl_sdl / 'sources/libffi-3.8.0').iterdir())
 sdl3 = Path(arguments.sdl3).resolve()
@@ -166,7 +178,8 @@ for name in ('liblwjgl', 'liblwjgl_opengl', 'liblwjgl_stb'):
 shutil.copyfile(freetype_sdl / 'libfreetype.prx', out / 'lib' / SDL_DIR / 'libfreetype.so')
 for name in ('libshaderc', 'libspirv-cross'):
     shutil.copyfile(spirv_sdl / f'{name}.prx', out / 'lib' / SDL_DIR / f'{name}.so')
-shutil.copyfile(vma_sdl / 'liblwjgl_vma.prx', out / 'lib' / SDL_DIR / 'liblwjgl_vma.so')
+if vma_sdl:
+    shutil.copyfile(vma_sdl / 'liblwjgl_vma.prx', out / 'lib' / SDL_DIR / 'liblwjgl_vma.so')
 shutil.copyfile(facade_sdl / SDL_ADAPTER, out / 'lib' / SDL_ADAPTER)
 shutil.copyfile(sdl3 / 'libSDL3.prx', out / 'lib/libSDL3.so')
 for name in NATIVES + MODERN_NATIVES + CURRENT_NATIVES + SDL_NATIVES + ('libSDL3.so',):
@@ -175,7 +188,8 @@ for name in NATIVES + MODERN_NATIVES + CURRENT_NATIVES + SDL_NATIVES + ('libSDL3
 
 legal = out / 'legal'
 legal.mkdir()
-shutil.copyfile(sdl_tree / 'modules/lwjgl/vma/vma_license.txt', legal / 'vma-LICENSE.txt')
+if vma_sdl:
+    shutil.copyfile(sdl_tree / 'modules/lwjgl/vma/vma_license.txt', legal / 'vma-LICENSE.txt')
 shutil.copyfile(sources / 'mesa/docs/license.rst', legal / 'mesa-license.rst')
 shutil.copyfile(sources / 'mesa/subprojects/zlib-1.3.1/LICENSE', legal / 'zlib-LICENSE')
 shutil.copyfile(next((openal / 'sources').iterdir()) / 'COPYING', legal / 'openal-soft-COPYING')
@@ -290,6 +304,11 @@ build_info = {
                        'lwjgl_required_functions': freetype_sdl_audit['lwjgl_required_functions']}
                       | {k: freetype_sdl_audit['module'][k] for k in ('needed', 'imports', 'tls')},
     'vma_3.4.3': vma_sdl_audit,
+    'vulkan_3.4.3': {'available': bool(vma_sdl), 'entry_point': 'vkGetInstanceProcAddr',
+                       'library': 'lib/liborbis_lwjgl_platform.so',
+                       'wsi_verified': platform_audit.get('vulkan_wsi', False),
+                       'mesa_patches': platform_audit.get('mesa_patches', {}),
+                       'console_acceptance': 'pending'},
     'spirv_3.4.3': {name: {k: audit[k] for k in ('needed', 'imports', 'tls')}
                     for name, audit in spirv_sdl_audit['modules'].items()},
     'facade_3.4.3': {k: facade_sdl_audit[k] for k in ('classes', 'official_classes', 'glfw_methods')}

@@ -1,0 +1,59 @@
+--- a/src/amd/vulkan/radv_image.c
++++ b/src/amd/vulkan/radv_image.c
+@@ -11,6 +11,9 @@
+ #include <stdlib.h> /* getenv, for the ORBIS_CMASK gate */
+ 
+ #include "radv_image.h"
++#ifdef HAVE_ORBIS_PLATFORM
++#include "radv_orbis_metadata.h"
++#endif
+ #include "tools/radv_debug.h"
+ #include "tools/radv_rmv.h"
+ #include "util/u_atomic.h"
+@@ -136,6 +136,11 @@
+ {
+    const struct radv_physical_device *pdev = radv_device_physical(device);
+    const struct radv_instance *instance = radv_physical_device_instance(pdev);
++
++#ifdef HAVE_ORBIS_PLATFORM
++   if (!radv_orbis_color_metadata_enabled(pdev->info.family))
++      return false;
++#endif
+ 
+    if (instance->debug_flags & RADV_DEBUG_FORCE_COMPRESS)
+       return true;
+@@ -190,6 +195,11 @@
+    const struct radv_physical_device *pdev = radv_device_physical(device);
+    const struct radv_instance *instance = radv_physical_device_instance(pdev);
+ 
++#ifdef HAVE_ORBIS_PLATFORM
++   if (!radv_orbis_color_metadata_enabled(pdev->info.family))
++      return false;
++#endif
++
+    if (instance->debug_flags & RADV_DEBUG_FORCE_COMPRESS)
+       return true;
+ 
+diff --git a/src/amd/vulkan/radv_orbis_metadata.h b/src/amd/vulkan/radv_orbis_metadata.h
+new file mode 100644
+--- /dev/null
++++ b/src/amd/vulkan/radv_orbis_metadata.h
+@@ -0,0 +1,18 @@
++/* SPDX-License-Identifier: MIT */
++#ifndef RADV_ORBIS_METADATA_H
++#define RADV_ORBIS_METADATA_H
++#include <stdbool.h>
++#include <stdlib.h>
++
++/* Gladius loses half the drawn 8x8 tiles after a CMASK clear (radeonsi patch 0041).
++ * Keep this safety gate ahead of FORCE_COMPRESS and the generic ORBIS_CMASK probe.
++ * Only the same explicit opt-in as radeonsi permits experiments on NEO. */
++static inline bool
++radv_orbis_color_metadata_enabled(int family)
++{
++   if (family != CHIP_GLADIUS)
++      return true;
++   const char *want = getenv("ORBIS_FAST_CLEAR");
++   return want && want[0] == '1' && want[1] == '\0';
++}
++#endif

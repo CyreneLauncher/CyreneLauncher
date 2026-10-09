@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Package the graphics bundle from existing component builds; the runner's reader must accept it."""
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -15,9 +16,27 @@ if not all(path.is_file() for path in inputs):
     raise SystemExit('graphics bundle test missing component audits; run make -C graphics-probe graphics-bundle first')
 with tempfile.TemporaryDirectory() as directory:
     out = Path(directory) / 'bundle'
-    subprocess.run([sys.executable, str(root / 'tools/package_graphics_bundle.py'), '--output', str(out)], check=True)
+    subprocess.run([sys.executable, str(root / 'tools/package_graphics_bundle.py'), '--output', str(out),
+                    *(['--platform', os.environ['ORBIS_PLATFORM_BUILD']] if 'ORBIS_PLATFORM_BUILD' in os.environ else []),
+                    *(['--facade-sdl', os.environ['ORBIS_FACADE_BUILD']] if 'ORBIS_FACADE_BUILD' in os.environ else []),
+                    *(['--vma-sdl', os.environ['ORBIS_VMA_BUILD']] if 'ORBIS_VMA_BUILD' in os.environ else [])], check=True)
+    if 'ORBIS_VMA_BUILD' in os.environ:
+        rejected = subprocess.run([sys.executable, str(root / 'tools/package_graphics_bundle.py'),
+                                   '--vma-sdl', os.environ['ORBIS_VMA_BUILD'],
+                                   '--platform', str(root / 'build/platform-radeonsi'),
+                                   '--output', str(Path(directory) / 'rejected')],
+                                  text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        assert rejected.returncode != 0 and 'verified Mesa build' in rejected.stdout, rejected.stdout
     manifest = json.loads((out / 'graphics-bundle.json').read_text())
-    profile, modern = manifest['profiles']
+    profile, modern, current, next_profile, sdl = manifest['profiles']
+    for entry in manifest['profiles']:
+        for name in entry['java_adapter_paths'] + entry['native_library_paths']:
+            assert name in manifest['files'], name
+    if 'ORBIS_VMA_BUILD' in os.environ:
+        assert 'lib/lwjgl-3.4.3/liblwjgl_vma.so' in sdl['native_library_paths']
+        assert not any('liblwjgl_vma.so' in name for entry in manifest['profiles'][:-1]
+                       for name in entry['native_library_paths'])
+        assert (out / 'legal/vma-LICENSE.txt').is_file()
     for path in (profile['java_adapter_paths'] + profile['native_library_paths']
                  + modern['java_adapter_paths'] + modern['native_library_paths']):
         assert path in manifest['files'], path

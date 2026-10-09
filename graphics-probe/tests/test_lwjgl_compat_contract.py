@@ -78,7 +78,7 @@ class CompatibilityContract(unittest.TestCase):
         facade = self.work / 'facade'
         subprocess.run([sys.executable, str(ROOT / 'tools/build_lwjgl_facade.py'), '--jars', str(JARS),
                         '--output', str(facade)], check=True, stdout=subprocess.DEVNULL)
-        subprocess.run([str(JAVA / 'javac'), '--release', '17', '-d', str(fakes),
+        subprocess.run([str(JAVA / 'javac'), '--release', '17', '-cp', str(JARS / 'lwjgl-3.2.2.jar'), '-d', str(fakes),
                         str(ROOT / 'tests/facade/orbis/graphics/NativePlatform.java'),
                         str(ROOT / 'tests/facade/runner/gpu/NativeInput.java')], check=True)
         cp = ':'.join(str(p) for p in [fakes, facade / 'orbis-lwjgl-3.2.2-adapter.jar',

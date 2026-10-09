@@ -1,0 +1,42 @@
+--- a/src/vulkan/wsi/wsi_orbis.c
++++ b/src/vulkan/wsi/wsi_orbis.c
+@@ -145,6 +145,11 @@
+ /* ⚠ THE PRESENT PATH TIMED FROM ITS OWN FILE. Counters and accessors live in ac_orbis_drm.c - permanent, and the
+  * only place they can live without making the arm depend on the transient diagnostic patch that reports them. Ids
+  * must match that patch's enum; 47-50 were verified against it when this was written. */
++/* The JVM platform optionally supplies input readiness and the fullscreen pointer.
++ * Other Orbis consumers have no dependency on these weak hooks. */
++extern void orbis_vulkan_scanout_state(int delta) __attribute__((weak));
++extern void orbis_vulkan_draw_pointer(void *pixels, uint32_t width, uint32_t height,
++                                     uint32_t pitch) __attribute__((weak));
+ void orbis_api_count(unsigned id, uint64_t n);
+ void orbis_api_time(unsigned id, uint64_t ns);
+ enum { ORBIS_ID_WSI_PRESENT = 47, ORBIS_ID_WSI_GPU_IDLE = 48, ORBIS_ID_WSI_COPY = 49,
+@@ -355,6 +360,8 @@
+              pitch_px != 0 ? pitch_px : width, count, so->owns_buffers ? "GARLIC" : "swapchain",
+              so->owns_buffers ? " - one full-screen copy per frame" : " - ZERO COPY, the flip shows what "
+                                                                      "the GPU rendered into");
++   if (orbis_vulkan_scanout_state)
++      orbis_vulkan_scanout_state(1);
+    return so;
+ 
+ fail:
+@@ -890,6 +897,10 @@
+       mesa_logi("wsi/orbis: present copied %u KiB, flipping index %u",
+                 (unsigned)((uint64_t)dst_pitch * so->height / 1024), index);
+ 
++   /* GPU completion and the copy are done; touch only the bounded pointer rectangle.
++    * Borrowed zero-copy images retain the Vulkan row pitch, including its padding. */
++   if (orbis_vulkan_draw_pointer)
++      orbis_vulkan_draw_pointer(dst, so->width, so->height, so->owns_buffers ? dst_pitch : src_pitch);
+    int32_t err = sceVideoOutSubmitFlip(so->video, (int32_t)index, ORBIS_VIDEO_OUT_FLIP_VSYNC,
+                                        (int64_t)++so->flips);
+    /* After the call, not instead of it: the flip really is submitted and the display really does take
+@@ -946,5 +957,7 @@
+ 
+    mesa_logi("wsi/orbis: scan-out down after %llu flip(s)", (unsigned long long)so->flips);
+    wsi_orbis_release(so);
++   if (orbis_vulkan_scanout_state)
++      orbis_vulkan_scanout_state(-1);
+    free(so);
+ }

@@ -134,14 +134,21 @@ def audit_elf(path, sdk):
             raise ValueError("SDK import library missing: " + str(library))
         exports.update(row[7].split("@", 1)[0] for row in dynamic_symbols(library)
                        if row[6] != "UND" and row[4] in ("GLOBAL", "WEAK"))
-    imports = {row[7].split("@", 1)[0] for row in dynamic_symbols(path)
+    symbol_rows = dynamic_symbols(path)
+    optional_hooks = {"orbis_vulkan_draw_pointer", "orbis_vulkan_scanout_state"}
+    optional_imports = {row[7].split("@", 1)[0] for row in symbol_rows
+                        if row[6] == "UND" and row[4] == "WEAK"
+                        and row[7].split("@", 1)[0] in optional_hooks}
+    imports = {row[7].split("@", 1)[0] for row in symbol_rows
                if row[6] == "UND" and row[4] in ("GLOBAL", "WEAK")}
-    missing = imports - exports
+    missing = imports - exports - optional_imports
     if missing:
         raise ValueError("SDK import unresolved: " + ", ".join(sorted(missing)[:8]))
     return {"path": str(path), "architecture": "x86_64 FreeBSD-target PIE",
             "osabi": "System V (SDK crt1 compatible)", "needed": needed,
-            "sdk_import_count": len(imports), "sdk_imports": sorted(imports),
+            "sdk_import_count": len(imports - optional_imports),
+            "sdk_imports": sorted(imports - optional_imports),
+            "optional_weak_imports": sorted(optional_imports),
             "dynamic": dynamic.strip()}
 
 
