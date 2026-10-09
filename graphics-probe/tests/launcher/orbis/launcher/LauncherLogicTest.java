@@ -65,11 +65,11 @@ public final class LauncherLogicTest {
                     "Java 21 runner: no 26.1");
             VersionStore.offeredJava = 25;
             check(VersionStore.inRange("26.1") && VersionStore.inRange("26.1.2") && VersionStore.inRange("26.2")
-                    && !VersionStore.inRange("26.3") && VersionStore.inRange("1.21.11") && VersionStore.inRange("1.14"),
-                    "Java 25 runner: up to 26.2");
-            check(ModrinthClient.supportedReleases().containsAll(List.of("26.2", "26.1.2", "1.21.11", "1.20.4")),
-                    "Java 25 runner: 26.1 packs as well");
-            check(VersionStore.newest().equals("26.2"), "Java 25 runner: newest 26.2");
+                    && VersionStore.inRange("26.3") && !VersionStore.inRange("26.4") && VersionStore.inRange("1.21.11")
+                    && VersionStore.inRange("1.14"), "Java 25 runner: up to 26.3");
+            check(ModrinthClient.supportedReleases().containsAll(List.of("26.3", "26.2", "26.1.2", "1.21.11", "1.20.4")),
+                    "Java 25 runner: 26.x packs as well");
+            check(VersionStore.newest().equals("26.3"), "Java 25 runner: newest 26.3");
         } finally {
             VersionStore.offeredJava = offered;
         }
@@ -78,6 +78,9 @@ public final class LauncherLogicTest {
         String v341 = "[{\"name\":\"org.lwjgl:lwjgl:3.4.1\"},{\"name\":\"org.lwjgl:lwjgl-glfw:3.4.1\"}]";
         check(VersionStore.declaresOnly(array(v341), VersionStore.CURRENT_LWJGL) && !VersionStore.upgradesToOwnLwjgl(array(v341)),
                 "26.1-shaped libraries keep LWJGL 3.4.1");
+        String v343 = "[{\"name\":\"org.lwjgl:lwjgl:3.4.3\"},{\"name\":\"org.lwjgl:lwjgl-sdl:3.4.3\"}]";
+        check(VersionStore.declaresOnly(array(v343), VersionStore.SDL_LWJGL) && !VersionStore.upgradesToOwnLwjgl(array(v343)),
+                "26.3-shaped libraries keep LWJGL 3.4.3");
         check(VersionStore.requiredJava("1.21.1") == 21 && VersionStore.requiredJava("1.20.5") == 21
                 && VersionStore.requiredJava("1.20.4") == 17 && VersionStore.requiredJava("1.16.5") == 8,
                 "required Java for records without one");

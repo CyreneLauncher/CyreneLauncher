@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Build FreeType as the libfreetype PRX LWJGL's org.lwjgl.util.freetype loads (3.3.3: FreeType 2.13.2,
-3.4.1: FreeType 2.14.1; each release binds one FreeType version).
+3.4.1: FreeType 2.14.1, 3.4.3: FreeType 2.14.3; each release binds one FreeType version).
 
 LWJGL has no JNI code for FreeType: FreeType.Functions looks every entry point up by name in
 libfreetype when the class initialises, and calls them through JNI.invoke*. So the module is plain
@@ -37,7 +37,8 @@ SOURCES = (
     'src/base/ftsystem.c', 'src/base/ftdebug.c')
 BINDING = 'modules/lwjgl/freetype/src/generated/java/org/lwjgl/util/freetype/FreeType.java'
 # Per LWJGL release: its lock entry and the FreeType lock entry it binds.
-RELEASES = {'3.3.3': ('lwjgl-3.3.3', 'freetype'), '3.4.1': ('lwjgl-3.4.1', 'freetype-2.14.1')}
+RELEASES = {'3.3.3': ('lwjgl-3.3.3', 'freetype'), '3.4.1': ('lwjgl-3.4.1', 'freetype-2.14.1'),
+            '3.4.3': ('lwjgl-3.4.3', 'freetype-2.14.3')}
 
 
 def required_functions(lwjgl):

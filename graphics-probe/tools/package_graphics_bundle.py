@@ -11,6 +11,7 @@ Upload the CONTENTS of the output directory to the runner's graphics_bundle path
                          org.lwjgl.librarypath, while OpenAL and the platform module stay in lib/
                          (java.library.path)
   lib/lwjgl-3.4.1/       the same for LWJGL 3.4.1 (Minecraft 26.1 and 26.2)
+  lib/lwjgl-3.4.3/       LWJGL 3.4.3 (Minecraft 26.3): natives, FreeType, shaderc and SPIRV-Cross
   lib/libSDL3.so         SDL3 for Controlify 3.5+, found on java.library.path
   legal/                 licence texts of what the modules contain
 The bundle never contains runner or JDK files. Building it does not deploy it.
@@ -51,6 +52,17 @@ CURRENT_NATIVES = tuple(name.replace(MODERN_DIR, CURRENT_DIR) for name in MODERN
 # Minecraft 26.2: the same natives; its shaderc, spvc, vma and vulkan modules serve only the Vulkan backend.
 NEXT_ID = 'minecraft-26.2-lwjgl-3.4.1-orbis-v1'
 NEXT_MODULES = CURRENT_MODULES | {f'org.lwjgl:{m}': '3.4.1' for m in ('lwjgl-shaderc', 'lwjgl-spvc', 'lwjgl-vma', 'lwjgl-vulkan')}
+# Minecraft 26.3: SDL3 in place of GLFW (the adapter carries the SDL facade), no TinyFD; its frontend
+# compiles shaders with shaderc and its OpenGL backend translates them with SPIRV-Cross.
+SDL_ID = 'minecraft-26.3-lwjgl-3.4.3-orbis-v1'
+SDL_MODULES = {f'org.lwjgl:{m}': '3.4.3' for m in
+               ('lwjgl', 'lwjgl-freetype', 'lwjgl-jemalloc', 'lwjgl-openal', 'lwjgl-opengl', 'lwjgl-sdl',
+                'lwjgl-shaderc', 'lwjgl-spvc', 'lwjgl-stb', 'lwjgl-vma', 'lwjgl-vulkan')}
+SDL_ADAPTER = 'orbis-lwjgl-3.4.3-adapter.jar'
+SDL_DIR = 'lwjgl-3.4.3'
+SDL_NATIVES = tuple(f'{SDL_DIR}/{name}' for name in
+                    ('liblwjgl.so', 'liblwjgl_opengl.so', 'liblwjgl_stb.so', 'libfreetype.so', 'libshaderc.so',
+                     'libspirv-cross.so')) + ('libopenal.so', 'liborbis_lwjgl_platform.so')
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--boot-jdk', default='/usr/lib/jvm/java-17-openjdk-amd64')
@@ -66,6 +78,10 @@ parser.add_argument('--freetype', default=str(ROOT / 'build/freetype'))
 parser.add_argument('--lwjgl-current', default=str(ROOT / 'build/lwjgl-3.4.1'))
 parser.add_argument('--facade-current', default=str(ROOT / 'build/lwjgl-facade-3.4.1'))
 parser.add_argument('--freetype-current', default=str(ROOT / 'build/freetype-3.4.1'))
+parser.add_argument('--lwjgl-sdl', default=str(ROOT / 'build/lwjgl-3.4.3'))
+parser.add_argument('--facade-sdl', default=str(ROOT / 'build/lwjgl-facade-3.4.3'))
+parser.add_argument('--freetype-sdl', default=str(ROOT / 'build/freetype-3.4.3'))
+parser.add_argument('--spirv-sdl', default=str(ROOT / 'build/spirv-3.4.3'))
 parser.add_argument('--sdl3', default=str(ROOT / 'build/sdl3'))
 parser.add_argument('--output', default=str(ROOT / 'build/graphics-bundle'))
 arguments = parser.parse_args()
@@ -105,6 +121,15 @@ facade_current_audit = load_audit(facade_current / 'facade-audit.json')
 freetype_current_audit = load_audit(freetype_current / 'freetype-audit.json')
 current_tree = next((lwjgl_current / 'sources/lwjgl').iterdir())
 libffi_current_tree = next((lwjgl_current / 'sources/libffi-3.5.0').iterdir())
+lwjgl_sdl, facade_sdl, freetype_sdl, spirv_sdl = (Path(p).resolve() for p in
+                                                  (arguments.lwjgl_sdl, arguments.facade_sdl, arguments.freetype_sdl,
+                                                   arguments.spirv_sdl))
+sdl_lwjgl_audit = load_audit(lwjgl_sdl / 'lwjgl-audit.json')
+facade_sdl_audit = load_audit(facade_sdl / 'facade-audit.json')
+freetype_sdl_audit = load_audit(freetype_sdl / 'freetype-audit.json')
+spirv_sdl_audit = load_audit(spirv_sdl / 'spirv-audit.json')
+sdl_tree = next((lwjgl_sdl / 'sources/lwjgl').iterdir())
+libffi_sdl_tree = next((lwjgl_sdl / 'sources/libffi-3.8.0').iterdir())
 sdl3 = Path(arguments.sdl3).resolve()
 sdl3_audit = load_audit(sdl3 / 'sdl3-audit.json')
 sdl3_tree = next((sdl3 / 'sources').iterdir())
@@ -130,8 +155,15 @@ for name in ('liblwjgl', 'liblwjgl_opengl', 'liblwjgl_stb', 'liblwjgl_tinyfd'):
     shutil.copyfile(lwjgl_current / f'{name}.prx', out / 'lib' / CURRENT_DIR / f'{name}.so')
 shutil.copyfile(freetype_current / 'libfreetype.prx', out / 'lib' / CURRENT_DIR / 'libfreetype.so')
 shutil.copyfile(facade_current / CURRENT_ADAPTER, out / 'lib' / CURRENT_ADAPTER)
+(out / 'lib' / SDL_DIR).mkdir()
+for name in ('liblwjgl', 'liblwjgl_opengl', 'liblwjgl_stb'):
+    shutil.copyfile(lwjgl_sdl / f'{name}.prx', out / 'lib' / SDL_DIR / f'{name}.so')
+shutil.copyfile(freetype_sdl / 'libfreetype.prx', out / 'lib' / SDL_DIR / 'libfreetype.so')
+for name in ('libshaderc', 'libspirv-cross'):
+    shutil.copyfile(spirv_sdl / f'{name}.prx', out / 'lib' / SDL_DIR / f'{name}.so')
+shutil.copyfile(facade_sdl / SDL_ADAPTER, out / 'lib' / SDL_ADAPTER)
 shutil.copyfile(sdl3 / 'libSDL3.prx', out / 'lib/libSDL3.so')
-for name in NATIVES + MODERN_NATIVES + CURRENT_NATIVES + ('libSDL3.so',):
+for name in NATIVES + MODERN_NATIVES + CURRENT_NATIVES + SDL_NATIVES + ('libSDL3.so',):
     if (out / 'lib' / name).read_bytes()[:4] != b'O\x15=\x1d':
         raise SystemExit(f'{name} is not a SELF module')
 
@@ -146,6 +178,15 @@ shutil.copyfile(modern_tree / 'LICENSE.md', legal / 'lwjgl-3.3.3-LICENSE.md')
 shutil.copyfile(libffi_tree / 'LICENSE', legal / 'libffi-LICENSE')
 shutil.copyfile(current_tree / 'LICENSE.md', legal / 'lwjgl-3.4.1-LICENSE.md')
 shutil.copyfile(libffi_current_tree / 'LICENSE', legal / 'libffi-3.5.0-LICENSE')
+shutil.copyfile(sdl_tree / 'LICENSE.md', legal / 'lwjgl-3.4.3-LICENSE.md')
+shutil.copyfile(libffi_sdl_tree / 'LICENSE', legal / 'libffi-3.8.0-LICENSE')
+shaderc_tree = next((spirv_sdl / 'sources/shaderc').iterdir())
+for key in ('shaderc', 'glslang', 'spirv-tools', 'spirv-headers', 'spirv-cross'):
+    # glslang, SPIRV-Tools and SPIRV-Headers are built from shaderc's third_party copies.
+    tree = (shaderc_tree if key == 'shaderc' else shaderc_tree / 'third_party' / key
+            if (shaderc_tree / 'third_party' / key).is_dir() else next((spirv_sdl / 'sources' / key).iterdir()))
+    licence = next(tree / name for name in ('LICENSE', 'LICENSE.txt') if (tree / name).is_file())
+    shutil.copyfile(licence, legal / f'{key}-LICENSE')
 shutil.copyfile(sdl3_tree / 'LICENSE.txt', legal / 'sdl3-LICENSE.txt')
 for name in ('LICENSE.TXT', 'docs/FTL.TXT'):
     shutil.copyfile(freetype_tree / name, legal / f'freetype-{Path(name).name}')
@@ -172,6 +213,13 @@ if (sources / 'orbis-compat/licenses').is_dir():
   `orbis-lwjgl-3.4.1-adapter.jar`: LWJGL 3.4.1 (`lwjgl-3.4.1-LICENSE.md`) and libffi 3.5.0
   (`libffi-3.5.0-LICENSE`, MIT); the same TinyFD stub. `lwjgl-3.4.1/libfreetype.so` is FreeType
   2.14.1, built the same way under the same licences.
+- `lwjgl-3.4.3/liblwjgl.so`, `liblwjgl_opengl.so`, `liblwjgl_stb.so` and `orbis-lwjgl-3.4.3-adapter.jar`:
+  LWJGL 3.4.3 (`lwjgl-3.4.3-LICENSE.md`) and libffi 3.8.0 (`libffi-3.8.0-LICENSE`, MIT); the adapter's
+  SDL facade is original. `lwjgl-3.4.3/libfreetype.so` is FreeType 2.14.3 under the licences above.
+  `lwjgl-3.4.3/libshaderc.so` is shaderc with glslang, SPIRV-Tools and SPIRV-Headers
+  (`shaderc-LICENSE`, `glslang-LICENSE`, `spirv-tools-LICENSE`, `spirv-headers-LICENSE`) and
+  `lwjgl-3.4.3/libspirv-cross.so` is SPIRV-Cross (`spirv-cross-LICENSE`), all built unmodified apart from
+  shaderc's install switch.
 - `libSDL3.so` is SDL 3.4.12 (Zlib, `sdl3-LICENSE.txt`) built with its dummy video and audio drivers,
   plus an original virtual-gamepad entry point for the console's controller.
 - STB sources in `liblwjgl_stb.so` are upstream stb headers bundled by LWJGL 3.2.2;
@@ -193,7 +241,7 @@ porting kit note that file as GPL-3.0). Review these before distributing the bun
 
 build_info = {
     'profile': PROFILE_ID,
-    'profiles': [PROFILE_ID, MODERN_ID, CURRENT_ID, NEXT_ID],
+    'profiles': [PROFILE_ID, MODERN_ID, CURRENT_ID, NEXT_ID, SDL_ID],
     'sources': json.loads((ROOT / 'lwjgl/lwjgl-sources.lock.json').read_text()),
     'mesa_lock': json.loads((ROOT / 'deps.lock.json').read_text())['sources'],
     'platform': {k: platform_audit[k] for k in ('needed', 'imports', 'tls')},
@@ -227,6 +275,16 @@ build_info = {
     'facade_3.4.1': {k: facade_current_audit[k] for k in ('classes', 'official_classes', 'glfw_methods')}
                     | {'implemented': len(facade_current_audit['implemented']),
                        'unsupported': len(facade_current_audit['unsupported'])},
+    'lwjgl_3.4.3': {name: {k: audit[k] for k in ('needed', 'imports', 'jni_natives', 'tls')}
+                    for name, audit in sdl_lwjgl_audit['modules'].items()},
+    'freetype_3.4.3': {'version': freetype_sdl_audit['freetype'],
+                       'lwjgl_required_functions': freetype_sdl_audit['lwjgl_required_functions']}
+                      | {k: freetype_sdl_audit['module'][k] for k in ('needed', 'imports', 'tls')},
+    'spirv_3.4.3': {name: {k: audit[k] for k in ('needed', 'imports', 'tls')}
+                    for name, audit in spirv_sdl_audit['modules'].items()},
+    'facade_3.4.3': {k: facade_sdl_audit[k] for k in ('classes', 'official_classes', 'glfw_methods')}
+                    | {'implemented': len(facade_sdl_audit['implemented']),
+                       'sdl_implemented': len(facade_sdl_audit['sdl_implemented'])},
 }
 (out / 'build-info.json').write_text(json.dumps(build_info, indent=2) + '\n')
 
@@ -239,6 +297,7 @@ for path in sorted(out.rglob('*')):
 operations = sorted({entry.split(' ')[0] for entry in facade_audit['implemented']})
 modern_operations = sorted({entry.split(' ')[0] for entry in facade_modern_audit['implemented']})
 current_operations = sorted({entry.split(' ')[0] for entry in facade_current_audit['implemented']})
+sdl_operations = sorted({entry.split(' ')[0] for entry in facade_sdl_audit['implemented']})
 manifest = {
     'schema_version': 1,
     'files': files,
@@ -269,6 +328,13 @@ manifest = {
         'java_adapter_paths': [f'lib/{CURRENT_ADAPTER}', f'lib/{LAUNCHER}'],
         'native_library_paths': [f'lib/{name}' for name in CURRENT_NATIVES],
         'glfw_operations': current_operations,
+        'gl_features': ['egl-desktop-opengl', 'single-fullscreen-window', 'eglGetProcAddress'],
+    }, {
+        'id': SDL_ID,
+        'modules': SDL_MODULES,
+        'java_adapter_paths': [f'lib/{SDL_ADAPTER}', f'lib/{LAUNCHER}'],
+        'native_library_paths': [f'lib/{name}' for name in SDL_NATIVES],
+        'glfw_operations': sdl_operations,
         'gl_features': ['egl-desktop-opengl', 'single-fullscreen-window', 'eglGetProcAddress'],
     }],
 }

@@ -156,5 +156,84 @@
     "sha256": "1e79592b0a498ffb854f7d71e0d5811fcedb87a25201644bbf5dbba438e01264",
     "license": "Apache-2.0 (LICENSE in the archive)",
     "selection": "The commit LWJGL 3.4.1's libspirv-cross.so was built from (its .git record, natives-linux); Minecraft 26.2's OpenGL backend turns SPIR-V back into GLSL with it"
+  },
+  "lwjgl-3.4.3": {
+    "version": "3.4.3",
+    "url": "https://github.com/LWJGL/lwjgl3/archive/refs/tags/3.4.3.tar.gz",
+    "filename": "lwjgl3-3.4.3.tar.gz",
+    "sha256": "039b5c4b9ef1927d56f6e63909ef3cbfba130d9f0294af37440d831048d2e724",
+    "license": "BSD-3-Clause (LICENSE.md in the archive)",
+    "selection": "Minecraft 26.3 declares LWJGL 3.4.3 (Mojang version metadata)"
+  },
+  "libffi-3.8.0": {
+    "version": "3.8.0",
+    "url": "https://github.com/libffi/libffi/releases/download/v3.8.0/libffi-3.8.0.tar.gz",
+    "filename": "libffi-3.8.0.tar.gz",
+    "sha256": "7da3e2d9a171eb0a038f592ecad3ff2bb2550f3496d87b3b29ad0cf4430c0db4",
+    "license": "MIT (LICENSE in the archive)",
+    "selection": "LWJGL 3.4.3's core/src/main/c/libffi/ffi.h is libffi 3.8.0's (FFI_VERSION_STRING 3.8.0); SHA-256 matches the GitHub release asset digest"
+  },
+  "freetype-2.14.3": {
+    "version": "2.14.3",
+    "url": "https://download.savannah.gnu.org/releases/freetype/freetype-2.14.3.tar.xz",
+    "filename": "freetype-2.14.3.tar.xz",
+    "sha256": "36bc4f1cc413335368ee656c42afca65c5a3987e8768cc28cf11ba775e785a5f",
+    "license": "FTL or GPL-2.0-or-later (LICENSE.TXT in the archive)",
+    "selection": "LWJGL 3.4.3's FreeType binding is generated for FreeType 2.14.3 (FREETYPE_MAJOR/MINOR/PATCH); SHA-256 matches SourceForge's listing"
+  },
+  "shaderc-3.4.3": {
+    "version": "2c8cae778eec0283b44acbe7ed1a386865d78799",
+    "url": "https://github.com/google/shaderc/archive/2c8cae778eec0283b44acbe7ed1a386865d78799.tar.gz",
+    "filename": "shaderc-2c8cae778eec0283b44acbe7ed1a386865d78799.tar.gz",
+    "sha256": "e6d6492a363cdef271e466f67cae3ad0d48f7e748491b8e2fe51424c08e391ad",
+    "license": "Apache-2.0 (LICENSE in the archive)",
+    "selection": "Shaderc v2026.3: the commit LWJGL 3.4.3's libshaderc.so records (natives-linux .git)"
+  },
+  "glslang-3.4.3": {
+    "version": "168d452a4f460d24b588fed08477a81c44ee27a1",
+    "url": "https://github.com/KhronosGroup/glslang/archive/168d452a4f460d24b588fed08477a81c44ee27a1.tar.gz",
+    "filename": "glslang-168d452a4f460d24b588fed08477a81c44ee27a1.tar.gz",
+    "sha256": "c167b2474af06cbab93abae8249efaf88fb79a09f30488e2a24d399e4258ce7a",
+    "license": "BSD-3-Clause and others (LICENSE.txt in the archive)",
+    "selection": "glslang_revision in shaderc v2026.3's DEPS"
+  },
+  "spirv-tools-3.4.3": {
+    "version": "b707790a898e44038547df54580022fc1cf89c3d",
+    "url": "https://github.com/KhronosGroup/SPIRV-Tools/archive/b707790a898e44038547df54580022fc1cf89c3d.tar.gz",
+    "filename": "spirv-tools-b707790a898e44038547df54580022fc1cf89c3d.tar.gz",
+    "sha256": "05d8af89737bde57571c48dbd36714c9f520a69623e14de72c3be6b600e277d6",
+    "license": "Apache-2.0 (LICENSE in the archive)",
+    "selection": "spirv_tools_revision in shaderc v2026.3's DEPS"
+  },
+  "spirv-headers-3.4.3": {
+    "version": "29981f65241605e08b0ede4cfeb999fe3b723c6a",
+    "url": "https://github.com/KhronosGroup/SPIRV-Headers/archive/29981f65241605e08b0ede4cfeb999fe3b723c6a.tar.gz",
+    "filename": "spirv-headers-29981f65241605e08b0ede4cfeb999fe3b723c6a.tar.gz",
+    "sha256": "232899f1ad4104fb5bc377b94596c7621575eee62ad9a9e8f929b63a7dd8a7ad",
+    "license": "MIT (LICENSE in the archive)",
+    "selection": "spirv_headers_revision in shaderc v2026.3's DEPS"
+  },
+  "spirv-cross-3.4.3": {
+    "version": "6c09849fe88c48eaed08413aa022aaa136a3a057",
+    "url": "https://github.com/KhronosGroup/SPIRV-Cross/archive/6c09849fe88c48eaed08413aa022aaa136a3a057.tar.gz",
+    "filename": "spirv-cross-6c09849fe88c48eaed08413aa022aaa136a3a057.tar.gz",
+    "sha256": "b81b9956289950570953738e666a031ca32ff64e4fc925eba89f227c42109518",
+    "license": "Apache-2.0 (LICENSE in the archive)",
+    "selection": "the commit LWJGL 3.4.3's libspirv-cross.so records (natives-linux .git)"
+  },
+  "java_artifacts_3.4.3": {
+    "description": "Official Mojang LWJGL 3.4.3 Java JARs (SHA-1 from the Minecraft 26.3 version metadata), which the 3.4.3 facade and natives are checked against. lwjgl-glfw-3.4.3.jar is not in 26.3 (SDL replaced GLFW); the adapter still carries the GLFW facade for the launcher UI, so its SHA-1 is Maven Central's.",
+    "lwjgl-freetype-3.4.3.jar": "d2b12961d44f92860fb1ab501f9c69b7a2975236",
+    "lwjgl-jemalloc-3.4.3.jar": "350f317eaf5295b1e53f6664ef5fdeeaaa7dcbf0",
+    "lwjgl-openal-3.4.3.jar": "32b52cda5af6937a4e4bd321bdb83082025cb332",
+    "lwjgl-opengl-3.4.3.jar": "b81769ee48050f8c71e70839505f350bf9219d90",
+    "lwjgl-sdl-3.4.3.jar": "c02146735d6ff70d070c73532b435e5c893a346b",
+    "lwjgl-shaderc-3.4.3.jar": "ba9fbc8fc4d50b3e4b436cc958ddb4abdb05867c",
+    "lwjgl-spvc-3.4.3.jar": "98e5b5ef5159100b26a169a9aed6c24e820e3eaa",
+    "lwjgl-stb-3.4.3.jar": "cdce54785bd3758e44a81f345d6260774d921c78",
+    "lwjgl-vma-3.4.3.jar": "816a6ac87f1e447e5346ca0e7a1078353f51fbd6",
+    "lwjgl-vulkan-3.4.3.jar": "ffdaf1898192059f059d66f9fa37e3debcac10e0",
+    "lwjgl-3.4.3.jar": "7ab5265a73d8a959ed62332d546536ae6be2f0d5",
+    "lwjgl-glfw-3.4.3.jar": "06ef4a0ab443924a1efb5dd6afdaa7bb25d36b44"
   }
 }

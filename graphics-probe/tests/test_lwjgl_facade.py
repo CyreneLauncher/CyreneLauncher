@@ -5,7 +5,7 @@ The host run uses the real facade JAR with the official LWJGL core/OpenGL Java a
 Linux native JARs, and pure-Java stand-ins for orbis.graphics.NativePlatform and
 runner.gpu.NativeInput (checked here against the production classes). The GL library
 name points nowhere, so any attempt by GL to load libGL itself fails the run.
-ORBIS_LWJGL_RELEASE=3.3.3 checks the 3.3.3 adapter instead of 3.2.2's.
+ORBIS_LWJGL_RELEASE=3.3.3 (or 3.4.1, 3.4.3) checks that adapter instead of 3.2.2's; 3.4.3 adds the SDL facade.
 """
 import os
 import subprocess
@@ -66,3 +66,8 @@ with tempfile.TemporaryDirectory() as directory:
         javac('-cp', classpath, '-d', tests, root / 'tests/facade/FacadeBehavior34Test.java')
         subprocess.run([str(boot_jdk / 'bin/java'), '-ea', '-Dorg.lwjgl.opengl.libname=/nonexistent/libGL.so',
                         '-cp', f'{tests}:{classpath}', 'FacadeBehavior34Test'], check=True)
+    if release == '3.4.3':
+        # Minecraft 26.3's SDL calls, through OrbisSDL (the adapter carries every org.lwjgl.sdl class).
+        javac('-cp', classpath, '-d', tests, root / 'tests/facade/FacadeSdlTest.java')
+        subprocess.run([str(boot_jdk / 'bin/java'), '-ea', '-Dorg.lwjgl.opengl.libname=/nonexistent/libGL.so',
+                        '-cp', f'{tests}:{classpath}', 'FacadeSdlTest'], check=True)

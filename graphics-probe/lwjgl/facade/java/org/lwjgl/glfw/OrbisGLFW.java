@@ -392,8 +392,16 @@ final class OrbisGLFW {
         if (GL.getFunctionProvider() == null) GL.create(new EglFunctionProvider());
     }
 
-    /** OpenGL entry points from Mesa through EGL; explicit init keeps GL from loading libGL. */
-    private static final class EglFunctionProvider implements FunctionProvider {
+    /**
+     * OpenGL entry points from Mesa through EGL; explicit init keeps GL from loading libGL. A library as
+     * far as LWJGL can tell: Minecraft 26.3 hands GL's provider, as a SharedLibrary, to SDL_GL_LoadLibrary.
+     */
+    private static final class EglFunctionProvider implements org.lwjgl.system.SharedLibrary {
+        @Override public String getName() { return "Orbis EGL"; }
+        @Override public String getPath() { return "orbis-egl"; }
+        @Override public long address() { return NULL; }
+        @Override public void free() { }
+
         @Override
         public long getFunctionAddress(CharSequence functionName) {
             return NativePlatform.nGetProcAddress(functionName.toString());
@@ -1658,6 +1666,11 @@ final class OrbisGLFW {
         pointerX = INPUT_WIDTH / 2;
         pointerY = INPUT_HEIGHT / 2;
         if (inputAvailable) NativeInput.setPointer(pointerX, pointerY);
+    }
+
+    /** The keyboard's HID modifier bits (LCtrl, LShift, LAlt, LGUI, RCtrl, RShift, RAlt, RGUI); the SDL facade's mod state. */
+    static int hidModifiers() {
+        return modifierBits;
     }
 
     private static int mods() {

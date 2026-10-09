@@ -74,18 +74,20 @@ final class VersionStore {
     /** The runner's own JAR stays a system library: the GLFW adapter reaches runner.gpu.NativeInput in it. */
     static final String SYSTEM_LIBRARIES = "/app0/app.jar";
     private static final int[] OLDEST = {1, 14}, NEWEST_17 = {1, 20, 4}, NEWEST_21 = {1, 21, 11},
-            NEWEST_25 = {26, 2};
+            NEWEST_25 = {26, 3};
     /**
      * The newest Java a runner on the console provides (Runtimes.newest()); LauncherConfig sets it.
      * Java 17 stops at 1.20.4; a Java 21 runner adds 1.20.5 to 1.21.11 (LWJGL 3.3.3) and a Java 25
-     * runner 26.1 to 26.2 (LWJGL 3.4.1; 26.2's OpenGL backend needs none of its Vulkan-side modules).
-     * 26.3 needs SDL3 in place of GLFW and shaderc and SPIRV-Cross natives.
+     * runner 26.1 to 26.2 (LWJGL 3.4.1; 26.2's OpenGL backend needs none of its Vulkan-side modules)
+     * and 26.3 (LWJGL 3.4.3: SDL3 in place of GLFW, through the adapter's SDL facade).
      */
     static volatile int offeredJava = Runtime.version().feature();
     /** The LWJGL release whose Java artifacts a version keeps (the runner has a profile and natives for it). */
     static final String OWN_LWJGL = "3.3.3";
     /** Minecraft 26.1's LWJGL, whose Java artifacts are kept too (the runner's 3.4.1 profile). */
     static final String CURRENT_LWJGL = "3.4.1";
+    /** Minecraft 26.3's LWJGL (SDL3), kept as well (the runner's 3.4.3 profile). */
+    static final String SDL_LWJGL = "3.4.3";
     /** Mojang's LWJGL 3.3.3 Java artifacts as Minecraft 1.20.5 declares them: the runner's 3.3.3 profile pins. */
     private static final String OWN_LWJGL_LIBRARIES = """
             [
@@ -158,7 +160,7 @@ final class VersionStore {
 
     /** The newest release offered, for messages. */
     static String newest() {
-        return offeredJava >= 25 ? "26.2" : offeredJava >= 21 ? "1.21.11" : "1.20.4";
+        return offeredJava >= 25 ? "26.3" : offeredJava >= 21 ? "1.21.11" : "1.20.4";
     }
 
     static boolean inRange(String id) {
@@ -301,7 +303,8 @@ final class VersionStore {
         if (lwjgl.isEmpty() || builtInGson == null) throw new IOException("The installed 1.18.2 profile lacks LWJGL or gson");
 
         JsonArray vanillaLibraries = vanilla.getAsJsonArray("libraries");
-        boolean ownLwjgl = declaresOnly(vanillaLibraries, OWN_LWJGL) || declaresOnly(vanillaLibraries, CURRENT_LWJGL);
+        boolean ownLwjgl = declaresOnly(vanillaLibraries, OWN_LWJGL) || declaresOnly(vanillaLibraries, CURRENT_LWJGL)
+                || declaresOnly(vanillaLibraries, SDL_LWJGL);
         boolean upgradedLwjgl = !ownLwjgl && upgradesToOwnLwjgl(vanillaLibraries);
         int index = 0;
         boolean lwjglAdded = false;

@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Build libshaderc and libspirv-cross, the PRXs LWJGL 3.4.1's shaderc and spvc modules load (Minecraft 26.2+).
+"""Build libshaderc and libspirv-cross, the PRXs LWJGL 3.4.x's shaderc and spvc modules load (Minecraft 26.2+).
 
 Minecraft 26.2 compiles its GLSL to SPIR-V with shaderc and, on OpenGL, turns the SPIR-V back into GLSL
 with SPIRV-Cross. LWJGL has no JNI code for either: it resolves every function by name when a class
 initialises (shaderc's C API, glslang's C interface and resource limits and SPIRV-Tools' optimizer from
 libshaderc; SPIRV-Cross's C API from libspirv-cross), so the build fails unless every one is exported.
-Sources are the commits LWJGL 3.4.1's own Linux binaries record (lwjgl/lwjgl-sources.lock.json), with
+Sources are the commits each LWJGL release's own Linux binaries record (lwjgl/lwjgl-sources.lock.json), with
 glslang, SPIRV-Tools and SPIRV-Headers at the revisions shaderc's DEPS names; built as static libraries
 with CMake (no tests, executables or install) and linked whole with the shared Orbis PRX recipe.
 """
@@ -44,8 +44,13 @@ def main():
     parser.add_argument('--paid', default='0x3800000000000011')
     parser.add_argument('--downloads', default=str(ROOT / 'build/downloads'))
     parser.add_argument('--fetch', action='store_true', help='download the pinned archives if missing')
-    parser.add_argument('--output', default=str(ROOT / 'build/spirv-3.4.1'))
+    parser.add_argument('--release', choices=('3.4.1', '3.4.3'), default='3.4.3')
+    parser.add_argument('--output', help='default build/spirv-<release>')
     arguments = parser.parse_args()
+    if arguments.output is None:
+        arguments.output = str(ROOT / f'build/spirv-{arguments.release}')
+    # 3.4.1's pins carry no suffix in the lock file; later releases' carry the release.
+    suffix = '' if arguments.release == '3.4.1' else f'-{arguments.release}'
     out = Path(arguments.output).resolve()
     out.mkdir(parents=True, exist_ok=True)
     tools = orbis_prx.Toolchain(arguments.sdk, arguments.toolchain)
@@ -67,9 +72,11 @@ def main():
     stamp.invalidate()
 
     def extract(key):
-        return lwjgl_sources.extract(lwjgl_sources.archive(key, downloads, arguments.fetch), out / 'sources' / key)
+        return lwjgl_sources.extract(lwjgl_sources.archive(key + suffix, downloads, arguments.fetch),
+                                     out / 'sources' / key)
 
-    lwjgl = lwjgl_sources.extract(lwjgl_sources.archive('lwjgl-3.4.1', downloads, arguments.fetch), out / 'sources/lwjgl')
+    lwjgl = lwjgl_sources.extract(lwjgl_sources.archive(f'lwjgl-{arguments.release}', downloads, arguments.fetch),
+                                  out / 'sources/lwjgl')
     shaderc_names = required(lwjgl, 'shaderc', SHADERC_BINDINGS)
     spvc_names = required(lwjgl, 'spvc', SPVC_BINDINGS)
     shaderc = extract('shaderc')

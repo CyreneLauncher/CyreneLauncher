@@ -33,7 +33,8 @@ DYNCALL_SOURCES = (
 LIBFFI_SOURCES = ('src/prep_cif.c', 'src/types.c', 'src/raw_api.c', 'src/java_raw_api.c',
                   'src/x86/ffi64.c', 'src/x86/unix64.S', 'src/x86/ffiw64.c', 'src/x86/win64.S')
 # Per release: the lock entry and the library that makes calls and callbacks.
-RELEASES = {'3.2.2': ('lwjgl', 'dyncall'), '3.3.3': ('lwjgl-3.3.3', 'libffi'), '3.4.1': ('lwjgl-3.4.1', 'libffi-3.5.0')}
+RELEASES = {'3.2.2': ('lwjgl', 'dyncall'), '3.3.3': ('lwjgl-3.3.3', 'libffi'), '3.4.1': ('lwjgl-3.4.1', 'libffi-3.5.0'),
+            '3.4.3': ('lwjgl-3.4.3', 'libffi-3.8.0')}
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--sdk', default='/home/wonder/ps4-payload-sdk', help='OpenOrbis clang/lld')
@@ -58,7 +59,8 @@ MODULES = ('liblwjgl', 'liblwjgl_opengl', 'liblwjgl_stb') + (() if arguments.rel
 # The archives are pinned by the lock file, so the stamp covers them through it.
 stamp = (orbis_prx.stamp_recipe(build_stamp.Stamp(out, 'lwjgl-natives'), tools)
          .files(Path(__file__), Path(lwjgl_sources.__file__), ROOT / 'lwjgl/lwjgl-sources.lock.json',
-                ROOT / f"lwjgl/{ffi_key.split('-')[0]}", ROOT / 'lwjgl/tinyfd/orbis_tinyfd_3_3.c')
+                ROOT / f"lwjgl/{ffi_key.split('-')[0]}", ROOT / 'lwjgl/tinyfd/orbis_tinyfd_3_3.c',
+                ROOT / 'lwjgl/opengl/orbis_opengl_onload.c')
          .stats(Path(arguments.jni_headers))
          .value('arguments', {k: v for k, v in vars(arguments).items() if k not in ('fetch', 'downloads')}))
 if stamp.current(out / 'lwjgl-audit.json', *[out / f'{name}{suffix}' for name in MODULES for suffix in ('.so', '.prx')]):
@@ -105,10 +107,10 @@ else:
 core_sources = (sorted((lwjgl / 'core/src/main/c').glob('*.c')) + sorted((lwjgl / 'core/src/generated/c').glob('*.c'))
                 + sorted(p for p in (lwjgl / 'core/src/generated/c/linux').glob('*.c') if 'liburing' not in p.name))
 core_objects = compile_all(core_sources, out / 'obj/core', *lwjgl_flags, *ffi_flags)
-# 3.4.1: JNI_OnLoad installs the GLFW facade's EGL provider while GL initializes (Minecraft 26.2).
+# 3.4.x: JNI_OnLoad installs the GLFW facade's EGL provider while GL initializes (Minecraft 26.2).
 opengl_objects = compile_all(sorted(p for p in (lwjgl / 'opengl/src/generated/c').glob('*.c')
                                     if p.name != 'org_lwjgl_opengl_WGL.c')
-                             + ([ROOT / 'lwjgl/opengl/orbis_opengl_onload.c'] if arguments.release == '3.4.1' else []),
+                             + ([ROOT / 'lwjgl/opengl/orbis_opengl_onload.c'] if arguments.release.startswith('3.4') else []),
                              out / 'obj/opengl', *lwjgl_flags, '-I', lwjgl / 'opengl/src/main/c')
 stb_sources = sorted((lwjgl / 'stb/src/generated/c').glob('*.c'))
 if len(stb_sources) != 11:
@@ -117,7 +119,7 @@ stb_objects = compile_all(stb_sources, out / 'obj/stb', *lwjgl_flags,
                           '-isystem' if modern else '-I', lwjgl / 'stb/src/main/c')
 
 builds = [('liblwjgl', core_objects + ffi_objects, 'Java_org_lwjgl_system_', True),
-          ('liblwjgl_opengl', opengl_objects, 'Java_org_lwjgl_opengl_', arguments.release == '3.4.1'),
+          ('liblwjgl_opengl', opengl_objects, 'Java_org_lwjgl_opengl_', arguments.release.startswith('3.4')),
           ('liblwjgl_stb', stb_objects, 'Java_org_lwjgl_stb_', False)]
 if 'liblwjgl_tinyfd' in MODULES:
     tinyfd = lwjgl / 'tinyfd/src'

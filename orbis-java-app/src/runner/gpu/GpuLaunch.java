@@ -16,8 +16,8 @@ import runner.lwjgl.VersionMetadataResolver;
 /**
  * display=gpu launch preparation, before any application or LWJGL class loads: resolve the
  * version metadata, select the tested LWJGL profile, validate the graphics bundle, then
- * extend the system class path as adapter JARs, resolved libraries (without lwjgl-glfw,
- * which the adapter replaces) after the target JAR. Every failure is a categorized
+ * extend the system class path as adapter JARs, resolved libraries (without lwjgl-glfw and
+ * lwjgl-sdl, which the adapter replaces) after the target JAR. Every failure is a categorized
  * LaunchPlanException raised before native code loads.
  */
 public final class GpuLaunch {
@@ -42,10 +42,13 @@ public final class GpuLaunch {
             throw new IllegalStateException("display=gpu requires runner.RunnerSystemClassLoader, found "
                     + system.getClass().getName());
         RunnerSystemClassLoader loader = (RunnerSystemClassLoader) system;
-        Path replacedGlfw = plan.lwjglPaths().get("org.lwjgl:lwjgl-glfw");
+        // The adapter carries every GLFW class and, from LWJGL 3.4.3 (Minecraft 26.3), every SDL class.
+        List<Path> replaced = new ArrayList<>();
+        for (String module : List.of("org.lwjgl:lwjgl-glfw", "org.lwjgl:lwjgl-sdl"))
+            if (plan.lwjglPaths().containsKey(module)) replaced.add(plan.lwjglPaths().get(module));
         List<Path> entries = new ArrayList<>(bundle.javaAdapters());
         for (Path library : plan.classpath())
-            if (!library.equals(replacedGlfw)) entries.add(library);
+            if (!replaced.contains(library)) entries.add(library);
         for (Path entry : entries) {
             try {
                 loader.appendToClassPath(entry.toUri().toURL());
@@ -64,7 +67,7 @@ public final class GpuLaunch {
         System.setProperty("org.lwjgl.librarypath", nativeDirectory.toString());
         System.setProperty("org.lwjgl.opengl.explicitInit", "true");
         System.setProperty("org.lwjgl.system.allocator", "system");
-        System.out.println("runner: gpu class path +" + entries.size() + " entries (lwjgl-glfw replaced), natives="
+        System.out.println("runner: gpu class path +" + entries.size() + " entries (" + replaced.size() + " LWJGL modules replaced), natives="
                 + nativeDirectory);
         return plan.mainClass();
     }
