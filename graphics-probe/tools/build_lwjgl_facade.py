@@ -74,6 +74,8 @@ REQUIRED_SDL = {
     'SDLSurface SDL_CreateSurfaceFrom (IIILjava/nio/ByteBuffer;I)Lorg/lwjgl/sdl/SDL_Surface;',
     'SDLSurface SDL_DestroySurface (Lorg/lwjgl/sdl/SDL_Surface;)V', 'SDLTimer SDL_GetTicksNS ()J',
     'SDLVideo SDL_CreateWindow (Ljava/lang/CharSequence;IIJ)J', 'SDLVideo SDL_DestroyWindow (J)V',
+    'SDLVideo SDL_GL_GetCurrentContext ()J',
+    'SDLVideo SDL_GL_GetSwapInterval (Ljava/nio/IntBuffer;)Z',
     'SDLVideo SDL_GL_CreateContext (J)J', 'SDLVideo SDL_GL_DestroyContext (J)Z',
     'SDLVideo SDL_GL_GetAttribute (ILjava/nio/IntBuffer;)Z', 'SDLVideo SDL_GL_GetProcAddress (Ljava/lang/CharSequence;)J',
     'SDLVideo SDL_GL_LoadLibrary (Ljava/lang/CharSequence;)Z', 'SDLVideo SDL_GL_MakeCurrent (JJ)Z',

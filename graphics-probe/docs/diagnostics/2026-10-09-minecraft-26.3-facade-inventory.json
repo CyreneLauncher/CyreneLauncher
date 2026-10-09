@@ -1,0 +1,4880 @@
+{
+  "top_level_jars": 46,
+  "total_jars": 160,
+  "classes": 31452,
+  "references": [
+    {
+      "owner": "org/lwjgl/glfw/GLFW",
+      "name": "glfwCreateCursor",
+      "descriptor": "(Lorg/lwjgl/glfw/GLFWImage;II)J",
+      "status": "implemented",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/glfw/state_caching/global/GlfwCursorCache.class",
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/glfw/glfw_state_caching/GLFWMixin.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFW",
+      "name": "glfwCreateStandardCursor",
+      "descriptor": "(I)J",
+      "status": "implemented",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/glfw/state_caching/global/GlfwCursorCache.class",
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/glfw/glfw_state_caching/GLFWMixin.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFW",
+      "name": "glfwCreateWindow",
+      "descriptor": "(IILjava/lang/CharSequence;JJ)J",
+      "status": "implemented",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/glfw/glfw_threading/GLFWMixin.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFW",
+      "name": "glfwCreateWindow",
+      "descriptor": "(IILjava/nio/ByteBuffer;JJ)J",
+      "status": "implemented",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/glfw/glfw_threading/GLFWMixin.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFW",
+      "name": "glfwDefaultWindowHints",
+      "descriptor": "()V",
+      "status": "implemented",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/glfw/glfw_threading/GLFWMixin.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFW",
+      "name": "glfwDestroyCursor",
+      "descriptor": "(J)V",
+      "status": "implemented",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/glfw/state_caching/global/GlfwCursorCache.class",
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/glfw/glfw_state_caching/GLFWMixin.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFW",
+      "name": "glfwDestroyWindow",
+      "descriptor": "(J)V",
+      "status": "implemented",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/glfw/GLFWMixin.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFW",
+      "name": "glfwFocusWindow",
+      "descriptor": "(J)V",
+      "status": "implemented",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/glfw/glfw_threading/GLFWMixin.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFW",
+      "name": "glfwGetClipboardString",
+      "descriptor": "(J)Ljava/lang/String;",
+      "status": "implemented",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/glfw/glfw_threading/GLFWMixin.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFW",
+      "name": "glfwGetCurrentContext",
+      "descriptor": "()J",
+      "status": "implemented",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/glfw/GLFWMixin.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFW",
+      "name": "glfwGetCursorPos",
+      "descriptor": "(JLjava/nio/DoubleBuffer;Ljava/nio/DoubleBuffer;)V",
+      "status": "implemented",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/glfw/state_caching/window/GlfwCursorPosCache.class",
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/glfw/glfw_state_caching/GLFWMixin.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFW",
+      "name": "glfwGetCursorPos",
+      "descriptor": "(J[D[D)V",
+      "status": "implemented",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/glfw/glfw_state_caching/GLFWMixin.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFW",
+      "name": "glfwGetFramebufferSize",
+      "descriptor": "(JLjava/nio/IntBuffer;Ljava/nio/IntBuffer;)V",
+      "status": "implemented",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/glfw/state_caching/window/GlfwFramebufferSizeCache.class",
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/glfw/glfw_state_caching/GLFWMixin.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFW",
+      "name": "glfwGetFramebufferSize",
+      "descriptor": "(J[I[I)V",
+      "status": "implemented",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/glfw/glfw_state_caching/GLFWMixin.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFW",
+      "name": "glfwGetGamepadName",
+      "descriptor": "(I)Ljava/lang/String;",
+      "status": "implemented",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/glfw/glfw_threading/GLFWMixin.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFW",
+      "name": "glfwGetGamepadState",
+      "descriptor": "(ILorg/lwjgl/glfw/GLFWGamepadState;)Z",
+      "status": "implemented",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/glfw/glfw_threading/GLFWMixin.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFW",
+      "name": "glfwGetGammaRamp",
+      "descriptor": "(J)Lorg/lwjgl/glfw/GLFWGammaRamp;",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/glfw/glfw_threading/GLFWMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFW",
+      "name": "glfwGetInputMode",
+      "descriptor": "(JI)I",
+      "status": "implemented",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/glfw/state_caching/window/GlfwInputModeCache.class",
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/glfw/glfw_state_caching/GLFWMixin.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFW",
+      "name": "glfwGetJoystickAxes",
+      "descriptor": "(I)Ljava/nio/FloatBuffer;",
+      "status": "implemented",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/glfw/glfw_threading/GLFWMixin.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFW",
+      "name": "glfwGetJoystickButtons",
+      "descriptor": "(I)Ljava/nio/ByteBuffer;",
+      "status": "implemented",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/glfw/glfw_threading/GLFWMixin.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFW",
+      "name": "glfwGetJoystickGUID",
+      "descriptor": "(I)Ljava/lang/String;",
+      "status": "implemented",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/glfw/glfw_threading/GLFWMixin.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFW",
+      "name": "glfwGetJoystickHats",
+      "descriptor": "(I)Ljava/nio/ByteBuffer;",
+      "status": "implemented",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/glfw/glfw_threading/GLFWMixin.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFW",
+      "name": "glfwGetJoystickName",
+      "descriptor": "(I)Ljava/lang/String;",
+      "status": "implemented",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/glfw/glfw_threading/GLFWMixin.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFW",
+      "name": "glfwGetKey",
+      "descriptor": "(JI)I",
+      "status": "implemented",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/glfw/state_caching/window/GlfwKeyCache.class",
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/glfw/glfw_state_caching/GLFWMixin.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFW",
+      "name": "glfwGetKeyName",
+      "descriptor": "(II)Ljava/lang/String;",
+      "status": "implemented",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/glfw/state_caching/global/GlfwKeyNameCache.class",
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/glfw/glfw_state_caching/GLFWMixin.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFW",
+      "name": "glfwGetMonitorContentScale",
+      "descriptor": "(JLjava/nio/FloatBuffer;Ljava/nio/FloatBuffer;)V",
+      "status": "implemented",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/glfw/glfw_threading/GLFWMixin.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFW",
+      "name": "glfwGetMonitorContentScale",
+      "descriptor": "(J[F[F)V",
+      "status": "implemented",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/glfw/glfw_threading/GLFWMixin.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFW",
+      "name": "glfwGetMonitorName",
+      "descriptor": "(J)Ljava/lang/String;",
+      "status": "implemented",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/glfw/glfw_threading/GLFWMixin.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFW",
+      "name": "glfwGetMonitorPhysicalSize",
+      "descriptor": "(JLjava/nio/IntBuffer;Ljava/nio/IntBuffer;)V",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/glfw/glfw_threading/GLFWMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFW",
+      "name": "glfwGetMonitorPhysicalSize",
+      "descriptor": "(J[I[I)V",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/glfw/glfw_threading/GLFWMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFW",
+      "name": "glfwGetMonitorPos",
+      "descriptor": "(JLjava/nio/IntBuffer;Ljava/nio/IntBuffer;)V",
+      "status": "implemented",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/glfw/glfw_threading/GLFWMixin.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFW",
+      "name": "glfwGetMonitorPos",
+      "descriptor": "(J[I[I)V",
+      "status": "implemented",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/glfw/glfw_threading/GLFWMixin.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFW",
+      "name": "glfwGetMonitorWorkarea",
+      "descriptor": "(JLjava/nio/IntBuffer;Ljava/nio/IntBuffer;Ljava/nio/IntBuffer;Ljava/nio/IntBuffer;)V",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/glfw/glfw_threading/GLFWMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFW",
+      "name": "glfwGetMonitorWorkarea",
+      "descriptor": "(J[I[I[I[I)V",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/glfw/glfw_threading/GLFWMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFW",
+      "name": "glfwGetMonitors",
+      "descriptor": "()Lorg/lwjgl/PointerBuffer;",
+      "status": "implemented",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/glfw/state_caching/global/GlfwMonitorCache.class",
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/glfw/glfw_threading/GLFWMixin.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFW",
+      "name": "glfwGetMouseButton",
+      "descriptor": "(JI)I",
+      "status": "implemented",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/glfw/state_caching/window/GlfwMouseButtonCache.class",
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/glfw/glfw_state_caching/GLFWMixin.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFW",
+      "name": "glfwGetPreeditCandidate",
+      "descriptor": "(JI)Ljava/nio/IntBuffer;",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/glfw/glfw_threading_334/GLFWMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFW",
+      "name": "glfwGetPreeditCursorRectangle",
+      "descriptor": "(JLjava/nio/IntBuffer;Ljava/nio/IntBuffer;Ljava/nio/IntBuffer;Ljava/nio/IntBuffer;)V",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/glfw/glfw_threading_334/GLFWMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFW",
+      "name": "glfwGetPreeditCursorRectangle",
+      "descriptor": "(J[I[I[I[I)V",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/glfw/glfw_threading_334/GLFWMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFW",
+      "name": "glfwGetPrimaryMonitor",
+      "descriptor": "()J",
+      "status": "implemented",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/glfw/state_caching/global/GlfwMonitorCache.class",
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/glfw/glfw_state_caching/GLFWMixin.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFW",
+      "name": "glfwGetVideoMode",
+      "descriptor": "(J)Lorg/lwjgl/glfw/GLFWVidMode;",
+      "status": "implemented",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/glfw/glfw_threading/GLFWMixin.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFW",
+      "name": "glfwGetVideoModes",
+      "descriptor": "(J)Lorg/lwjgl/glfw/GLFWVidMode$Buffer;",
+      "status": "implemented",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/glfw/glfw_threading/GLFWMixin.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFW",
+      "name": "glfwGetWindowAttrib",
+      "descriptor": "(JI)I",
+      "status": "implemented",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/glfw/state_caching/window/GlfwWindowAttribCache.class",
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/glfw/glfw_state_caching/GLFWMixin.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFW",
+      "name": "glfwGetWindowContentScale",
+      "descriptor": "(JLjava/nio/FloatBuffer;Ljava/nio/FloatBuffer;)V",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/glfw/state_caching/window/GlfwWindowContentScaleCache.class",
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/glfw/glfw_state_caching/GLFWMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFW",
+      "name": "glfwGetWindowContentScale",
+      "descriptor": "(J[F[F)V",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/glfw/glfw_state_caching/GLFWMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFW",
+      "name": "glfwGetWindowFrameSize",
+      "descriptor": "(JLjava/nio/IntBuffer;Ljava/nio/IntBuffer;Ljava/nio/IntBuffer;Ljava/nio/IntBuffer;)V",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/glfw/glfw_threading/GLFWMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFW",
+      "name": "glfwGetWindowFrameSize",
+      "descriptor": "(J[I[I[I[I)V",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/glfw/glfw_threading/GLFWMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFW",
+      "name": "glfwGetWindowMonitor",
+      "descriptor": "(J)J",
+      "status": "implemented",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/glfw/state_caching/window/GlfwMonitorCache.class",
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/glfw/glfw_state_caching/GLFWMixin.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFW",
+      "name": "glfwGetWindowOpacity",
+      "descriptor": "(J)F",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/glfw/glfw_threading/GLFWMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFW",
+      "name": "glfwGetWindowPos",
+      "descriptor": "(JLjava/nio/IntBuffer;Ljava/nio/IntBuffer;)V",
+      "status": "implemented",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/glfw/glfw_threading/GLFWMixin.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFW",
+      "name": "glfwGetWindowPos",
+      "descriptor": "(J[I[I)V",
+      "status": "implemented",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/glfw/glfw_threading/GLFWMixin.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFW",
+      "name": "glfwGetWindowSize",
+      "descriptor": "(JLjava/nio/IntBuffer;Ljava/nio/IntBuffer;)V",
+      "status": "implemented",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/glfw/state_caching/window/GlfwWindowSizeCache.class",
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/glfw/glfw_state_caching/GLFWMixin.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFW",
+      "name": "glfwGetWindowSize",
+      "descriptor": "(J[I[I)V",
+      "status": "implemented",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/glfw/glfw_state_caching/GLFWMixin.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFW",
+      "name": "glfwGetWindowTitle",
+      "descriptor": "(J)Ljava/lang/String;",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/glfw/glfw_threading_334/GLFWMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFW",
+      "name": "glfwHideWindow",
+      "descriptor": "(J)V",
+      "status": "implemented",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/glfw/glfw_threading/GLFWMixin.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFW",
+      "name": "glfwIconifyWindow",
+      "descriptor": "(J)V",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/glfw/glfw_threading/GLFWMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFW",
+      "name": "glfwInit",
+      "descriptor": "()Z",
+      "status": "implemented",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/glfw/glfw_threading/GLFWMixin.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFW",
+      "name": "glfwInitAllocator",
+      "descriptor": "(Lorg/lwjgl/glfw/GLFWAllocator;)V",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/glfw/glfw_threading_330/GLFWMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFW",
+      "name": "glfwInitHint",
+      "descriptor": "(II)V",
+      "status": "implemented",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/glfw/glfw_threading/GLFWMixin.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFW",
+      "name": "glfwJoystickIsGamepad",
+      "descriptor": "(I)Z",
+      "status": "implemented",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/glfw/glfw_threading/GLFWMixin.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFW",
+      "name": "glfwJoystickPresent",
+      "descriptor": "(I)Z",
+      "status": "implemented",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/glfw/glfw_threading/GLFWMixin.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFW",
+      "name": "glfwMakeContextCurrent",
+      "descriptor": "(J)V",
+      "status": "implemented",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/glfw/GLFWMixin.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFW",
+      "name": "glfwMaximizeWindow",
+      "descriptor": "(J)V",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/glfw/glfw_threading/GLFWMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFW",
+      "name": "glfwPollEvents",
+      "descriptor": "()V",
+      "status": "implemented",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/input/InputManager.class",
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/input/win32/RawInputHandlerGlfwWin32.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFW",
+      "name": "glfwRawMouseMotionSupported",
+      "descriptor": "()Z",
+      "status": "implemented",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/glfw/glfw_threading/GLFWMixin.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFW",
+      "name": "glfwRequestWindowAttention",
+      "descriptor": "(J)V",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/glfw/glfw_threading/GLFWMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFW",
+      "name": "glfwResetPreeditText",
+      "descriptor": "(J)V",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/glfw/glfw_threading_334/GLFWMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFW",
+      "name": "glfwRestoreWindow",
+      "descriptor": "(J)V",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/glfw/glfw_threading/GLFWMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFW",
+      "name": "glfwSetClipboardString",
+      "descriptor": "(JLjava/lang/CharSequence;)V",
+      "status": "implemented",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/glfw/glfw_threading/GLFWMixin.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFW",
+      "name": "glfwSetClipboardString",
+      "descriptor": "(JLjava/nio/ByteBuffer;)V",
+      "status": "implemented",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/glfw/glfw_threading/GLFWMixin.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFW",
+      "name": "glfwSetCursor",
+      "descriptor": "(JJ)V",
+      "status": "implemented",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/glfw/state_caching/global/GlfwCursorCache.class",
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/glfw/glfw_state_caching/GLFWMixin.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFW",
+      "name": "glfwSetCursorPos",
+      "descriptor": "(JDD)V",
+      "status": "implemented",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/glfw/GLFWMixin.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFW",
+      "name": "glfwSetGamma",
+      "descriptor": "(JF)V",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/glfw/glfw_threading/GLFWMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFW",
+      "name": "glfwSetGammaRamp",
+      "descriptor": "(JLorg/lwjgl/glfw/GLFWGammaRamp;)V",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/glfw/glfw_threading/GLFWMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFW",
+      "name": "glfwSetInputMode",
+      "descriptor": "(JII)V",
+      "status": "implemented",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/input/win32/RawInputHandlerGlfwWin32.class",
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/glfw/GLFWMixin.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFW",
+      "name": "glfwSetPreeditCursorRectangle",
+      "descriptor": "(JIIII)V",
+      "status": "implemented",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/glfw/glfw_threading_334/GLFWMixin.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFW",
+      "name": "glfwSetWindowAspectRatio",
+      "descriptor": "(JII)V",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/glfw/glfw_threading/GLFWMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFW",
+      "name": "glfwSetWindowAttrib",
+      "descriptor": "(JII)V",
+      "status": "implemented",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/glfw/glfw_threading/GLFWMixin.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFW",
+      "name": "glfwSetWindowIcon",
+      "descriptor": "(JLorg/lwjgl/glfw/GLFWImage$Buffer;)V",
+      "status": "implemented",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/glfw/glfw_threading/GLFWMixin.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFW",
+      "name": "glfwSetWindowMonitor",
+      "descriptor": "(JJIIIII)V",
+      "status": "implemented",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/glfw/glfw_threading/GLFWMixin.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFW",
+      "name": "glfwSetWindowOpacity",
+      "descriptor": "(JF)V",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/glfw/glfw_threading/GLFWMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFW",
+      "name": "glfwSetWindowPos",
+      "descriptor": "(JII)V",
+      "status": "implemented",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/glfw/glfw_threading/GLFWMixin.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFW",
+      "name": "glfwSetWindowSize",
+      "descriptor": "(JII)V",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/glfw/glfw_threading/GLFWMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFW",
+      "name": "glfwSetWindowSizeLimits",
+      "descriptor": "(JIIII)V",
+      "status": "implemented",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/glfw/glfw_threading/GLFWMixin.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFW",
+      "name": "glfwSetWindowTitle",
+      "descriptor": "(JLjava/lang/CharSequence;)V",
+      "status": "implemented",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/glfw/glfw_threading/GLFWMixin.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFW",
+      "name": "glfwSetWindowTitle",
+      "descriptor": "(JLjava/nio/ByteBuffer;)V",
+      "status": "implemented",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/glfw/glfw_threading/GLFWMixin.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFW",
+      "name": "glfwShowWindow",
+      "descriptor": "(J)V",
+      "status": "implemented",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/glfw/glfw_threading/GLFWMixin.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFW",
+      "name": "glfwTerminate",
+      "descriptor": "()V",
+      "status": "implemented",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/glfw/glfw_threading/GLFWMixin.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFW",
+      "name": "glfwUpdateGamepadMappings",
+      "descriptor": "(Ljava/nio/ByteBuffer;)Z",
+      "status": "implemented",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/glfw/glfw_threading/GLFWMixin.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFW",
+      "name": "glfwWindowHint",
+      "descriptor": "(II)V",
+      "status": "implemented",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/glfw/glfw_threading/GLFWMixin.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFW",
+      "name": "glfwWindowHintString",
+      "descriptor": "(ILjava/lang/CharSequence;)V",
+      "status": "implemented",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/glfw/glfw_threading/GLFWMixin.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFW",
+      "name": "glfwWindowHintString",
+      "descriptor": "(ILjava/nio/ByteBuffer;)V",
+      "status": "implemented",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/glfw/glfw_threading/GLFWMixin.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFW",
+      "name": "nglfwSetCharCallback",
+      "descriptor": "(JJ)J",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/glfw/callback_dispatcher/CharCallbackDispatcher.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFW",
+      "name": "nglfwSetCharModsCallback",
+      "descriptor": "(JJ)J",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/glfw/callback_dispatcher/CharModsCallbackDispatcher.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFW",
+      "name": "nglfwSetCursorEnterCallback",
+      "descriptor": "(JJ)J",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/glfw/callback_dispatcher/CursorEnterCallbackDispatcher.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFW",
+      "name": "nglfwSetCursorPosCallback",
+      "descriptor": "(JJ)J",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/glfw/callback_dispatcher/CursorPosCallbackDispatcher.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFW",
+      "name": "nglfwSetDropCallback",
+      "descriptor": "(JJ)J",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/glfw/callback_dispatcher/DropCallbackDispatcher.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFW",
+      "name": "nglfwSetErrorCallback",
+      "descriptor": "(J)J",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/glfw/callback_dispatcher/ErrorCallbackDispatcher.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFW",
+      "name": "nglfwSetFramebufferSizeCallback",
+      "descriptor": "(JJ)J",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/glfw/callback_dispatcher/FramebufferSizeCallbackDispatcher.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFW",
+      "name": "nglfwSetIMEStatusCallback",
+      "descriptor": "(JJ)J",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/glfw/callback_dispatcher/_334/IMEStatusCallbackDispatcher.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFW",
+      "name": "nglfwSetKeyCallback",
+      "descriptor": "(JJ)J",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/glfw/callback_dispatcher/KeyCallbackDispatcher.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFW",
+      "name": "nglfwSetMonitorCallback",
+      "descriptor": "(J)J",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/glfw/callback_dispatcher/MonitorCallbackDispatcher.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFW",
+      "name": "nglfwSetMouseButtonCallback",
+      "descriptor": "(JJ)J",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/glfw/callback_dispatcher/MouseButtonCallbackDispatcher.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFW",
+      "name": "nglfwSetPreeditCallback",
+      "descriptor": "(JJ)J",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/glfw/callback_dispatcher/_334/PreeditCallbackDispatcher.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFW",
+      "name": "nglfwSetPreeditCandidateCallback",
+      "descriptor": "(JJ)J",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/glfw/callback_dispatcher/_334/PreeditCandidateCallbackDispatcher.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFW",
+      "name": "nglfwSetScrollCallback",
+      "descriptor": "(JJ)J",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/glfw/callback_dispatcher/ScrollCallbackDispatcher.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFW",
+      "name": "nglfwSetWindowCloseCallback",
+      "descriptor": "(JJ)J",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/glfw/callback_dispatcher/WindowCloseCallbackDispatcher.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFW",
+      "name": "nglfwSetWindowContentScaleCallback",
+      "descriptor": "(JJ)J",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/glfw/callback_dispatcher/WindowContentScaleCallbackDispatcher.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFW",
+      "name": "nglfwSetWindowFocusCallback",
+      "descriptor": "(JJ)J",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/glfw/callback_dispatcher/WindowFocusCallbackDispatcher.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFW",
+      "name": "nglfwSetWindowIconifyCallback",
+      "descriptor": "(JJ)J",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/glfw/callback_dispatcher/WindowIconifyCallbackDispatcher.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFW",
+      "name": "nglfwSetWindowMaximizeCallback",
+      "descriptor": "(JJ)J",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/glfw/callback_dispatcher/WindowMaximizeCallbackDispatcher.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFW",
+      "name": "nglfwSetWindowPosCallback",
+      "descriptor": "(JJ)J",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/glfw/callback_dispatcher/WindowPosCallbackDispatcher.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFW",
+      "name": "nglfwSetWindowRefreshCallback",
+      "descriptor": "(JJ)J",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/glfw/callback_dispatcher/WindowRefreshCallbackDispatcher.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFW",
+      "name": "nglfwSetWindowSizeCallback",
+      "descriptor": "(JJ)J",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/glfw/callback_dispatcher/WindowSizeCallbackDispatcher.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFWCharCallback",
+      "name": "address",
+      "descriptor": "()J",
+      "status": "official class",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/glfw/callback_dispatcher/CharCallbackDispatcher.class",
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/glfw/callback_dispatcher/GLFWMixin.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFWCharCallback",
+      "name": "create",
+      "descriptor": "(Lorg/lwjgl/glfw/GLFWCharCallbackI;)Lorg/lwjgl/glfw/GLFWCharCallback;",
+      "status": "official class",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/glfw/callback_dispatcher/CommonCallbacks.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFWCharCallbackI",
+      "name": "invoke",
+      "descriptor": "(JI)V",
+      "status": "official class",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/glfw/callback_dispatcher/CharCallbackDispatcher.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFWCharModsCallback",
+      "name": "address",
+      "descriptor": "()J",
+      "status": "official class",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/glfw/callback_dispatcher/CharModsCallbackDispatcher.class",
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/glfw/callback_dispatcher/GLFWMixin.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFWCharModsCallback",
+      "name": "create",
+      "descriptor": "(Lorg/lwjgl/glfw/GLFWCharModsCallbackI;)Lorg/lwjgl/glfw/GLFWCharModsCallback;",
+      "status": "official class",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/glfw/callback_dispatcher/CommonCallbacks.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFWCharModsCallbackI",
+      "name": "invoke",
+      "descriptor": "(JII)V",
+      "status": "official class",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/glfw/callback_dispatcher/CharModsCallbackDispatcher.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFWCursorEnterCallback",
+      "name": "address",
+      "descriptor": "()J",
+      "status": "official class",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/glfw/callback_dispatcher/CursorEnterCallbackDispatcher.class",
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/glfw/callback_dispatcher/GLFWMixin.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFWCursorEnterCallback",
+      "name": "create",
+      "descriptor": "(Lorg/lwjgl/glfw/GLFWCursorEnterCallbackI;)Lorg/lwjgl/glfw/GLFWCursorEnterCallback;",
+      "status": "official class",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/glfw/callback_dispatcher/CommonCallbacks.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFWCursorEnterCallbackI",
+      "name": "invoke",
+      "descriptor": "(JZ)V",
+      "status": "official class",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/glfw/callback_dispatcher/CursorEnterCallbackDispatcher.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFWCursorPosCallback",
+      "name": "address",
+      "descriptor": "()J",
+      "status": "official class",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/glfw/callback_dispatcher/CursorPosCallbackDispatcher.class",
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/glfw/callback_dispatcher/GLFWMixin.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFWCursorPosCallback",
+      "name": "create",
+      "descriptor": "(Lorg/lwjgl/glfw/GLFWCursorPosCallbackI;)Lorg/lwjgl/glfw/GLFWCursorPosCallback;",
+      "status": "official class",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/glfw/callback_dispatcher/CommonCallbacks.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFWCursorPosCallback",
+      "name": "invoke",
+      "descriptor": "(JDD)V",
+      "status": "official class",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/input/win32/RawInputHandlerGlfwWin32.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFWCursorPosCallbackI",
+      "name": "invoke",
+      "descriptor": "(JDD)V",
+      "status": "official class",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/glfw/callback_dispatcher/CursorPosCallbackDispatcher.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFWDropCallback",
+      "name": "address",
+      "descriptor": "()J",
+      "status": "official class",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/glfw/callback_dispatcher/DropCallbackDispatcher.class",
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/glfw/callback_dispatcher/GLFWMixin.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFWDropCallback",
+      "name": "create",
+      "descriptor": "(Lorg/lwjgl/glfw/GLFWDropCallbackI;)Lorg/lwjgl/glfw/GLFWDropCallback;",
+      "status": "official class",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/glfw/callback_dispatcher/CommonCallbacks.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFWDropCallback",
+      "name": "getName",
+      "descriptor": "(JI)Ljava/lang/String;",
+      "status": "official class",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/glfw/callback_dispatcher/DropCallbackDispatcher.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFWDropCallbackI",
+      "name": "invoke",
+      "descriptor": "(JIJ)V",
+      "status": "official class",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/glfw/callback_dispatcher/DropCallbackDispatcher.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFWErrorCallback",
+      "name": "address",
+      "descriptor": "()J",
+      "status": "official class",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/glfw/callback_dispatcher/ErrorCallbackDispatcher.class",
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/glfw/callback_dispatcher/GLFWMixin.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFWErrorCallback",
+      "name": "create",
+      "descriptor": "(Lorg/lwjgl/glfw/GLFWErrorCallbackI;)Lorg/lwjgl/glfw/GLFWErrorCallback;",
+      "status": "official class",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/glfw/callback_dispatcher/CommonCallbacks.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFWErrorCallbackI",
+      "name": "invoke",
+      "descriptor": "(IJ)V",
+      "status": "official class",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/glfw/callback_dispatcher/ErrorCallbackDispatcher.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFWFramebufferSizeCallback",
+      "name": "address",
+      "descriptor": "()J",
+      "status": "official class",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/glfw/callback_dispatcher/FramebufferSizeCallbackDispatcher.class",
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/glfw/callback_dispatcher/GLFWMixin.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFWFramebufferSizeCallback",
+      "name": "create",
+      "descriptor": "(Lorg/lwjgl/glfw/GLFWFramebufferSizeCallbackI;)Lorg/lwjgl/glfw/GLFWFramebufferSizeCallback;",
+      "status": "official class",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/glfw/callback_dispatcher/CommonCallbacks.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFWFramebufferSizeCallbackI",
+      "name": "invoke",
+      "descriptor": "(JII)V",
+      "status": "official class",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/glfw/callback_dispatcher/FramebufferSizeCallbackDispatcher.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFWIMEStatusCallback",
+      "name": "address",
+      "descriptor": "()J",
+      "status": "official class",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/glfw/callback_dispatcher/_334/IMEStatusCallbackDispatcher.class",
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/glfw/callback_dispatcher_334/GLFWMixin.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFWIMEStatusCallback",
+      "name": "create",
+      "descriptor": "(Lorg/lwjgl/glfw/GLFWIMEStatusCallbackI;)Lorg/lwjgl/glfw/GLFWIMEStatusCallback;",
+      "status": "official class",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/glfw/callback_dispatcher/_334/CommonCallbacks_334.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFWIMEStatusCallbackI",
+      "name": "invoke",
+      "descriptor": "(J)V",
+      "status": "official class",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/glfw/callback_dispatcher/_334/IMEStatusCallbackDispatcher.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFWImage",
+      "name": "height",
+      "descriptor": "()I",
+      "status": "official class",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/util/MemoryHelper.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFWImage",
+      "name": "height",
+      "descriptor": "(I)Lorg/lwjgl/glfw/GLFWImage;",
+      "status": "official class",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/util/MemoryHelper.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFWImage",
+      "name": "malloc",
+      "descriptor": "()Lorg/lwjgl/glfw/GLFWImage;",
+      "status": "official class",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/util/MemoryHelper.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFWImage",
+      "name": "pixels",
+      "descriptor": "(I)Ljava/nio/ByteBuffer;",
+      "status": "official class",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/util/MemoryHelper.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFWImage",
+      "name": "pixels",
+      "descriptor": "(Ljava/nio/ByteBuffer;)Lorg/lwjgl/glfw/GLFWImage;",
+      "status": "official class",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/util/MemoryHelper.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFWImage",
+      "name": "width",
+      "descriptor": "()I",
+      "status": "official class",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/util/MemoryHelper.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFWImage",
+      "name": "width",
+      "descriptor": "(I)Lorg/lwjgl/glfw/GLFWImage;",
+      "status": "official class",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/util/MemoryHelper.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFWKeyCallback",
+      "name": "address",
+      "descriptor": "()J",
+      "status": "official class",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/glfw/callback_dispatcher/KeyCallbackDispatcher.class",
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/glfw/callback_dispatcher/GLFWMixin.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFWKeyCallback",
+      "name": "create",
+      "descriptor": "(Lorg/lwjgl/glfw/GLFWKeyCallbackI;)Lorg/lwjgl/glfw/GLFWKeyCallback;",
+      "status": "official class",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/glfw/callback_dispatcher/CommonCallbacks.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFWKeyCallbackI",
+      "name": "invoke",
+      "descriptor": "(JIIII)V",
+      "status": "official class",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/glfw/callback_dispatcher/KeyCallbackDispatcher.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFWMonitorCallback",
+      "name": "address",
+      "descriptor": "()J",
+      "status": "official class",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/glfw/callback_dispatcher/MonitorCallbackDispatcher.class",
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/glfw/callback_dispatcher/GLFWMixin.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFWMonitorCallback",
+      "name": "create",
+      "descriptor": "(Lorg/lwjgl/glfw/GLFWMonitorCallbackI;)Lorg/lwjgl/glfw/GLFWMonitorCallback;",
+      "status": "official class",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/glfw/callback_dispatcher/CommonCallbacks.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFWMonitorCallbackI",
+      "name": "invoke",
+      "descriptor": "(JI)V",
+      "status": "official class",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/glfw/callback_dispatcher/MonitorCallbackDispatcher.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFWMouseButtonCallback",
+      "name": "address",
+      "descriptor": "()J",
+      "status": "official class",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/glfw/callback_dispatcher/MouseButtonCallbackDispatcher.class",
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/glfw/callback_dispatcher/GLFWMixin.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFWMouseButtonCallback",
+      "name": "create",
+      "descriptor": "(Lorg/lwjgl/glfw/GLFWMouseButtonCallbackI;)Lorg/lwjgl/glfw/GLFWMouseButtonCallback;",
+      "status": "official class",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/glfw/callback_dispatcher/CommonCallbacks.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFWMouseButtonCallbackI",
+      "name": "invoke",
+      "descriptor": "(JIII)V",
+      "status": "official class",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/glfw/callback_dispatcher/MouseButtonCallbackDispatcher.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFWNativeWin32",
+      "name": "glfwGetWin32Window",
+      "descriptor": "(J)J",
+      "status": "official class",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/input/win32/RawInputHandlerGlfwWin32.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFWPreeditCallback",
+      "name": "address",
+      "descriptor": "()J",
+      "status": "official class",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/glfw/callback_dispatcher/_334/PreeditCallbackDispatcher.class",
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/glfw/callback_dispatcher_334/GLFWMixin.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFWPreeditCallback",
+      "name": "create",
+      "descriptor": "(Lorg/lwjgl/glfw/GLFWPreeditCallbackI;)Lorg/lwjgl/glfw/GLFWPreeditCallback;",
+      "status": "official class",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/glfw/callback_dispatcher/_334/CommonCallbacks_334.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFWPreeditCallbackI",
+      "name": "invoke",
+      "descriptor": "(JIJIJII)V",
+      "status": "official class",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/glfw/callback_dispatcher/_334/PreeditCallbackDispatcher.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFWPreeditCandidateCallback",
+      "name": "address",
+      "descriptor": "()J",
+      "status": "official class",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/glfw/callback_dispatcher/_334/PreeditCandidateCallbackDispatcher.class",
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/glfw/callback_dispatcher_334/GLFWMixin.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFWPreeditCandidateCallback",
+      "name": "create",
+      "descriptor": "(Lorg/lwjgl/glfw/GLFWPreeditCandidateCallbackI;)Lorg/lwjgl/glfw/GLFWPreeditCandidateCallback;",
+      "status": "official class",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/glfw/callback_dispatcher/_334/CommonCallbacks_334.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFWPreeditCandidateCallbackI",
+      "name": "invoke",
+      "descriptor": "(JIIII)V",
+      "status": "official class",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/glfw/callback_dispatcher/_334/PreeditCandidateCallbackDispatcher.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFWScrollCallback",
+      "name": "address",
+      "descriptor": "()J",
+      "status": "official class",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/glfw/callback_dispatcher/ScrollCallbackDispatcher.class",
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/glfw/callback_dispatcher/GLFWMixin.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFWScrollCallback",
+      "name": "create",
+      "descriptor": "(Lorg/lwjgl/glfw/GLFWScrollCallbackI;)Lorg/lwjgl/glfw/GLFWScrollCallback;",
+      "status": "official class",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/glfw/callback_dispatcher/CommonCallbacks.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFWScrollCallback",
+      "name": "invoke",
+      "descriptor": "(JDD)V",
+      "status": "official class",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/input/win32/RawInputHandlerGlfwWin32.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFWScrollCallbackI",
+      "name": "invoke",
+      "descriptor": "(JDD)V",
+      "status": "official class",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/glfw/callback_dispatcher/ScrollCallbackDispatcher.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFWWindowCloseCallback",
+      "name": "address",
+      "descriptor": "()J",
+      "status": "official class",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/glfw/callback_dispatcher/WindowCloseCallbackDispatcher.class",
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/glfw/callback_dispatcher/GLFWMixin.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFWWindowCloseCallback",
+      "name": "create",
+      "descriptor": "(Lorg/lwjgl/glfw/GLFWWindowCloseCallbackI;)Lorg/lwjgl/glfw/GLFWWindowCloseCallback;",
+      "status": "official class",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/glfw/callback_dispatcher/CommonCallbacks.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFWWindowCloseCallbackI",
+      "name": "invoke",
+      "descriptor": "(J)V",
+      "status": "official class",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/glfw/callback_dispatcher/WindowCloseCallbackDispatcher.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFWWindowContentScaleCallback",
+      "name": "address",
+      "descriptor": "()J",
+      "status": "official class",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/glfw/callback_dispatcher/WindowContentScaleCallbackDispatcher.class",
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/glfw/callback_dispatcher/GLFWMixin.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFWWindowContentScaleCallback",
+      "name": "create",
+      "descriptor": "(Lorg/lwjgl/glfw/GLFWWindowContentScaleCallbackI;)Lorg/lwjgl/glfw/GLFWWindowContentScaleCallback;",
+      "status": "official class",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/glfw/callback_dispatcher/CommonCallbacks.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFWWindowContentScaleCallbackI",
+      "name": "invoke",
+      "descriptor": "(JFF)V",
+      "status": "official class",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/glfw/callback_dispatcher/WindowContentScaleCallbackDispatcher.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFWWindowFocusCallback",
+      "name": "address",
+      "descriptor": "()J",
+      "status": "official class",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/glfw/callback_dispatcher/WindowFocusCallbackDispatcher.class",
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/glfw/callback_dispatcher/GLFWMixin.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFWWindowFocusCallback",
+      "name": "create",
+      "descriptor": "(Lorg/lwjgl/glfw/GLFWWindowFocusCallbackI;)Lorg/lwjgl/glfw/GLFWWindowFocusCallback;",
+      "status": "official class",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/glfw/callback_dispatcher/CommonCallbacks.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFWWindowFocusCallbackI",
+      "name": "invoke",
+      "descriptor": "(JZ)V",
+      "status": "official class",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/glfw/callback_dispatcher/WindowFocusCallbackDispatcher.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFWWindowIconifyCallback",
+      "name": "address",
+      "descriptor": "()J",
+      "status": "official class",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/glfw/callback_dispatcher/WindowIconifyCallbackDispatcher.class",
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/glfw/callback_dispatcher/GLFWMixin.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFWWindowIconifyCallback",
+      "name": "create",
+      "descriptor": "(Lorg/lwjgl/glfw/GLFWWindowIconifyCallbackI;)Lorg/lwjgl/glfw/GLFWWindowIconifyCallback;",
+      "status": "official class",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/glfw/callback_dispatcher/CommonCallbacks.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFWWindowIconifyCallbackI",
+      "name": "invoke",
+      "descriptor": "(JZ)V",
+      "status": "official class",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/glfw/callback_dispatcher/WindowIconifyCallbackDispatcher.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFWWindowMaximizeCallback",
+      "name": "address",
+      "descriptor": "()J",
+      "status": "official class",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/glfw/callback_dispatcher/WindowMaximizeCallbackDispatcher.class",
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/glfw/callback_dispatcher/GLFWMixin.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFWWindowMaximizeCallback",
+      "name": "create",
+      "descriptor": "(Lorg/lwjgl/glfw/GLFWWindowMaximizeCallbackI;)Lorg/lwjgl/glfw/GLFWWindowMaximizeCallback;",
+      "status": "official class",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/glfw/callback_dispatcher/CommonCallbacks.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFWWindowMaximizeCallbackI",
+      "name": "invoke",
+      "descriptor": "(JZ)V",
+      "status": "official class",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/glfw/callback_dispatcher/WindowMaximizeCallbackDispatcher.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFWWindowPosCallback",
+      "name": "address",
+      "descriptor": "()J",
+      "status": "official class",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/glfw/callback_dispatcher/WindowPosCallbackDispatcher.class",
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/glfw/callback_dispatcher/GLFWMixin.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFWWindowPosCallback",
+      "name": "create",
+      "descriptor": "(Lorg/lwjgl/glfw/GLFWWindowPosCallbackI;)Lorg/lwjgl/glfw/GLFWWindowPosCallback;",
+      "status": "official class",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/glfw/callback_dispatcher/CommonCallbacks.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFWWindowPosCallbackI",
+      "name": "invoke",
+      "descriptor": "(JII)V",
+      "status": "official class",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/glfw/callback_dispatcher/WindowPosCallbackDispatcher.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFWWindowRefreshCallback",
+      "name": "address",
+      "descriptor": "()J",
+      "status": "official class",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/glfw/callback_dispatcher/WindowRefreshCallbackDispatcher.class",
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/glfw/callback_dispatcher/GLFWMixin.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFWWindowRefreshCallback",
+      "name": "create",
+      "descriptor": "(Lorg/lwjgl/glfw/GLFWWindowRefreshCallbackI;)Lorg/lwjgl/glfw/GLFWWindowRefreshCallback;",
+      "status": "official class",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/glfw/callback_dispatcher/CommonCallbacks.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFWWindowRefreshCallbackI",
+      "name": "invoke",
+      "descriptor": "(J)V",
+      "status": "official class",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/glfw/callback_dispatcher/WindowRefreshCallbackDispatcher.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFWWindowSizeCallback",
+      "name": "address",
+      "descriptor": "()J",
+      "status": "official class",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/glfw/callback_dispatcher/WindowSizeCallbackDispatcher.class",
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/glfw/callback_dispatcher/GLFWMixin.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFWWindowSizeCallback",
+      "name": "create",
+      "descriptor": "(Lorg/lwjgl/glfw/GLFWWindowSizeCallbackI;)Lorg/lwjgl/glfw/GLFWWindowSizeCallback;",
+      "status": "official class",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/glfw/callback_dispatcher/CommonCallbacks.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/glfw/GLFWWindowSizeCallbackI",
+      "name": "invoke",
+      "descriptor": "(JII)V",
+      "status": "official class",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/glfw/callback_dispatcher/WindowSizeCallbackDispatcher.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDL",
+      "name": "getLibrary",
+      "descriptor": "()Lorg/lwjgl/system/SharedLibrary;",
+      "status": "implemented",
+      "users": [
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/NativeLibrariesBootstrap.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLClipboard",
+      "name": "SDL_GetClipboardText",
+      "descriptor": "()Ljava/lang/String;",
+      "status": "implemented",
+      "users": [
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/ClipboardManager.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLClipboard",
+      "name": "SDL_SetClipboardText",
+      "descriptor": "(Ljava/lang/CharSequence;)Z",
+      "status": "implemented",
+      "users": [
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/ClipboardManager.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLDialog",
+      "name": "SDL_ShowFileDialogWithProperties",
+      "descriptor": "(ILorg/lwjgl/sdl/SDL_DialogFileCallbackI;JI)V",
+      "status": "official class",
+      "users": [
+        "iris-fabric-1.11.7+mc26.3.jar:net/irisshaders/iris/gui/FileDialogUtil.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLError",
+      "name": "SDL_GetError",
+      "descriptor": "()Ljava/lang/String;",
+      "status": "implemented",
+      "users": [
+        "minecraft-26.3.jar:com/mojang/blaze3d/Blaze3D.class",
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/ClipboardManager.class",
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/InputConstants.class",
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/MessageBox.class",
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/Monitor.class",
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/Window.class",
+        "minecraft-26.3.jar:com/mojang/blaze3d/systems/RenderSystem.class",
+        "minecraft-26.3.jar:com/mojang/renderpearl/backend/opengl/GlBackend.class",
+        "minecraft-26.3.jar:com/mojang/renderpearl/backend/opengl/GlDevice.class",
+        "minecraft-26.3.jar:com/mojang/renderpearl/backend/vulkan/VulkanBackend.class",
+        "minecraft-26.3.jar:com/mojang/renderpearl/backend/vulkan/VulkanGpuSurface.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLEvents",
+      "name": "SDL_FlushEvents",
+      "descriptor": "(II)V",
+      "status": "implemented",
+      "users": [
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/SDLEventHandler.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLEvents",
+      "name": "SDL_GetWindowFromEvent",
+      "descriptor": "(Lorg/lwjgl/sdl/SDL_Event;)J",
+      "status": "implemented",
+      "users": [
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/SDLEventHandler.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLEvents",
+      "name": "SDL_PollEvent",
+      "descriptor": "(Lorg/lwjgl/sdl/SDL_Event;)Z",
+      "status": "implemented",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/sdl/SdlEventQueue.class",
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/SDLEventHandler.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLEvents",
+      "name": "SDL_PumpEvents",
+      "descriptor": "()V",
+      "status": "implemented",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLEventsMixin.class",
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/SDLEventHandler.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLEvents",
+      "name": "nSDL_WaitEvent",
+      "descriptor": "(J)Z",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLEventsMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLEvents",
+      "name": "nSDL_WaitEventTimeout",
+      "descriptor": "(JI)Z",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLEventsMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLHints",
+      "name": "SDL_SetHint",
+      "descriptor": "(Ljava/lang/CharSequence;Ljava/lang/CharSequence;)Z",
+      "status": "implemented",
+      "users": [
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/MacosUtil.class",
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/Window.class",
+        "minecraft-26.3.jar:com/mojang/blaze3d/systems/RenderSystem.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLInit",
+      "name": "SDL_Init",
+      "descriptor": "(I)Z",
+      "status": "implemented",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLInitMixin.class",
+        "minecraft-26.3.jar:com/mojang/blaze3d/systems/RenderSystem.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLInit",
+      "name": "SDL_InitSubSystem",
+      "descriptor": "(I)Z",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLInitMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLInit",
+      "name": "SDL_Quit",
+      "descriptor": "()V",
+      "status": "implemented",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLInitMixin.class",
+        "minecraft-26.3.jar:net/minecraft/client/Minecraft.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLInit",
+      "name": "SDL_SetAppMetadataProperty",
+      "descriptor": "(Ljava/lang/CharSequence;Ljava/lang/CharSequence;)Z",
+      "status": "implemented",
+      "users": [
+        "minecraft-26.3.jar:com/mojang/blaze3d/systems/RenderSystem.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLKeyboard",
+      "name": "SDL_ClearComposition",
+      "descriptor": "(J)Z",
+      "status": "implemented",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLKeyboardMixin.class",
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/TextInputManager.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLKeyboard",
+      "name": "SDL_GetKeyFromScancode",
+      "descriptor": "(ISZ)I",
+      "status": "implemented",
+      "users": [
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/InputConstants$Type.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLKeyboard",
+      "name": "SDL_GetKeyName",
+      "descriptor": "(I)Ljava/lang/String;",
+      "status": "implemented",
+      "users": [
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/InputConstants$Type.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLKeyboard",
+      "name": "SDL_GetKeyboardFocus",
+      "descriptor": "()J",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/sdl/state_caching/SdlGlobalCache.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLKeyboard",
+      "name": "SDL_GetKeyboardState",
+      "descriptor": "()Ljava/nio/ByteBuffer;",
+      "status": "implemented",
+      "users": [
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/InputConstants.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLKeyboard",
+      "name": "SDL_GetModState",
+      "descriptor": "()S",
+      "status": "implemented",
+      "users": [
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/SDLEventHandler.class",
+        "minecraft-26.3.jar:net/minecraft/client/input/InputQuirks.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLKeyboard",
+      "name": "SDL_HasKeyboard",
+      "descriptor": "()Z",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLKeyboardMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLKeyboard",
+      "name": "SDL_HasScreenKeyboardSupport",
+      "descriptor": "()Z",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLKeyboardMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLKeyboard",
+      "name": "SDL_ResetKeyboard",
+      "descriptor": "()V",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLKeyboardMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLKeyboard",
+      "name": "SDL_ScreenKeyboardShown",
+      "descriptor": "(J)Z",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLKeyboardMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLKeyboard",
+      "name": "SDL_SetTextInputArea",
+      "descriptor": "(JLorg/lwjgl/sdl/SDL_Rect$Buffer;I)Z",
+      "status": "implemented",
+      "users": [
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/TextInputManager.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLKeyboard",
+      "name": "SDL_StartTextInput",
+      "descriptor": "(J)Z",
+      "status": "implemented",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLKeyboardMixin.class",
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/TextInputManager.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLKeyboard",
+      "name": "SDL_StartTextInputWithProperties",
+      "descriptor": "(JI)Z",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLKeyboardMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLKeyboard",
+      "name": "SDL_StopTextInput",
+      "descriptor": "(J)Z",
+      "status": "implemented",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLKeyboardMixin.class",
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/TextInputManager.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLKeyboard",
+      "name": "SDL_TextInputActive",
+      "descriptor": "(J)Z",
+      "status": "implemented",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLKeyboardMixin.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLKeyboard",
+      "name": "nSDL_GetKeyboardNameForID",
+      "descriptor": "(I)J",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLKeyboardMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLKeyboard",
+      "name": "nSDL_GetKeyboards",
+      "descriptor": "(J)J",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLKeyboardMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLKeyboard",
+      "name": "nSDL_GetTextInputArea",
+      "descriptor": "(JJJ)Z",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLKeyboardMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLKeyboard",
+      "name": "nSDL_SetTextInputArea",
+      "descriptor": "(JJI)Z",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLKeyboardMixin.class",
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/sdl/SdlEventHandler.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLLog",
+      "name": "SDL_SetLogOutputFunction",
+      "descriptor": "(Lorg/lwjgl/sdl/SDL_LogOutputFunctionI;J)V",
+      "status": "implemented",
+      "users": [
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/SdlDebug.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLLog",
+      "name": "SDL_SetLogPriorities",
+      "descriptor": "(I)V",
+      "status": "implemented",
+      "users": [
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/SdlDebug.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLMessageBox",
+      "name": "SDL_ShowMessageBox",
+      "descriptor": "(Lorg/lwjgl/sdl/SDL_MessageBoxData;Ljava/nio/IntBuffer;)Z",
+      "status": "implemented",
+      "users": [
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/MessageBox.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLMessageBox",
+      "name": "SDL_ShowSimpleMessageBox",
+      "descriptor": "(ILjava/lang/CharSequence;Ljava/lang/CharSequence;J)Z",
+      "status": "implemented",
+      "users": [
+        "iris-fabric-1.11.7+mc26.3.jar:net/irisshaders/iris/mixin/MixinWindow.class",
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/MessageBox.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLMessageBox",
+      "name": "nSDL_ShowMessageBox",
+      "descriptor": "(JJ)Z",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLMessageBoxMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLMessageBox",
+      "name": "nSDL_ShowSimpleMessageBox",
+      "descriptor": "(IJJJ)Z",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLMessageBoxMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLMisc",
+      "name": "SDL_OpenURL",
+      "descriptor": "(Ljava/lang/CharSequence;)Z",
+      "status": "implemented",
+      "users": [
+        "minecraft-26.3.jar:com/mojang/blaze3d/Blaze3D.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLMouse",
+      "name": "SDL_CaptureMouse",
+      "descriptor": "(Z)Z",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLMouseMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLMouse",
+      "name": "SDL_CreateSystemCursor",
+      "descriptor": "(I)J",
+      "status": "implemented",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLMouseMixin.class",
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/cursor/CursorType.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLMouse",
+      "name": "SDL_CursorVisible",
+      "descriptor": "()Z",
+      "status": "implemented",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLMouseMixin.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLMouse",
+      "name": "SDL_DestroyCursor",
+      "descriptor": "(J)V",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLMouseMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLMouse",
+      "name": "SDL_GetCursor",
+      "descriptor": "()J",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLMouseMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLMouse",
+      "name": "SDL_GetDefaultCursor",
+      "descriptor": "()J",
+      "status": "implemented",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLMouseMixin.class",
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/cursor/CursorType.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLMouse",
+      "name": "SDL_GetGlobalMouseState",
+      "descriptor": "(Ljava/nio/FloatBuffer;Ljava/nio/FloatBuffer;)I",
+      "status": "implemented",
+      "users": [
+        "minecraft-26.3.jar:net/minecraft/client/MouseHandler.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLMouse",
+      "name": "SDL_GetMouseFocus",
+      "descriptor": "()J",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLMouseMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLMouse",
+      "name": "SDL_GetMouseState",
+      "descriptor": "(Ljava/nio/FloatBuffer;Ljava/nio/FloatBuffer;)I",
+      "status": "implemented",
+      "users": [
+        "cloth-config-fabric-26.3.159.jar:me/shedaniel/clothconfig2/api/ModifierKeyCode.class",
+        "minecraft-26.3.jar:net/minecraft/client/MouseHandler.class",
+        "reeses-sodium-options-fabric-2.2.5+mc26.3.jar:me/flashyreese/mods/reeses_sodium_options/client/gui/frame/option/AbstractOptionRow.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLMouse",
+      "name": "SDL_GetWindowRelativeMouseMode",
+      "descriptor": "(J)Z",
+      "status": "implemented",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLMouseMixin.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLMouse",
+      "name": "SDL_HasMouse",
+      "descriptor": "()Z",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLMouseMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLMouse",
+      "name": "SDL_HideCursor",
+      "descriptor": "()Z",
+      "status": "implemented",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLMouseMixin.class",
+        "controlify-3.5.3+mc26.3-universal.jar:dev/isxander/controlify/utils/CursorUtils.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLMouse",
+      "name": "SDL_SetCursor",
+      "descriptor": "(J)Z",
+      "status": "implemented",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLMouseMixin.class",
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/cursor/CursorType.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLMouse",
+      "name": "SDL_SetWindowRelativeMouseMode",
+      "descriptor": "(JZ)Z",
+      "status": "implemented",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLMouseMixin.class",
+        "controlify-3.5.3+mc26.3-universal.jar:dev/isxander/controlify/utils/CursorUtils.class",
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/InputConstants.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLMouse",
+      "name": "SDL_ShowCursor",
+      "descriptor": "()Z",
+      "status": "implemented",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLMouseMixin.class",
+        "controlify-3.5.3+mc26.3-universal.jar:dev/isxander/controlify/mixins/core/InputConstantsMixin.class",
+        "controlify-3.5.3+mc26.3-universal.jar:dev/isxander/controlify/utils/CursorUtils.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLMouse",
+      "name": "SDL_WarpMouseGlobal",
+      "descriptor": "(FF)Z",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLMouseMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLMouse",
+      "name": "SDL_WarpMouseInWindow",
+      "descriptor": "(JFF)V",
+      "status": "implemented",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLMouseMixin.class",
+        "controlify-3.5.3+mc26.3-universal.jar:dev/isxander/controlify/utils/CursorUtils.class",
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/InputConstants.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLMouse",
+      "name": "nSDL_CreateAnimatedCursor",
+      "descriptor": "(JIII)J",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLMouseMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLMouse",
+      "name": "nSDL_CreateColorCursor",
+      "descriptor": "(JII)J",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLMouseMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLMouse",
+      "name": "nSDL_CreateCursor",
+      "descriptor": "(JJIIII)J",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLMouseMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLMouse",
+      "name": "nSDL_GetGlobalMouseState",
+      "descriptor": "(JJ)I",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLMouseMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLMouse",
+      "name": "nSDL_GetMice",
+      "descriptor": "(J)J",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLMouseMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLMouse",
+      "name": "nSDL_GetMouseNameForID",
+      "descriptor": "(I)J",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLMouseMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLMouse",
+      "name": "nSDL_GetMouseState",
+      "descriptor": "(JJ)I",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLMouseMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLMouse",
+      "name": "nSDL_GetRelativeMouseState",
+      "descriptor": "(JJ)I",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLMouseMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLMouse",
+      "name": "nSDL_SetRelativeMouseTransform",
+      "descriptor": "(JJ)Z",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLMouseMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLPixels",
+      "name": "SDL_GetPixelFormatDetails",
+      "descriptor": "(I)Lorg/lwjgl/sdl/SDL_PixelFormatDetails;",
+      "status": "implemented",
+      "users": [
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/VideoMode.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLPlatform",
+      "name": "SDL_GetPlatform",
+      "descriptor": "()Ljava/lang/String;",
+      "status": "implemented",
+      "users": [
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/Window.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLProperties",
+      "name": "SDL_CreateProperties",
+      "descriptor": "()I",
+      "status": "official class",
+      "users": [
+        "iris-fabric-1.11.7+mc26.3.jar:net/irisshaders/iris/gui/FileDialogUtil.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLProperties",
+      "name": "SDL_DestroyProperties",
+      "descriptor": "(I)V",
+      "status": "official class",
+      "users": [
+        "iris-fabric-1.11.7+mc26.3.jar:net/irisshaders/iris/gui/FileDialogUtil.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLProperties",
+      "name": "SDL_GetPointerProperty",
+      "descriptor": "(ILjava/lang/CharSequence;J)J",
+      "status": "official class",
+      "users": [
+        "sodium-fabric-0.9.2+mc26.3.jar:net/caffeinemc/mods/sodium/mixin/workarounds/context_creation/GlSurfaceMixin.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLProperties",
+      "name": "SDL_SetNumberProperty",
+      "descriptor": "(ILjava/lang/CharSequence;J)Z",
+      "status": "official class",
+      "users": [
+        "iris-fabric-1.11.7+mc26.3.jar:net/irisshaders/iris/gui/FileDialogUtil.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLProperties",
+      "name": "SDL_SetPointerProperty",
+      "descriptor": "(ILjava/lang/CharSequence;J)Z",
+      "status": "official class",
+      "users": [
+        "iris-fabric-1.11.7+mc26.3.jar:net/irisshaders/iris/gui/FileDialogUtil.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLProperties",
+      "name": "SDL_SetStringProperty",
+      "descriptor": "(ILjava/lang/CharSequence;Ljava/lang/CharSequence;)Z",
+      "status": "official class",
+      "users": [
+        "iris-fabric-1.11.7+mc26.3.jar:net/irisshaders/iris/gui/FileDialogUtil.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLStdinc",
+      "name": "SDL_free",
+      "descriptor": "(Ljava/nio/IntBuffer;)V",
+      "status": "implemented",
+      "users": [
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/MonitorManager.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLStdinc",
+      "name": "SDL_free",
+      "descriptor": "(Lorg/lwjgl/PointerBuffer;)V",
+      "status": "implemented",
+      "users": [
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/Monitor.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLSurface",
+      "name": "SDL_AddSurfaceAlternateImage",
+      "descriptor": "(Lorg/lwjgl/sdl/SDL_Surface;Lorg/lwjgl/sdl/SDL_Surface;)Z",
+      "status": "implemented",
+      "users": [
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/Window.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLSurface",
+      "name": "SDL_CreateSurfaceFrom",
+      "descriptor": "(IIILjava/nio/ByteBuffer;I)Lorg/lwjgl/sdl/SDL_Surface;",
+      "status": "implemented",
+      "users": [
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/Window.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLSurface",
+      "name": "SDL_DestroySurface",
+      "descriptor": "(Lorg/lwjgl/sdl/SDL_Surface;)V",
+      "status": "implemented",
+      "users": [
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/Window.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLTimer",
+      "name": "SDL_GetTicksNS",
+      "descriptor": "()J",
+      "status": "implemented",
+      "users": [
+        "minecraft-26.3.jar:com/mojang/blaze3d/Blaze3D.class",
+        "minecraft-26.3.jar:com/mojang/blaze3d/systems/RenderSystem.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVideo",
+      "name": "SDL_CreatePopupWindow",
+      "descriptor": "(JIIIIJ)J",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLVideoMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVideo",
+      "name": "SDL_CreateWindow",
+      "descriptor": "(Ljava/lang/CharSequence;IIJ)J",
+      "status": "implemented",
+      "users": [
+        "minecraft-26.3.jar:com/mojang/renderpearl/backend/opengl/GlBackend.class",
+        "minecraft-26.3.jar:com/mojang/renderpearl/backend/vulkan/VulkanBackend.class",
+        "sodium-fabric-0.9.2+mc26.3.jar:net/caffeinemc/mods/sodium/mixin/workarounds/context_creation/WindowMixin.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVideo",
+      "name": "SDL_CreateWindowWithProperties",
+      "descriptor": "(I)J",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLVideoMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVideo",
+      "name": "SDL_DestroyWindow",
+      "descriptor": "(J)V",
+      "status": "implemented",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLVideoMixin.class",
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/Window.class",
+        "minecraft-26.3.jar:com/mojang/renderpearl/backend/opengl/GlDevice.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVideo",
+      "name": "SDL_DestroyWindowSurface",
+      "descriptor": "(J)Z",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLVideoMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVideo",
+      "name": "SDL_DisableScreenSaver",
+      "descriptor": "()Z",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLVideoMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVideo",
+      "name": "SDL_EGL_GetCurrentConfig",
+      "descriptor": "()J",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLVideoMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVideo",
+      "name": "SDL_EGL_GetCurrentDisplay",
+      "descriptor": "()J",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLVideoMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVideo",
+      "name": "SDL_EGL_GetWindowSurface",
+      "descriptor": "(J)J",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLVideoMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVideo",
+      "name": "SDL_EnableScreenSaver",
+      "descriptor": "()Z",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLVideoMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVideo",
+      "name": "SDL_FlashWindow",
+      "descriptor": "(JI)Z",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLVideoMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVideo",
+      "name": "SDL_GL_CreateContext",
+      "descriptor": "(J)J",
+      "status": "implemented",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLVideoMixin.class",
+        "minecraft-26.3.jar:com/mojang/renderpearl/backend/opengl/GlDevice.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVideo",
+      "name": "SDL_GL_DestroyContext",
+      "descriptor": "(J)Z",
+      "status": "implemented",
+      "users": [
+        "minecraft-26.3.jar:com/mojang/renderpearl/backend/opengl/GlDevice.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVideo",
+      "name": "SDL_GL_GetAttribute",
+      "descriptor": "(ILjava/nio/IntBuffer;)Z",
+      "status": "implemented",
+      "users": [
+        "minecraft-26.3.jar:com/mojang/renderpearl/backend/opengl/GlDevice.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVideo",
+      "name": "SDL_GL_GetCurrentContext",
+      "descriptor": "()J",
+      "status": "implemented",
+      "users": [
+        "sodium-extra-fabric-0.9.4+mc26.3.jar:me/flashyreese/mods/sodiumextra/client/config/SodiumExtraGameOptions$VerticalSyncOption.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVideo",
+      "name": "SDL_GL_GetCurrentWindow",
+      "descriptor": "()J",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLVideoMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVideo",
+      "name": "SDL_GL_GetProcAddress",
+      "descriptor": "(Ljava/lang/CharSequence;)J",
+      "status": "implemented",
+      "users": [
+        "minecraft-26.3.jar:com/mojang/renderpearl/backend/opengl/GlBackend.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVideo",
+      "name": "SDL_GL_GetSwapInterval",
+      "descriptor": "(Ljava/nio/IntBuffer;)Z",
+      "status": "unsupported",
+      "users": [
+        "sodium-extra-fabric-0.9.4+mc26.3.jar:me/flashyreese/mods/sodiumextra/client/config/SodiumExtraGameOptions$VerticalSyncOption.class"
+      ],
+      "disposition": "Implemented by this fix; confirmed crash at 2026-10-09 10:33:38."
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVideo",
+      "name": "SDL_GL_LoadLibrary",
+      "descriptor": "(Ljava/lang/CharSequence;)Z",
+      "status": "implemented",
+      "users": [
+        "minecraft-26.3.jar:com/mojang/renderpearl/backend/opengl/GlBackend.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVideo",
+      "name": "SDL_GL_MakeCurrent",
+      "descriptor": "(JJ)Z",
+      "status": "implemented",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLVideoMixin.class",
+        "minecraft-26.3.jar:com/mojang/renderpearl/backend/opengl/GlDevice.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVideo",
+      "name": "SDL_GL_ResetAttributes",
+      "descriptor": "()V",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLVideoMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVideo",
+      "name": "SDL_GL_SetAttribute",
+      "descriptor": "(II)Z",
+      "status": "implemented",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLVideoMixin.class",
+        "iris-fabric-1.11.7+mc26.3.jar:net/irisshaders/iris/mixin/MixinWindow.class",
+        "minecraft-26.3.jar:com/mojang/renderpearl/backend/opengl/GlBackend.class",
+        "sodium-fabric-0.9.2+mc26.3.jar:net/caffeinemc/mods/sodium/mixin/core/WindowMixin.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVideo",
+      "name": "SDL_GL_SetSwapInterval",
+      "descriptor": "(I)Z",
+      "status": "implemented",
+      "users": [
+        "minecraft-26.3.jar:com/mojang/renderpearl/backend/opengl/GlSurface.class",
+        "sodium-extra-fabric-0.9.4+mc26.3.jar:me/flashyreese/mods/sodiumextra/client/config/SodiumExtraGameOptions$VerticalSyncOption.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVideo",
+      "name": "SDL_GL_SwapWindow",
+      "descriptor": "(J)Z",
+      "status": "implemented",
+      "users": [
+        "minecraft-26.3.jar:com/mojang/renderpearl/backend/opengl/GlSurface.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVideo",
+      "name": "SDL_GL_UnloadLibrary",
+      "descriptor": "()V",
+      "status": "implemented",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLVideoMixin.class",
+        "minecraft-26.3.jar:com/mojang/renderpearl/backend/opengl/GlBackend.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVideo",
+      "name": "SDL_GetClosestFullscreenDisplayMode",
+      "descriptor": "(IIIFZLorg/lwjgl/sdl/SDL_DisplayMode;)Z",
+      "status": "implemented",
+      "users": [
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/Window.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVideo",
+      "name": "SDL_GetCurrentDisplayMode",
+      "descriptor": "(I)Lorg/lwjgl/sdl/SDL_DisplayMode;",
+      "status": "implemented",
+      "users": [
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/Window.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVideo",
+      "name": "SDL_GetCurrentDisplayOrientation",
+      "descriptor": "(I)I",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLVideoMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVideo",
+      "name": "SDL_GetCurrentVideoDriver",
+      "descriptor": "()Ljava/lang/String;",
+      "status": "implemented",
+      "users": [
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/Window.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVideo",
+      "name": "SDL_GetDesktopDisplayMode",
+      "descriptor": "(I)Lorg/lwjgl/sdl/SDL_DisplayMode;",
+      "status": "implemented",
+      "users": [
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/Monitor.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVideo",
+      "name": "SDL_GetDisplayBounds",
+      "descriptor": "(ILorg/lwjgl/sdl/SDL_Rect;)Z",
+      "status": "implemented",
+      "users": [
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/Monitor.class",
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/Window.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVideo",
+      "name": "SDL_GetDisplayContentScale",
+      "descriptor": "(I)F",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLVideoMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVideo",
+      "name": "SDL_GetDisplayForWindow",
+      "descriptor": "(J)I",
+      "status": "implemented",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/sdl/state_caching/SdlWindowCache.class",
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/MonitorManager.class",
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/Window.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVideo",
+      "name": "SDL_GetDisplayName",
+      "descriptor": "(I)Ljava/lang/String;",
+      "status": "implemented",
+      "users": [
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/Monitor.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVideo",
+      "name": "SDL_GetDisplayProperties",
+      "descriptor": "(I)I",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLVideoMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVideo",
+      "name": "SDL_GetDisplays",
+      "descriptor": "()Ljava/nio/IntBuffer;",
+      "status": "implemented",
+      "users": [
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/MonitorManager.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVideo",
+      "name": "SDL_GetFullscreenDisplayModes",
+      "descriptor": "(I)Lorg/lwjgl/PointerBuffer;",
+      "status": "implemented",
+      "users": [
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/Monitor.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVideo",
+      "name": "SDL_GetGrabbedWindow",
+      "descriptor": "()J",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLVideoMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVideo",
+      "name": "SDL_GetNaturalDisplayOrientation",
+      "descriptor": "(I)I",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLVideoMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVideo",
+      "name": "SDL_GetNumVideoDrivers",
+      "descriptor": "()I",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLVideoMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVideo",
+      "name": "SDL_GetPrimaryDisplay",
+      "descriptor": "()I",
+      "status": "implemented",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLVideoMixin.class",
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/Window.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVideo",
+      "name": "SDL_GetSystemTheme",
+      "descriptor": "()I",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLVideoMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVideo",
+      "name": "SDL_GetWindowDisplayScale",
+      "descriptor": "(J)F",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLVideoMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVideo",
+      "name": "SDL_GetWindowFlags",
+      "descriptor": "(J)J",
+      "status": "implemented",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLVideoMixin.class",
+        "dynamic-fps-3.11.10+minecraft-26.3.0-fabric.jar!META-INF/jars/dynamic-fps-3.11.10+minecraft-26.3.0-common.jar:dynamic_fps/impl/feature/state/WindowObserver.class",
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/Window.class",
+        "sodium-fabric-0.9.2+mc26.3.jar:net/caffeinemc/mods/sodium/mixin/workarounds/window_minimized_state/GameRendererMixin.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVideo",
+      "name": "SDL_GetWindowFromID",
+      "descriptor": "(I)J",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/sdl/state_caching/SdlStateCache.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVideo",
+      "name": "SDL_GetWindowFullscreenMode",
+      "descriptor": "(J)Lorg/lwjgl/sdl/SDL_DisplayMode;",
+      "status": "implemented",
+      "users": [
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/Window.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVideo",
+      "name": "SDL_GetWindowID",
+      "descriptor": "(J)I",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLVideoMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVideo",
+      "name": "SDL_GetWindowKeyboardGrab",
+      "descriptor": "(J)Z",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLVideoMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVideo",
+      "name": "SDL_GetWindowMouseGrab",
+      "descriptor": "(J)Z",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLVideoMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVideo",
+      "name": "SDL_GetWindowOpacity",
+      "descriptor": "(J)F",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLVideoMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVideo",
+      "name": "SDL_GetWindowParent",
+      "descriptor": "(J)J",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLVideoMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVideo",
+      "name": "SDL_GetWindowPixelDensity",
+      "descriptor": "(J)F",
+      "status": "implemented",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/sdl/state_caching/SdlWindowCache.class",
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/Window.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVideo",
+      "name": "SDL_GetWindowPixelFormat",
+      "descriptor": "(J)I",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLVideoMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVideo",
+      "name": "SDL_GetWindowPosition",
+      "descriptor": "(JLjava/nio/IntBuffer;Ljava/nio/IntBuffer;)Z",
+      "status": "implemented",
+      "users": [
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/Window.class",
+        "minecraft-26.3.jar:net/minecraft/client/MouseHandler.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVideo",
+      "name": "SDL_GetWindowProgressState",
+      "descriptor": "(J)I",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLVideoMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVideo",
+      "name": "SDL_GetWindowProgressValue",
+      "descriptor": "(J)F",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLVideoMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVideo",
+      "name": "SDL_GetWindowProperties",
+      "descriptor": "(J)I",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLVideoMixin.class",
+        "sodium-fabric-0.9.2+mc26.3.jar:net/caffeinemc/mods/sodium/mixin/workarounds/context_creation/GlSurfaceMixin.class"
+      ],
+      "disposition": "Sodium Win32 handle supplier and disabled Ixeris; not observed executing on Orbis."
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVideo",
+      "name": "SDL_GetWindowSizeInPixels",
+      "descriptor": "(JLjava/nio/IntBuffer;Ljava/nio/IntBuffer;)Z",
+      "status": "implemented",
+      "users": [
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/Window.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVideo",
+      "name": "SDL_HideWindow",
+      "descriptor": "(J)Z",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLVideoMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVideo",
+      "name": "SDL_MaximizeWindow",
+      "descriptor": "(J)Z",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLVideoMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVideo",
+      "name": "SDL_MinimizeWindow",
+      "descriptor": "(J)Z",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLVideoMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVideo",
+      "name": "SDL_RaiseWindow",
+      "descriptor": "(J)Z",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLVideoMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVideo",
+      "name": "SDL_RestoreWindow",
+      "descriptor": "(J)Z",
+      "status": "implemented",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLVideoMixin.class",
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/Window.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVideo",
+      "name": "SDL_ScreenSaverEnabled",
+      "descriptor": "()Z",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLVideoMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVideo",
+      "name": "SDL_SetWindowAlwaysOnTop",
+      "descriptor": "(JZ)Z",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLVideoMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVideo",
+      "name": "SDL_SetWindowAspectRatio",
+      "descriptor": "(JFF)Z",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLVideoMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVideo",
+      "name": "SDL_SetWindowBordered",
+      "descriptor": "(JZ)Z",
+      "status": "implemented",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLVideoMixin.class",
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/Window.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVideo",
+      "name": "SDL_SetWindowFillDocument",
+      "descriptor": "(JZ)Z",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLVideoMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVideo",
+      "name": "SDL_SetWindowFocusable",
+      "descriptor": "(JZ)Z",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLVideoMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVideo",
+      "name": "SDL_SetWindowFullscreen",
+      "descriptor": "(JZ)Z",
+      "status": "implemented",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLVideoMixin.class",
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/Window.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVideo",
+      "name": "SDL_SetWindowFullscreenMode",
+      "descriptor": "(JLorg/lwjgl/sdl/SDL_DisplayMode;)Z",
+      "status": "implemented",
+      "users": [
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/Window.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVideo",
+      "name": "SDL_SetWindowIcon",
+      "descriptor": "(JLorg/lwjgl/sdl/SDL_Surface;)Z",
+      "status": "implemented",
+      "users": [
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/Window.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVideo",
+      "name": "SDL_SetWindowKeyboardGrab",
+      "descriptor": "(JZ)Z",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLVideoMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVideo",
+      "name": "SDL_SetWindowMaximumSize",
+      "descriptor": "(JII)Z",
+      "status": "implemented",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLVideoMixin.class",
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/Window.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVideo",
+      "name": "SDL_SetWindowMinimumSize",
+      "descriptor": "(JII)Z",
+      "status": "implemented",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLVideoMixin.class",
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/Window.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVideo",
+      "name": "SDL_SetWindowModal",
+      "descriptor": "(JZ)Z",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLVideoMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVideo",
+      "name": "SDL_SetWindowMouseGrab",
+      "descriptor": "(JZ)Z",
+      "status": "implemented",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLVideoMixin.class",
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/Window.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVideo",
+      "name": "SDL_SetWindowOpacity",
+      "descriptor": "(JF)Z",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLVideoMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVideo",
+      "name": "SDL_SetWindowParent",
+      "descriptor": "(JJ)Z",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLVideoMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVideo",
+      "name": "SDL_SetWindowPosition",
+      "descriptor": "(JII)Z",
+      "status": "implemented",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLVideoMixin.class",
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/Window.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVideo",
+      "name": "SDL_SetWindowProgressState",
+      "descriptor": "(JI)Z",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLVideoMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVideo",
+      "name": "SDL_SetWindowProgressValue",
+      "descriptor": "(JF)Z",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLVideoMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVideo",
+      "name": "SDL_SetWindowResizable",
+      "descriptor": "(JZ)Z",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLVideoMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVideo",
+      "name": "SDL_SetWindowSize",
+      "descriptor": "(JII)Z",
+      "status": "implemented",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLVideoMixin.class",
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/Window.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVideo",
+      "name": "SDL_SetWindowSurfaceVSync",
+      "descriptor": "(JI)Z",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLVideoMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVideo",
+      "name": "SDL_SetWindowTitle",
+      "descriptor": "(JLjava/lang/CharSequence;)Z",
+      "status": "implemented",
+      "users": [
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/Window.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVideo",
+      "name": "SDL_ShowWindow",
+      "descriptor": "(J)Z",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLVideoMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVideo",
+      "name": "SDL_ShowWindowSystemMenu",
+      "descriptor": "(JII)Z",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLVideoMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVideo",
+      "name": "SDL_SyncWindow",
+      "descriptor": "(J)Z",
+      "status": "implemented",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLVideoMixin.class",
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/Window.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVideo",
+      "name": "SDL_UpdateWindowSurface",
+      "descriptor": "(J)Z",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLVideoMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVideo",
+      "name": "SDL_WindowHasSurface",
+      "descriptor": "(J)Z",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLVideoMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVideo",
+      "name": "nSDL_CreateWindow",
+      "descriptor": "(JIIJ)J",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLVideoMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVideo",
+      "name": "nSDL_EGL_GetProcAddress",
+      "descriptor": "(J)J",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLVideoMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVideo",
+      "name": "nSDL_EGL_SetAttributeCallbacks",
+      "descriptor": "(JJJJ)V",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLVideoMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVideo",
+      "name": "nSDL_GL_ExtensionSupported",
+      "descriptor": "(J)Z",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLVideoMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVideo",
+      "name": "nSDL_GL_GetAttribute",
+      "descriptor": "(IJ)Z",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLVideoMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVideo",
+      "name": "nSDL_GL_LoadLibrary",
+      "descriptor": "(J)Z",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLVideoMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVideo",
+      "name": "nSDL_GetClosestFullscreenDisplayMode",
+      "descriptor": "(IIIFZJ)Z",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLVideoMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVideo",
+      "name": "nSDL_GetCurrentDisplayMode",
+      "descriptor": "(I)J",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/sdl/state_caching/SdlDisplayCache.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVideo",
+      "name": "nSDL_GetCurrentVideoDriver",
+      "descriptor": "()J",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLVideoMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVideo",
+      "name": "nSDL_GetDesktopDisplayMode",
+      "descriptor": "(I)J",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLVideoMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVideo",
+      "name": "nSDL_GetDisplayBounds",
+      "descriptor": "(IJ)Z",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLVideoMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVideo",
+      "name": "nSDL_GetDisplayForPoint",
+      "descriptor": "(J)I",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLVideoMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVideo",
+      "name": "nSDL_GetDisplayForRect",
+      "descriptor": "(J)I",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLVideoMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVideo",
+      "name": "nSDL_GetDisplayName",
+      "descriptor": "(I)J",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLVideoMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVideo",
+      "name": "nSDL_GetDisplayUsableBounds",
+      "descriptor": "(IJ)Z",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLVideoMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVideo",
+      "name": "nSDL_GetDisplays",
+      "descriptor": "(J)J",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLVideoMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVideo",
+      "name": "nSDL_GetFullscreenDisplayModes",
+      "descriptor": "(IJ)J",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLVideoMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVideo",
+      "name": "nSDL_GetVideoDriver",
+      "descriptor": "(I)J",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLVideoMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVideo",
+      "name": "nSDL_GetWindowAspectRatio",
+      "descriptor": "(JJJ)Z",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLVideoMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVideo",
+      "name": "nSDL_GetWindowBordersSize",
+      "descriptor": "(JJJJJ)Z",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLVideoMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVideo",
+      "name": "nSDL_GetWindowFullscreenMode",
+      "descriptor": "(J)J",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/sdl/state_caching/SdlWindowCache.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVideo",
+      "name": "nSDL_GetWindowICCProfile",
+      "descriptor": "(JJ)J",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLVideoMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVideo",
+      "name": "nSDL_GetWindowMaximumSize",
+      "descriptor": "(JJJ)Z",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLVideoMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVideo",
+      "name": "nSDL_GetWindowMinimumSize",
+      "descriptor": "(JJJ)Z",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLVideoMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVideo",
+      "name": "nSDL_GetWindowMouseRect",
+      "descriptor": "(J)J",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLVideoMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVideo",
+      "name": "nSDL_GetWindowPosition",
+      "descriptor": "(JJJ)Z",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLVideoMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVideo",
+      "name": "nSDL_GetWindowSafeArea",
+      "descriptor": "(JJ)Z",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLVideoMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVideo",
+      "name": "nSDL_GetWindowSize",
+      "descriptor": "(JJJ)Z",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLVideoMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVideo",
+      "name": "nSDL_GetWindowSizeInPixels",
+      "descriptor": "(JJJ)Z",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLVideoMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVideo",
+      "name": "nSDL_GetWindowSurface",
+      "descriptor": "(J)J",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLVideoMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVideo",
+      "name": "nSDL_GetWindowSurfaceVSync",
+      "descriptor": "(JJ)Z",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLVideoMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVideo",
+      "name": "nSDL_GetWindowTitle",
+      "descriptor": "(J)J",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLVideoMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVideo",
+      "name": "nSDL_GetWindows",
+      "descriptor": "(J)J",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLVideoMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVideo",
+      "name": "nSDL_SetWindowFullscreenMode",
+      "descriptor": "(JJ)Z",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLVideoMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVideo",
+      "name": "nSDL_SetWindowHitTest",
+      "descriptor": "(JJJ)Z",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLVideoMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVideo",
+      "name": "nSDL_SetWindowIcon",
+      "descriptor": "(JJ)Z",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLVideoMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVideo",
+      "name": "nSDL_SetWindowMouseRect",
+      "descriptor": "(JJ)Z",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLVideoMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVideo",
+      "name": "nSDL_SetWindowShape",
+      "descriptor": "(JJ)Z",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLVideoMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVideo",
+      "name": "nSDL_SetWindowTitle",
+      "descriptor": "(JJ)Z",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLVideoMixin.class",
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/sdl/SdlHelper.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVideo",
+      "name": "nSDL_UpdateWindowSurfaceRects",
+      "descriptor": "(JJI)Z",
+      "status": "unsupported",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/mixins/sdl/threading/SDLVideoMixin.class"
+      ],
+      "disposition": "Only referenced by Ixeris; enabledOnLinux and enabledOnOtherPlatforms verified false on console."
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVulkan",
+      "name": "SDL_Vulkan_CreateSurface",
+      "descriptor": "(JLorg/lwjgl/vulkan/VkInstance;Lorg/lwjgl/vulkan/VkAllocationCallbacks;Ljava/nio/LongBuffer;)Z",
+      "status": "unsupported",
+      "users": [
+        "minecraft-26.3.jar:com/mojang/renderpearl/backend/vulkan/VulkanGpuSurface.class"
+      ],
+      "disposition": "Vulkan backend path; SDL_Vulkan_LoadLibrary intentionally fails on Orbis."
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVulkan",
+      "name": "SDL_Vulkan_GetInstanceExtensions",
+      "descriptor": "()Lorg/lwjgl/PointerBuffer;",
+      "status": "unsupported",
+      "users": [
+        "minecraft-26.3.jar:com/mojang/renderpearl/backend/vulkan/VulkanInstance.class"
+      ],
+      "disposition": "Vulkan backend path; SDL_Vulkan_LoadLibrary intentionally fails on Orbis."
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVulkan",
+      "name": "SDL_Vulkan_GetPresentationSupport",
+      "descriptor": "(Lorg/lwjgl/vulkan/VkInstance;Lorg/lwjgl/vulkan/VkPhysicalDevice;I)Z",
+      "status": "unsupported",
+      "users": [
+        "minecraft-26.3.jar:com/mojang/renderpearl/backend/vulkan/VulkanPhysicalDevice.class"
+      ],
+      "disposition": "Vulkan backend path; SDL_Vulkan_LoadLibrary intentionally fails on Orbis."
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVulkan",
+      "name": "SDL_Vulkan_GetVkGetInstanceProcAddr",
+      "descriptor": "()J",
+      "status": "unsupported",
+      "users": [
+        "minecraft-26.3.jar:com/mojang/renderpearl/backend/vulkan/VulkanBackend.class"
+      ],
+      "disposition": "Vulkan backend path; SDL_Vulkan_LoadLibrary intentionally fails on Orbis."
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVulkan",
+      "name": "SDL_Vulkan_LoadLibrary",
+      "descriptor": "(Ljava/lang/CharSequence;)Z",
+      "status": "implemented",
+      "users": [
+        "minecraft-26.3.jar:com/mojang/renderpearl/backend/vulkan/VulkanBackend.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDLVulkan",
+      "name": "SDL_Vulkan_UnloadLibrary",
+      "descriptor": "()V",
+      "status": "implemented",
+      "users": [
+        "minecraft-26.3.jar:com/mojang/renderpearl/backend/vulkan/VulkanBackend.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDL_DialogFileFilter",
+      "name": "calloc",
+      "descriptor": "(I)Lorg/lwjgl/sdl/SDL_DialogFileFilter$Buffer;",
+      "status": "official class",
+      "users": [
+        "iris-fabric-1.11.7+mc26.3.jar:net/irisshaders/iris/gui/FileDialogUtil.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDL_DialogFileFilter",
+      "name": "name",
+      "descriptor": "()Ljava/nio/ByteBuffer;",
+      "status": "official class",
+      "users": [
+        "iris-fabric-1.11.7+mc26.3.jar:net/irisshaders/iris/gui/FileDialogUtil.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDL_DialogFileFilter",
+      "name": "name",
+      "descriptor": "(Ljava/nio/ByteBuffer;)Lorg/lwjgl/sdl/SDL_DialogFileFilter;",
+      "status": "official class",
+      "users": [
+        "iris-fabric-1.11.7+mc26.3.jar:net/irisshaders/iris/gui/FileDialogUtil.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDL_DialogFileFilter",
+      "name": "pattern",
+      "descriptor": "()Ljava/nio/ByteBuffer;",
+      "status": "official class",
+      "users": [
+        "iris-fabric-1.11.7+mc26.3.jar:net/irisshaders/iris/gui/FileDialogUtil.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDL_DialogFileFilter",
+      "name": "pattern",
+      "descriptor": "(Ljava/nio/ByteBuffer;)Lorg/lwjgl/sdl/SDL_DialogFileFilter;",
+      "status": "official class",
+      "users": [
+        "iris-fabric-1.11.7+mc26.3.jar:net/irisshaders/iris/gui/FileDialogUtil.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDL_DialogFileFilter$Buffer",
+      "name": "address",
+      "descriptor": "()J",
+      "status": "official class",
+      "users": [
+        "iris-fabric-1.11.7+mc26.3.jar:net/irisshaders/iris/gui/FileDialogUtil.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDL_DialogFileFilter$Buffer",
+      "name": "capacity",
+      "descriptor": "()I",
+      "status": "official class",
+      "users": [
+        "iris-fabric-1.11.7+mc26.3.jar:net/irisshaders/iris/gui/FileDialogUtil.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDL_DialogFileFilter$Buffer",
+      "name": "free",
+      "descriptor": "()V",
+      "status": "official class",
+      "users": [
+        "iris-fabric-1.11.7+mc26.3.jar:net/irisshaders/iris/gui/FileDialogUtil.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDL_DialogFileFilter$Buffer",
+      "name": "get",
+      "descriptor": "(I)Lorg/lwjgl/system/Struct;",
+      "status": "official class",
+      "users": [
+        "iris-fabric-1.11.7+mc26.3.jar:net/irisshaders/iris/gui/FileDialogUtil.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDL_DialogFileFilter$Buffer",
+      "name": "remaining",
+      "descriptor": "()I",
+      "status": "official class",
+      "users": [
+        "iris-fabric-1.11.7+mc26.3.jar:net/irisshaders/iris/gui/FileDialogUtil.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDL_DisplayEvent",
+      "name": "displayID",
+      "descriptor": "()I",
+      "status": "official class",
+      "users": [
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/Window.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDL_DisplayMode",
+      "name": "create",
+      "descriptor": "(J)Lorg/lwjgl/sdl/SDL_DisplayMode;",
+      "status": "official class",
+      "users": [
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/Monitor.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDL_DisplayMode",
+      "name": "format",
+      "descriptor": "()I",
+      "status": "official class",
+      "users": [
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/VideoMode.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDL_DisplayMode",
+      "name": "h",
+      "descriptor": "()I",
+      "status": "official class",
+      "users": [
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/VideoMode.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDL_DisplayMode",
+      "name": "malloc",
+      "descriptor": "(Lorg/lwjgl/system/MemoryStack;)Lorg/lwjgl/sdl/SDL_DisplayMode;",
+      "status": "official class",
+      "users": [
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/Window.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDL_DisplayMode",
+      "name": "refresh_rate",
+      "descriptor": "()F",
+      "status": "official class",
+      "users": [
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/VideoMode.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDL_DisplayMode",
+      "name": "w",
+      "descriptor": "()I",
+      "status": "official class",
+      "users": [
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/VideoMode.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDL_DropEvent",
+      "name": "dataString",
+      "descriptor": "()Ljava/lang/String;",
+      "status": "official class",
+      "users": [
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/SDLEventHandler.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDL_Event",
+      "name": "address",
+      "descriptor": "()J",
+      "status": "official class",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/sdl/SdlEventQueue.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDL_Event",
+      "name": "button",
+      "descriptor": "()Lorg/lwjgl/sdl/SDL_MouseButtonEvent;",
+      "status": "official class",
+      "users": [
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/SDLEventHandler.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDL_Event",
+      "name": "close",
+      "descriptor": "()V",
+      "status": "official class",
+      "users": [
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/SDLEventHandler.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDL_Event",
+      "name": "display",
+      "descriptor": "()Lorg/lwjgl/sdl/SDL_DisplayEvent;",
+      "status": "official class",
+      "users": [
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/Window.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDL_Event",
+      "name": "drop",
+      "descriptor": "()Lorg/lwjgl/sdl/SDL_DropEvent;",
+      "status": "official class",
+      "users": [
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/SDLEventHandler.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDL_Event",
+      "name": "edit",
+      "descriptor": "()Lorg/lwjgl/sdl/SDL_TextEditingEvent;",
+      "status": "official class",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/sdl/SdlEventQueue.class",
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/SDLEventHandler.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDL_Event",
+      "name": "free",
+      "descriptor": "()V",
+      "status": "official class",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/sdl/SdlEventQueue.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDL_Event",
+      "name": "key",
+      "descriptor": "()Lorg/lwjgl/sdl/SDL_KeyboardEvent;",
+      "status": "official class",
+      "users": [
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/SDLEventHandler.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDL_Event",
+      "name": "malloc",
+      "descriptor": "()Lorg/lwjgl/sdl/SDL_Event;",
+      "status": "official class",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/sdl/SdlEventQueue.class",
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/SDLEventHandler.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDL_Event",
+      "name": "motion",
+      "descriptor": "()Lorg/lwjgl/sdl/SDL_MouseMotionEvent;",
+      "status": "official class",
+      "users": [
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/SDLEventHandler.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDL_Event",
+      "name": "sizeof",
+      "descriptor": "()I",
+      "status": "official class",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/sdl/SdlEventQueue.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDL_Event",
+      "name": "text",
+      "descriptor": "()Lorg/lwjgl/sdl/SDL_TextInputEvent;",
+      "status": "official class",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/sdl/SdlEventQueue.class",
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/SDLEventHandler.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDL_Event",
+      "name": "type",
+      "descriptor": "()I",
+      "status": "official class",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/sdl/SdlEventQueue.class",
+        "dynamic-fps-3.11.10+minecraft-26.3.0-fabric.jar!META-INF/jars/dynamic-fps-3.11.10+minecraft-26.3.0-common.jar:dynamic_fps/impl/feature/state/WindowObserver.class",
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/SDLEventHandler.class",
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/Window.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDL_Event",
+      "name": "wheel",
+      "descriptor": "()Lorg/lwjgl/sdl/SDL_MouseWheelEvent;",
+      "status": "official class",
+      "users": [
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/SDLEventHandler.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDL_Event",
+      "name": "window",
+      "descriptor": "()Lorg/lwjgl/sdl/SDL_WindowEvent;",
+      "status": "official class",
+      "users": [
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/Window.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDL_KeyboardEvent",
+      "name": "key",
+      "descriptor": "()I",
+      "status": "official class",
+      "users": [
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/SDLEventHandler.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDL_KeyboardEvent",
+      "name": "mod",
+      "descriptor": "()S",
+      "status": "official class",
+      "users": [
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/SDLEventHandler.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDL_KeyboardEvent",
+      "name": "repeat",
+      "descriptor": "()Z",
+      "status": "official class",
+      "users": [
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/SDLEventHandler.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDL_KeyboardEvent",
+      "name": "scancode",
+      "descriptor": "()I",
+      "status": "official class",
+      "users": [
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/SDLEventHandler.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDL_LogOutputFunction",
+      "name": "create",
+      "descriptor": "(Lorg/lwjgl/sdl/SDL_LogOutputFunctionI;)Lorg/lwjgl/sdl/SDL_LogOutputFunction;",
+      "status": "official class",
+      "users": [
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/SdlDebug.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDL_MessageBoxButtonData",
+      "name": "buttonID",
+      "descriptor": "(I)Lorg/lwjgl/sdl/SDL_MessageBoxButtonData;",
+      "status": "official class",
+      "users": [
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/MessageBox.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDL_MessageBoxButtonData",
+      "name": "calloc",
+      "descriptor": "(ILorg/lwjgl/system/MemoryStack;)Lorg/lwjgl/sdl/SDL_MessageBoxButtonData$Buffer;",
+      "status": "official class",
+      "users": [
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/MessageBox.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDL_MessageBoxButtonData",
+      "name": "text",
+      "descriptor": "(Ljava/nio/ByteBuffer;)Lorg/lwjgl/sdl/SDL_MessageBoxButtonData;",
+      "status": "official class",
+      "users": [
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/MessageBox.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDL_MessageBoxButtonData$Buffer",
+      "name": "get",
+      "descriptor": "(I)Lorg/lwjgl/system/Struct;",
+      "status": "official class",
+      "users": [
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/MessageBox.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDL_MessageBoxData",
+      "name": "buttons",
+      "descriptor": "(Lorg/lwjgl/sdl/SDL_MessageBoxButtonData$Buffer;)Lorg/lwjgl/sdl/SDL_MessageBoxData;",
+      "status": "official class",
+      "users": [
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/MessageBox.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDL_MessageBoxData",
+      "name": "calloc",
+      "descriptor": "(Lorg/lwjgl/system/MemoryStack;)Lorg/lwjgl/sdl/SDL_MessageBoxData;",
+      "status": "official class",
+      "users": [
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/MessageBox.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDL_MessageBoxData",
+      "name": "flags",
+      "descriptor": "(I)Lorg/lwjgl/sdl/SDL_MessageBoxData;",
+      "status": "official class",
+      "users": [
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/MessageBox.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDL_MessageBoxData",
+      "name": "message",
+      "descriptor": "(Ljava/nio/ByteBuffer;)Lorg/lwjgl/sdl/SDL_MessageBoxData;",
+      "status": "official class",
+      "users": [
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/MessageBox.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDL_MessageBoxData",
+      "name": "title",
+      "descriptor": "(Ljava/nio/ByteBuffer;)Lorg/lwjgl/sdl/SDL_MessageBoxData;",
+      "status": "official class",
+      "users": [
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/MessageBox.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDL_MouseButtonEvent",
+      "name": "button",
+      "descriptor": "()B",
+      "status": "official class",
+      "users": [
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/SDLEventHandler.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDL_MouseMotionEvent",
+      "name": "x",
+      "descriptor": "()F",
+      "status": "official class",
+      "users": [
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/SDLEventHandler.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDL_MouseMotionEvent",
+      "name": "xrel",
+      "descriptor": "()F",
+      "status": "official class",
+      "users": [
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/SDLEventHandler.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDL_MouseMotionEvent",
+      "name": "y",
+      "descriptor": "()F",
+      "status": "official class",
+      "users": [
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/SDLEventHandler.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDL_MouseMotionEvent",
+      "name": "yrel",
+      "descriptor": "()F",
+      "status": "official class",
+      "users": [
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/SDLEventHandler.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDL_MouseWheelEvent",
+      "name": "x",
+      "descriptor": "()F",
+      "status": "official class",
+      "users": [
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/SDLEventHandler.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDL_MouseWheelEvent",
+      "name": "y",
+      "descriptor": "()F",
+      "status": "official class",
+      "users": [
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/SDLEventHandler.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDL_PixelFormatDetails",
+      "name": "Bbits",
+      "descriptor": "()B",
+      "status": "official class",
+      "users": [
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/VideoMode.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDL_PixelFormatDetails",
+      "name": "Gbits",
+      "descriptor": "()B",
+      "status": "official class",
+      "users": [
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/VideoMode.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDL_PixelFormatDetails",
+      "name": "Rbits",
+      "descriptor": "()B",
+      "status": "official class",
+      "users": [
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/VideoMode.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDL_Rect",
+      "name": "h",
+      "descriptor": "()I",
+      "status": "official class",
+      "users": [
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/Monitor.class",
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/Window.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDL_Rect",
+      "name": "malloc",
+      "descriptor": "(ILorg/lwjgl/system/MemoryStack;)Lorg/lwjgl/sdl/SDL_Rect$Buffer;",
+      "status": "official class",
+      "users": [
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/TextInputManager.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDL_Rect",
+      "name": "malloc",
+      "descriptor": "(Lorg/lwjgl/system/MemoryStack;)Lorg/lwjgl/sdl/SDL_Rect;",
+      "status": "official class",
+      "users": [
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/Monitor.class",
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/Window.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDL_Rect",
+      "name": "w",
+      "descriptor": "()I",
+      "status": "official class",
+      "users": [
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/Monitor.class",
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/Window.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDL_Rect",
+      "name": "x",
+      "descriptor": "()I",
+      "status": "official class",
+      "users": [
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/Monitor.class",
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/Window.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDL_Rect",
+      "name": "y",
+      "descriptor": "()I",
+      "status": "official class",
+      "users": [
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/Monitor.class",
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/Window.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDL_Rect$Buffer",
+      "name": "h",
+      "descriptor": "(I)Lorg/lwjgl/sdl/SDL_Rect$Buffer;",
+      "status": "official class",
+      "users": [
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/TextInputManager.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDL_Rect$Buffer",
+      "name": "w",
+      "descriptor": "(I)Lorg/lwjgl/sdl/SDL_Rect$Buffer;",
+      "status": "official class",
+      "users": [
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/TextInputManager.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDL_Rect$Buffer",
+      "name": "x",
+      "descriptor": "(I)Lorg/lwjgl/sdl/SDL_Rect$Buffer;",
+      "status": "official class",
+      "users": [
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/TextInputManager.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDL_Rect$Buffer",
+      "name": "y",
+      "descriptor": "(I)Lorg/lwjgl/sdl/SDL_Rect$Buffer;",
+      "status": "official class",
+      "users": [
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/TextInputManager.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDL_Surface",
+      "name": "h",
+      "descriptor": "()I",
+      "status": "official class",
+      "users": [
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/Window.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDL_Surface",
+      "name": "w",
+      "descriptor": "()I",
+      "status": "official class",
+      "users": [
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/Window.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDL_TextEditingEvent",
+      "name": "length",
+      "descriptor": "()I",
+      "status": "official class",
+      "users": [
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/SDLEventHandler.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDL_TextEditingEvent",
+      "name": "start",
+      "descriptor": "()I",
+      "status": "official class",
+      "users": [
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/SDLEventHandler.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDL_TextEditingEvent",
+      "name": "text",
+      "descriptor": "()Ljava/nio/ByteBuffer;",
+      "status": "official class",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/sdl/SdlEventQueue.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDL_TextEditingEvent",
+      "name": "text",
+      "descriptor": "(Ljava/nio/ByteBuffer;)Lorg/lwjgl/sdl/SDL_TextEditingEvent;",
+      "status": "official class",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/sdl/SdlEventQueue.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDL_TextEditingEvent",
+      "name": "textString",
+      "descriptor": "()Ljava/lang/String;",
+      "status": "official class",
+      "users": [
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/SDLEventHandler.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDL_TextInputEvent",
+      "name": "text",
+      "descriptor": "()Ljava/nio/ByteBuffer;",
+      "status": "official class",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/sdl/SdlEventQueue.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDL_TextInputEvent",
+      "name": "text",
+      "descriptor": "(Ljava/nio/ByteBuffer;)Lorg/lwjgl/sdl/SDL_TextInputEvent;",
+      "status": "official class",
+      "users": [
+        "Ixeris-4.6.8+26.3-fabric.jar:me/decce/ixeris/core/sdl/SdlEventQueue.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDL_TextInputEvent",
+      "name": "textString",
+      "descriptor": "()Ljava/lang/String;",
+      "status": "official class",
+      "users": [
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/SDLEventHandler.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDL_WindowEvent",
+      "name": "data1",
+      "descriptor": "()I",
+      "status": "official class",
+      "users": [
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/Window.class"
+      ]
+    },
+    {
+      "owner": "org/lwjgl/sdl/SDL_WindowEvent",
+      "name": "data2",
+      "descriptor": "()I",
+      "status": "official class",
+      "users": [
+        "minecraft-26.3.jar:com/mojang/blaze3d/platform/Window.class"
+      ]
+    }
+  ],
+  "scope": "Minecraft 26.3 and all 45 installed mod JARs, recursively including nested JARs; constant-pool SDL/GLFW method references, not runtime reachability or a complete native-library audit.",
+  "mods": [
+    {
+      "name": "BetterGrassify-1.8.8+fabric.26.3.jar",
+      "sha256": "eb88628b69aaa5029667cab63deb46a5149fb693901b2cf269edefb3d2a05c2a"
+    },
+    {
+      "name": "ConfigManager-fabric-26.1_26.2-1.1.3.jar",
+      "sha256": "59fd62349541d3bccbf5634163015cf335bd272da9b1729649dd2fdb3809bb25"
+    },
+    {
+      "name": "ForgeConfigAPIPort-v26.3.1-mc26.3.x-Fabric.jar",
+      "sha256": "95cc2bd7a943f910a54baf2f65acde301dcfb3d8aeff2c989c04c416d5a4a1cd"
+    },
+    {
+      "name": "ImmediatelyFast-Fabric-1.17.1+26.3.jar",
+      "sha256": "4b346661cd0811d98a6df8c9faeb8fafd9326ab88248430e8bec845ef1ff6dca"
+    },
+    {
+      "name": "Ixeris-4.6.8+26.3-fabric.jar",
+      "sha256": "967cb35161f7cb8bcd48f147624f3e7de4c53c43308fe8c73c789af747124bdc"
+    },
+    {
+      "name": "NoChatReports-FABRIC-26.3-v2.21.0.jar",
+      "sha256": "d346391bea7991ba5d5eb3c8308a414bfc6734d6d220bece84e76966c834b5bf"
+    },
+    {
+      "name": "animatica-0.6.2+26.3.jar",
+      "sha256": "c7df115a20895fe121009937bf0a1d3b8704ea6a5bfc38160f7e50552592d53c"
+    },
+    {
+      "name": "bbe-fabric-1.3.9+mc26.3-mod.jar",
+      "sha256": "03e0a5e60b6ea16d740f5b1f1f61e6226240a99eaf0993cac2d0d0427d00ea6d"
+    },
+    {
+      "name": "bettermounthud-1.3.1.jar",
+      "sha256": "3d4f56c46e61e86ecd5f411809a01af7c40b25aead6791b716befcf33e1e3336"
+    },
+    {
+      "name": "cape-provider-5.6.1.jar",
+      "sha256": "49d4b75ef644ad67759e2f8a58e8347071ef4cef187ea3bb29cd9540a1decc9c"
+    },
+    {
+      "name": "cloth-config-fabric-26.3.159.jar",
+      "sha256": "1716b9964f90d2b885f9bd3887f8824b71b55c32a4123a5853486e722f7c2e4b"
+    },
+    {
+      "name": "continuity-3.0.1+26.3.jar",
+      "sha256": "429fb0946118e86cce8ace8b57d07e1971088fb3f8115439bb0f2f12df14f511"
+    },
+    {
+      "name": "controlify-3.5.3+mc26.3-universal.jar",
+      "sha256": "bc759f557d122079bb9078741065935bf3aa9bfd5e60b414e242633c0dded86a"
+    },
+    {
+      "name": "debugify-26.3.0.0.jar",
+      "sha256": "88c86804997207a6438782fe4d42467cc797bec7de6e6a051cf8e2026a828f63"
+    },
+    {
+      "name": "dynamic-fps-3.11.10+minecraft-26.3.0-fabric.jar",
+      "sha256": "a186d7cdfa3738935cb8425026d118013916fdcfbc060e4397d22368d0bb6594"
+    },
+    {
+      "name": "e4mc-fabric-6.2.2-modern.jar",
+      "sha256": "1075e0b690c5cd615c43c7492009858656f88b38d0caf788c2e1cfdcb7ee7d5b"
+    },
+    {
+      "name": "entity_model_features-3.3.10-26.3-fabric.jar",
+      "sha256": "a123d5e347a3635a1240fc1a8d897e3b1e2d4806e7d914a0d54d4bcf43d7640f"
+    },
+    {
+      "name": "entity_texture_features-7.2.5-26.3-fabric.jar",
+      "sha256": "22c72cb53e97779b1fea82741fa7932e2b43e44dc3b7c21c772affe46568a56d"
+    },
+    {
+      "name": "entityculling-fabric-1.11.2-mc26.3.jar",
+      "sha256": "3ff36c560bc35b5b3ebe09aa4520fae438dfa34c6cd8e5fdf481aac1181fade0"
+    },
+    {
+      "name": "fabric-api-0.161.0+26.3.jar",
+      "sha256": "86f16178a3cecc887a85a4cfe9a79d92fa7341d8f39b5951a4d6ad800ab657a6"
+    },
+    {
+      "name": "fabric-language-kotlin-1.14.1+kotlin.2.4.20.jar",
+      "sha256": "620c2709be2a262b837cf976f6f85f6eda80a56af2ba4242e0bdc83a60fee7a5"
+    },
+    {
+      "name": "fastquit-3.1.5+mc26.2.jar",
+      "sha256": "f18490dfd6c52f9abf4cbf06e0228269425acb42a8b75dd29cd26c574aac47a4"
+    },
+    {
+      "name": "ferritecore-9.0.0-fabric.jar",
+      "sha256": "213966c72ed967acc7392beb28a866fba301ff56b9976c2e7801c2db7de6bf22"
+    },
+    {
+      "name": "iris-fabric-1.11.7+mc26.3.jar",
+      "sha256": "83ab4d3013dd56ac05ae503a2f596968911001c4ef3d82c59c5c79e64c34dd98"
+    },
+    {
+      "name": "lambdynamiclights-4.13.0+26.3.jar",
+      "sha256": "b7550288423affed86370acd80d064876d7e256f5489461b7ff7941627552ab2"
+    },
+    {
+      "name": "language-reload-1.7.8+26.3.jar",
+      "sha256": "b40ae2cc0e06f222ef30ef3d3d9fb54d31c6ab137d650c3734609c4317b98986"
+    },
+    {
+      "name": "lithium-fabric-0.26.2+mc26.3.jar",
+      "sha256": "0be5b17ef9f6e9244cd07b24b227553a73aec0cf93158cf28099f3094c167f1b"
+    },
+    {
+      "name": "main-menu-credits-1.4.0+26.2-universal.jar",
+      "sha256": "56964c1535bd9ae883637d6afa96b8afc30dc5df120de3fed5d0d4a2ad1e92f7"
+    },
+    {
+      "name": "mixintrace-1.0-26.1-universal.jar",
+      "sha256": "63aa32aebc9bc83585a52559370aaa0274cf5994d3e4aefd705eabe76146d2fa"
+    },
+    {
+      "name": "modernfix-5.27.20-build.2.jar",
+      "sha256": "f340fff04132ae9b60eae494d2de4cd177d436da8c0e525d6bd8f5b15ed141b5"
+    },
+    {
+      "name": "modmenu-21.0.0.jar",
+      "sha256": "837812c6c98d66141db7b5dcae668f27fb78d557e8f4c0c89912985fc26a5e6f"
+    },
+    {
+      "name": "morechathistory-2.0.0.jar",
+      "sha256": "5a98a8c5b5ab9f6e34393ea62ba462e17c696d4319fdeeaf98f516e11afc3587"
+    },
+    {
+      "name": "moreculling-fabric-26.3-1.9.0.jar",
+      "sha256": "4739cf1bba326d538247b565a0200f926b2c56bf0e1106495335eec4d8528b0c"
+    },
+    {
+      "name": "optigui-2.3.0-beta.10+26.3.jar",
+      "sha256": "b17d3f5d5c7659f06b9818dbc21af8295798fe29221f609b1c979407050e00ab"
+    },
+    {
+      "name": "placeholder-api-3.1.0-beta.1+26.2.jar",
+      "sha256": "c2ca2b5c397a0c198a32e7af68d2d0a011bc2c7baeae5cffd3996efd65c5069e"
+    },
+    {
+      "name": "puzzle-fabric-2.3.1+26.3.jar",
+      "sha256": "669c4db0b448d6a9f4075d690311f9b5e8ec4ef41410a35c2c524af61a6f34e6"
+    },
+    {
+      "name": "reeses-sodium-options-fabric-2.2.5+mc26.3.jar",
+      "sha256": "b692acb0f84d7477deae48e2ba0908e1913c0d87db53daa4d23cbe646e9028f0"
+    },
+    {
+      "name": "renice-shot-1.2.1+mc26.3.jar",
+      "sha256": "4d6fc56837872dded80a95197fd23158291807d4e62b59d6d33c80b4cba68bbb"
+    },
+    {
+      "name": "rrls-5.2.8+mc.26.3.jar",
+      "sha256": "ab0fda8a8421da7dce8921da30d4dd634a9863b25d99fde5488270e57b95d572"
+    },
+    {
+      "name": "skyboxify-3.4+26.3-fabric.jar",
+      "sha256": "0b29f9ee0a18a9ae441cd666746937b91e2f2f28b090ec7dad041c719304762c"
+    },
+    {
+      "name": "sodium-extra-fabric-0.9.4+mc26.3.jar",
+      "sha256": "fb0a24fa4d46f3669b827e73b7f33be8b48821fdca3dea3d283022330bf6a874"
+    },
+    {
+      "name": "sodium-fabric-0.9.2+mc26.3.jar",
+      "sha256": "87a5bb39f7e6e41106e77f122f82fc93f9d3bc0b6ebcb746b314172a446a287a"
+    },
+    {
+      "name": "sodium-shadowy-path-blocks-fabric-8.0.0.jar",
+      "sha256": "5033e2873cf718a2667903c0b8dfcd6895776b5d12e7a3cfd228f4d5193a74d6"
+    },
+    {
+      "name": "yet_another_config_lib_v3-3.9.7+26.3-fabric.jar",
+      "sha256": "c52d41d444522d9abba994cd4c4ee2e71a065d7c31010f92a9959b80ccb4b0f5"
+    },
+    {
+      "name": "zoomify-2.16.3+26.3.jar",
+      "sha256": "72c79c6e77c3e403748792c8173462c533de61bc3fde165bc9ae4064cf04ccdf"
+    }
+  ]
+}

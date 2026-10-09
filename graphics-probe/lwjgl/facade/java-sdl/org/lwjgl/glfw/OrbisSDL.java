@@ -601,10 +601,25 @@ public final class OrbisSDL {
         return OrbisGLFW.glfwGetCurrentContext() == glfwWindow || fail("eglMakeCurrent failed: " + NativePlatform.nLastError());
     }
 
-    public static boolean SDL_GL_SetSwapInterval(int interval) {
-        if (OrbisGLFW.glfwGetCurrentContext() == NULL) return fail("No current OpenGL context");
-        OrbisGLFW.glfwSwapInterval(interval);
+    /** Translate the calling thread's GLFW binding to SDL's opaque context handle. */
+    public static long SDL_GL_GetCurrentContext() {
+        return contextCreated && glfwWindow != NULL && OrbisGLFW.glfwGetCurrentContext() == glfwWindow
+                ? CONTEXT : NULL;
+    }
+
+    /** Orbis EGL clamps every interval to 1: VideoOut flips and WSI pacing are VSync locked. */
+    public static boolean SDL_GL_GetSwapInterval(IntBuffer interval) {
+        if (SDL_GL_GetCurrentContext() == NULL) return fail("No current OpenGL context");
+        interval.put(interval.position(), 1);
         return true;
+    }
+
+    public static boolean SDL_GL_SetSwapInterval(int interval) {
+        if (SDL_GL_GetCurrentContext() == NULL) return fail("No current OpenGL context");
+        // SDL uses -1 to probe adaptive VSync. GLFW's negative-to-zero fallback would falsely
+        // advertise support; the Orbis platform PRX and fixed VideoOut scanout cannot provide it.
+        if (interval < 0) return fail("Adaptive swap intervals are not supported on Orbis");
+        return NativePlatform.nSwapInterval(interval) || fail("eglSwapInterval failed: " + NativePlatform.nLastError());
     }
 
     public static boolean SDL_GL_SwapWindow(long handle) {

@@ -28,7 +28,8 @@ public final class NativePlatform {
 
     public static boolean nSwapBuffers(long window) { swaps++; return window == 1; }
 
-    public static boolean nSwapInterval(int interval) { return true; }
+    public static boolean swapIntervalSuccess = true;
+    public static boolean nSwapInterval(int interval) { return swapIntervalSuccess; }
 
     public static long nGetProcAddress(String function) { procNames.add(function); return 0x1000 + function.length(); }
 

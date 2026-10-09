@@ -42,6 +42,10 @@ public final class FacadeSdlTest {
         check(GL.getFunctionProvider().getFunctionAddress("glGetError") == SDL_GL_GetProcAddress("glGetError"),
                 "glGetError agrees");
 
+        IntBuffer interval = IntBuffer.allocate(2);
+        interval.put(0, 77).put(1, 88).position(1);
+        check(!SDL_GL_GetSwapInterval(interval) && interval.get(1) == 88, "swap query without context leaves output intact");
+
         // GlDevice: context on a hidden utility window, a hidden test window, then the game window.
         long hiddenFlags = 2147614728L;
         SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
@@ -51,8 +55,17 @@ public final class FacadeSdlTest {
         long utility = SDL_CreateWindow("utility", 320, 480, 2L | hiddenFlags);
         check(utility != 0, "utility window");
         check(NativePlatform.lastContext[0] == 3 && NativePlatform.lastContext[1] == 3, "3.3 context requested");
+        check(SDL_GL_GetCurrentContext() == 0, "no SDL context before creation");
         long context = SDL_GL_CreateContext(utility);
         check(context != 0 && SDL_GL_MakeCurrent(utility, context), "context current");
+        check(SDL_GL_GetCurrentContext() == context, "current SDL handle matches created context");
+        Thread other = new Thread(() -> check(SDL_GL_GetCurrentContext() == 0, "context is thread local"));
+        other.setUncaughtExceptionHandler((thread, failure) -> { failure.printStackTrace(); System.exit(1); });
+        other.start();
+        try { other.join(); } catch (InterruptedException interrupted) { throw new AssertionError(interrupted); }
+        check(SDL_GL_MakeCurrent(utility, 0), "detach context");
+        check(SDL_GL_GetCurrentContext() == 0, "no current context after detach");
+        check(SDL_GL_MakeCurrent(utility, context), "reattach context");
         check(SDL_GL_CreateContext(utility) == 0, "a second context is refused");
         try (MemoryStack stack = MemoryStack.stackPush()) {
             IntBuffer major = stack.mallocInt(1), minor = stack.mallocInt(1);
@@ -68,6 +81,17 @@ public final class FacadeSdlTest {
         check(game != 0, "game window");
         check(SDL_GL_MakeCurrent(game, context), "context on the game window");
         check(SDL_GL_SetSwapInterval(1), "swap interval");
+        check(SDL_GL_GetSwapInterval(interval) && interval.get(1) == 1 && interval.get(0) == 77,
+                "swap query uses buffer position and reports fixed PS4 interval");
+        int savedInterval = interval.get(1);
+        check(!SDL_GL_SetSwapInterval(-1), "adaptive VSync is unavailable on the fixed PS4 scanout");
+        check(SDL_GL_GetSwapInterval(interval) && interval.get(1) == savedInterval, "adaptive probe preserves interval");
+        check(SDL_GL_SetSwapInterval(savedInterval), "Sodium Extra restores saved interval");
+        check(SDL_GL_SetSwapInterval(0) && SDL_GL_GetSwapInterval(interval) && interval.get(1) == 1,
+                "EGL clamps VSync off to the PS4 fixed interval");
+        NativePlatform.swapIntervalSuccess = false;
+        check(!SDL_GL_SetSwapInterval(1), "native swap failure reaches SDL caller");
+        NativePlatform.swapIntervalSuccess = true;
         int swaps = NativePlatform.swaps;
         check(SDL_GL_SwapWindow(game) && NativePlatform.swaps == swaps + 1, "swap");
 
@@ -145,6 +169,7 @@ public final class FacadeSdlTest {
         event.free();
 
         check(SDL_GL_DestroyContext(context), "context destroyed");
+        check(SDL_GL_GetCurrentContext() == 0, "no current context after destruction");
         SDL_DestroyWindow(game);
         SDL_DestroyWindow(utility);
         check(NativePlatform.destroyed == 1, "the real window goes with the last SDL window");
