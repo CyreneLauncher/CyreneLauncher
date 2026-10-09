@@ -7,6 +7,7 @@
  * error in nLastError() and releases what the failed call acquired. Mesa's
  * environment knobs are seeded here because this PRX reads its own environment.
  */
+#include "orbis_vulkan.h"
 #include <EGL/egl.h>
 #include <EGL/eglext.h>
 #include <jni.h>
@@ -35,6 +36,7 @@ static EGLConfig config;
 static EGLSurface surface = EGL_NO_SURFACE;
 static EGLContext context = EGL_NO_CONTEXT;
 static EGLint surface_width, surface_height;
+static int vulkan_window;
 static char last_error[512] = "none";
 static int ime_cancel_locked(void);
 
@@ -57,11 +59,12 @@ static void release_window_locked(void) {
     if (surface != EGL_NO_SURFACE) eglDestroySurface(display, surface);
     context = EGL_NO_CONTEXT;
     surface = EGL_NO_SURFACE;
+    vulkan_window = 0;
     surface_width = surface_height = 0;
 }
 
 static int valid_window_locked(jlong window) {
-    if (window != PLATFORM_WINDOW || surface == EGL_NO_SURFACE || context == EGL_NO_CONTEXT) {
+    if (window != PLATFORM_WINDOW || (!vulkan_window && (surface == EGL_NO_SURFACE || context == EGL_NO_CONTEXT))) {
         record("invalid window handle %lld", (long long)window);
         return 0;
     }
@@ -464,7 +467,7 @@ JNIEXPORT jlong JNICALL Java_orbis_graphics_NativePlatform_nCreateWindow(
     jlong result = 0;
     pthread_mutex_lock(&platform_lock);
     if (display == EGL_NO_DISPLAY) { record("platform is not initialised"); goto done; }
-    if (surface != EGL_NO_SURFACE) { record("only one window is supported"); goto done; }
+    if (surface != EGL_NO_SURFACE || vulkan_window) { record("only one window is supported"); goto done; }
     if (gl_major < 1 || gl_minor < 0 || depth_bits < 0 || stencil_bits < 0) {
         record("invalid context request %d.%d depth=%d stencil=%d",
                (int)gl_major, (int)gl_minor, (int)depth_bits, (int)stencil_bits);
@@ -510,6 +513,47 @@ done:
     return result;
 }
 
+/* Reserving a Vulkan window does not open VideoOut: the real swapchain owns scanout. */
+JNIEXPORT jlong JNICALL Java_orbis_graphics_NativePlatform_nCreateVulkanWindow(JNIEnv *env, jclass klass) {
+    (void)env; (void)klass;
+    pthread_mutex_lock(&platform_lock);
+    jlong result = 0;
+    if (display == EGL_NO_DISPLAY) record("platform is not initialised");
+    else if (surface != EGL_NO_SURFACE || vulkan_window) record("only one window is supported");
+    else {
+        vulkan_window = 1;
+        /* Matches the fixed 1080p extent advertised by Orbis's headless/VideoOut WSI. */
+        surface_width = 1920;
+        surface_height = 1080;
+        record("none");
+        result = PLATFORM_WINDOW;
+    }
+    pthread_mutex_unlock(&platform_lock);
+    return result;
+}
+
+JNIEXPORT jint JNICALL Java_orbis_graphics_NativePlatform_nVulkanCreateSurface(
+        JNIEnv *env, jclass klass, jlong instance, jlong allocator, jlong output) {
+    (void)env; (void)klass;
+    pthread_mutex_lock(&platform_lock);
+    VkResult result = VK_ERROR_INITIALIZATION_FAILED;
+    if (!vulkan_window) record("No Vulkan window");
+    else {
+        result = orbis_vulkan_create_surface((VkInstance)(uintptr_t)instance,
+            (const VkAllocationCallbacks *)(uintptr_t)allocator, (VkSurfaceKHR *)(uintptr_t)output);
+        if (result != VK_SUCCESS) record("vkCreateHeadlessSurfaceEXT failed (VkResult %d)", result);
+    }
+    pthread_mutex_unlock(&platform_lock);
+    return result;
+}
+
+JNIEXPORT jboolean JNICALL Java_orbis_graphics_NativePlatform_nVulkanPresentationSupport(
+        JNIEnv *env, jclass klass, jlong instance, jlong physical, jint family) {
+    (void)env; (void)klass;
+    return family >= 0 && orbis_vulkan_presentation_support((VkInstance)(uintptr_t)instance,
+        (VkPhysicalDevice)(uintptr_t)physical, (uint32_t)family) ? JNI_TRUE : JNI_FALSE;
+}
+
 /* window 0 releases the calling thread's context. */
 JNIEXPORT jboolean JNICALL Java_orbis_graphics_NativePlatform_nMakeCurrent(
         JNIEnv *env, jclass klass, jlong window) {
@@ -523,6 +567,7 @@ JNIEXPORT jboolean JNICALL Java_orbis_graphics_NativePlatform_nMakeCurrent(
         goto done;
     }
     if (!valid_window_locked(window)) goto done;
+    if (vulkan_window) { record("Vulkan window has no OpenGL context"); goto done; }
     result = eglMakeCurrent(display, surface, surface, context) ? JNI_TRUE : JNI_FALSE;
     if (!result) record_egl("eglMakeCurrent");
 done:
@@ -535,7 +580,7 @@ JNIEXPORT jboolean JNICALL Java_orbis_graphics_NativePlatform_nSwapBuffers(
         JNIEnv *env, jclass klass, jlong window) {
     (void)env; (void)klass;
     pthread_mutex_lock(&platform_lock);
-    int valid = valid_window_locked(window);
+    int valid = valid_window_locked(window) && !vulkan_window;
     EGLDisplay current_display = display;
     EGLSurface current_surface = surface;
     pthread_mutex_unlock(&platform_lock);

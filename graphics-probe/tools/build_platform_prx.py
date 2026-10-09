@@ -61,6 +61,9 @@ bridge = tools.compile(ROOT / f'lwjgl/platform/{NAME}.c', out / f'{NAME}.o',
                        '-I', arguments.jni_headers, '-I', Path(arguments.jni_headers) / arguments.jni_platform,
                        *(['-DORBIS_HEAP_CHECK'] if heap_check else []),
                        *(['-DORBIS_HEAP_TRACE'] if heap_trace else []))
+vulkan_bridge = tools.compile(ROOT / 'lwjgl/platform/orbis_vulkan.c', out / 'orbis_vulkan.o',
+                              '-fdata-sections', '-O2', '-Wall', '-Werror',
+                              '-I', sources / 'mesa/include')
 # realloc goes to the bridge's fix for musl's (see __wrap_realloc), or to a diagnostic heap's own.
 heap_objects, heap_wraps = [], ('--wrap=realloc',)
 if heap_check:
@@ -86,7 +89,7 @@ def link_platform(mal_offset=0):
     # __text_start moves nothing, so the second link gives the same layout with the symbol filled in.
     defsym = (f'--defsym=orbis_musl_mal=__text_start+{mal_offset:#x}',) if heap_trace else ()
     orbis_prx.link(tools, script, runtime, elf,
-                   [bridge, *heap_objects, '--start-group', egl, gallium, '--whole-archive', radv, '--no-whole-archive', zlib,
+                   [bridge, vulkan_bridge, *heap_objects, '--start-group', egl, gallium, '--whole-archive', radv, '--no-whole-archive', zlib,
                     '--end-group', '--whole-archive', compat_archive, '--no-whole-archive', *libc16],
                    system_libraries=('SceGnmDriver', 'SceVideoOut', 'ScePad', 'SceUserService', 'SceSystemService', 'SceSysmodule', 'SceImeDialog', 'SceCommonDialog', 'SceWebBrowserDialog'),
                    # Mesa's thread creation passes through the bridge's diagnostic wrapper.
@@ -114,7 +117,7 @@ wchar = orbis_prx.run('sh', kit / 'scripts/ps4/check-wchar-link.sh', why, stdout
 audit, natives = orbis_prx.audit(elf, allowed_needed=('libkernel.so', 'libSceGnmDriver.so', 'libSceVideoOut.so', 'libScePad.so',
                                                  'libSceUserService.so', 'libSceSystemService.so', 'libSceSysmodule.so',
                                                  'libSceImeDialog.so', 'libSceCommonDialog.so', 'libSceWebBrowserDialog.so'),
-                                 jni_prefix='Java_orbis_graphics_NativePlatform_', jni_count=23)
+                                 jni_prefix='Java_orbis_graphics_NativePlatform_', jni_count=26, required_c_exports=('vkGetInstanceProcAddr',))
 if audit['tls'] is None:
     raise SystemExit('platform PRX has no TLS image; Mesa TLS was expected')
 audit['jni_natives'] = natives
