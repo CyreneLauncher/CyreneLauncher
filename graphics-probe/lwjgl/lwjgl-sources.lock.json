@@ -116,5 +116,45 @@
     "sha256": "f07b958a9ac5020fb7a44cadb957f658b2149c3c8abb4f63145fac9303249db7",
     "license": "Zlib (LICENSE.txt in the archive)",
     "selection": "Controlify 3.5 (Minecraft 26.1) loads SDL 3.4.12 through its FFM bindings (its bundled libSDL3 reports SDL-3.4.12); SHA-256 matches libsdl.org/release."
+  },
+  "shaderc": {
+    "version": "301b4ede53d59b68bf55f95bb26412d9233c8187",
+    "url": "https://github.com/google/shaderc/archive/301b4ede53d59b68bf55f95bb26412d9233c8187.tar.gz",
+    "filename": "shaderc-301b4ede53d59b68bf55f95bb26412d9233c8187.tar.gz",
+    "sha256": "b938f85dec78ca7eb8139dcd1f613930eb7a84a8ce5ea944b6f861c291d916bc",
+    "license": "Apache-2.0 (LICENSE in the archive)",
+    "selection": "Shaderc v2026.1: the commit LWJGL 3.4.1's libshaderc.so was built from (its .git record, natives-linux); Minecraft 26.2 compiles shaders with it"
+  },
+  "glslang": {
+    "version": "f0bd0257c308b9a26562c1a30c4748a0219cc951",
+    "url": "https://github.com/KhronosGroup/glslang/archive/f0bd0257c308b9a26562c1a30c4748a0219cc951.tar.gz",
+    "filename": "glslang-f0bd0257c308b9a26562c1a30c4748a0219cc951.tar.gz",
+    "sha256": "bd58dca4dac67dcf7640292d7d63e0416274d40ee2200f7301878cec11ac6647",
+    "license": "BSD-3-Clause and others (LICENSE.txt in the archive)",
+    "selection": "glslang_revision in shaderc v2026.1's DEPS"
+  },
+  "spirv-tools": {
+    "version": "fbe4f3ad913c44fe8700545f8ffe35d1382b7093",
+    "url": "https://github.com/KhronosGroup/SPIRV-Tools/archive/fbe4f3ad913c44fe8700545f8ffe35d1382b7093.tar.gz",
+    "filename": "spirv-tools-fbe4f3ad913c44fe8700545f8ffe35d1382b7093.tar.gz",
+    "sha256": "cabb35f4eef0da3ef72ad9edd596af4191d7507a8f35c05df526d2d5ff889f59",
+    "license": "Apache-2.0 (LICENSE in the archive)",
+    "selection": "spirv_tools_revision in shaderc v2026.1's DEPS"
+  },
+  "spirv-headers": {
+    "version": "04f10f650d514df88b76d25e83db360142c7b174",
+    "url": "https://github.com/KhronosGroup/SPIRV-Headers/archive/04f10f650d514df88b76d25e83db360142c7b174.tar.gz",
+    "filename": "spirv-headers-04f10f650d514df88b76d25e83db360142c7b174.tar.gz",
+    "sha256": "1b220e3eec1714f0451b0e3652979bd280edf10893f617837b88e6359a804ded",
+    "license": "MIT-style Khronos (LICENSE in the archive)",
+    "selection": "spirv_headers_revision in shaderc v2026.1's DEPS"
+  },
+  "spirv-cross": {
+    "version": "a0fba56c34a6700f1724bf9b751da5b488a3775c",
+    "url": "https://github.com/KhronosGroup/SPIRV-Cross/archive/a0fba56c34a6700f1724bf9b751da5b488a3775c.tar.gz",
+    "filename": "spirv-cross-a0fba56c34a6700f1724bf9b751da5b488a3775c.tar.gz",
+    "sha256": "1e79592b0a498ffb854f7d71e0d5811fcedb87a25201644bbf5dbba438e01264",
+    "license": "Apache-2.0 (LICENSE in the archive)",
+    "selection": "The commit LWJGL 3.4.1's libspirv-cross.so was built from (its .git record, natives-linux); Minecraft 26.2's OpenGL backend turns SPIR-V back into GLSL with it"
   }
 }
