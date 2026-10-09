@@ -27,6 +27,7 @@ public final class GpuLaunch {
     public static String prepare() throws LaunchPlanException {
         Path metadata = configured("runner.gpu.metadata");
         Path libraries = configured("runner.gpu.libraries");
+        libraries = libraryRoot(metadata, libraries, Path.of(System.getProperty("java.home")));
         Path bundleRoot = configured("runner.graphics.bundle");
         ResolvedLaunchPlan plan = VersionMetadataResolver.resolve(metadata, libraries, MetadataPlatform.ORBIS);
         System.out.println("runner: gpu metadata=" + metadata + " id=" + plan.versionId()
@@ -88,5 +89,11 @@ public final class GpuLaunch {
         if (value.isEmpty() || !Path.of(value).isAbsolute())
             throw new IllegalStateException(property + " must be an absolute path, got '" + value + "'");
         return Path.of(value);
+    }
+
+    /** The launcher itself uses installed Java dependencies; games use downloaded libraries. */
+    public static Path libraryRoot(Path metadata, Path downloaded, Path javaHome) {
+        return metadata.normalize().equals(Path.of("/app0/manifests/launcher.json"))
+                ? javaHome.resolve("lib/orbis/libraries") : downloaded;
     }
 }

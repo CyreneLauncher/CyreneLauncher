@@ -1,5 +1,4 @@
-# The PS4 application: the runner eboot and app.jar, packaged as a PKG. Java runtimes are not built
-# here; each JDK port exports its own (its orbis-export directory), and runner.conf's java_home picks one.
+# The complete launcher PKG consumes verified JDK/native exports; it does not rebuild those ports.
 PROJECT_DIR := $(patsubst %/,%,$(dir $(abspath $(lastword $(MAKEFILE_LIST)))))
 SDK ?= /home/wonder/ps4-payload-sdk
 TOOLCHAIN ?= /home/wonder/PS4Toolchain
@@ -15,8 +14,8 @@ CC = $(SDK)/bin/orbis-clang
 CXX = $(SDK)/bin/orbis-clang++
 LD = $(SDK)/bin/orbis-ld
 FSELF ?= $(TOOLCHAIN)/bin/linux/create-fself
-TITLE ?= Orbis Java JAR Runner
-VERSION ?= 0.56
+TITLE ?= Orbis Launcher
+VERSION ?= 0.57
 TITLE_ID ?= OJDK00003
 CONTENT_ID ?= IV0000-OJDK00003_00-ORBISJARRUNNER01
 PAID ?= 0x3800000000000011
@@ -32,14 +31,14 @@ ATTRIBUTE ?= 0x00810020
 # flexible memory - every anonymous mapping is charged to it. Asking for more in the executable's own
 # memory parameters instead is refused at load (PRX_INVALID_IMAGE).
 ATTRIBUTE2 ?= 0x00004000
-BUILD := $(PROJECT_DIR)/build-runner
+BUILD := $(PROJECT_DIR)/build-selfcontained
 STAGE := $(BUILD)/stage
 OUT := $(BUILD)/output
 CLASSES := $(BUILD)/app-classes
 TARGET_FLAGS := --target=x86_64-pc-freebsd12-elf -fPIC -funwind-tables -Wno-writable-strings -isysroot $(TOOLCHAIN) -isystem $(TOOLCHAIN)/include
 APP_SOURCES := $(wildcard $(PROJECT_DIR)/src/runner/*.java $(PROJECT_DIR)/src/runner/gpu/*.java $(PROJECT_DIR)/src/runner/lwjgl/*.java)
 
-.PHONY: all runner package check check-artifacts clean FORCE
+.PHONY: all runner package runtime-stage check check-artifacts clean FORCE
 all: package
 FORCE:
 # Compare content to track command-line settings without rebuilding on every make.
@@ -57,7 +56,7 @@ $(BUILD)/app.jar: $(BUILD)/classes.stamp
 $(BUILD)/launcher_profile.h: $(PROJECT_DIR)/tools/write_launcher_profile.py $(BUILD)/settings
 	$(PYTHON) $< --output $@ --main-class runner/Main --user-dir /data/orbis-jdk/runner --log-path /data/orbis-jdk/logs/orbis-runner.log --tmp-dir /data/orbis-jdk/runner/tmp --runtime-jvm-options /data/orbis-jdk/runner/jvm-options.txt --screen-console --java-option=-Dsun.nio.fs.chdirAllowed=true --java-option=-XX:HeapBaseMinAddress=4g
 $(BUILD)/launcher.o: $(PROJECT_DIR)/launcher.c $(PROJECT_DIR)/tools/runner_config.h $(PROJECT_DIR)/tools/orbis_stat.h $(PROJECT_DIR)/tools/orbis_runtime.h $(PROJECT_DIR)/tools/orbis_mapping_probe.h $(PROJECT_DIR)/tools/orbis_screen_console.h $(PROJECT_DIR)/tools/orbis_input_service.h $(PROJECT_DIR)/tools/orbis_display_service.h $(PROJECT_DIR)/tools/orbis_desktop_bridge.h $(PROJECT_DIR)/tools/orbis_gpu_input_bridge.h $(PROJECT_DIR)/tools/orbis_desktop_preflight.h $(BUILD)/launcher_profile.h $(BUILD)/settings
-	$(CXX) $(TARGET_FLAGS) -x c++ -DORBIS_JAVA_BUILD_VERSION=\"$(VERSION)\" -DORBIS_JAVA_BUILD_KIND=\"jar-runner-screen-console\" -I$(BUILD) -I$(JNI_HEADERS) -I$(JNI_HEADERS)/$(JNI_PLATFORM) -c $< -o $@
+	$(CXX) $(TARGET_FLAGS) -x c++ -DORBIS_JAVA_BUILD_VERSION=\"$(VERSION)\" -DORBIS_JAVA_BUILD_KIND=\"launcher-installed\" -I$(BUILD) -I$(JNI_HEADERS) -I$(JNI_HEADERS)/$(JNI_PLATFORM) -c $< -o $@
 $(BUILD)/%.o: $(PROJECT_DIR)/tools/%.c $(BUILD)/settings
 	$(CC) $(TARGET_FLAGS) -MMD -MP -c $< -o $@
 $(BUILD)/orbis_screen_console.o: $(PROJECT_DIR)/tools/orbis_screen_console.cpp $(PROJECT_DIR)/tools/orbis_screen_console.h $(PROJECT_DIR)/tools/orbis_screen_font.h $(PROJECT_DIR)/tools/orbis_input_service.h $(PROJECT_DIR)/tools/orbis_display_service.h $(BUILD)/settings
@@ -81,7 +80,7 @@ $(STAGE)/eboot.bin: $(BUILD)/launcher.elf
 $(STAGE)/app.jar: $(BUILD)/app.jar
 	mkdir -p $(STAGE)
 	cp $< $@
-$(STAGE)/runner/README.txt: $(PROJECT_DIR)/tools/runner-files-README.txt
+$(STAGE)/runner/README.txt: $(PROJECT_DIR)/defaults/README.txt
 	mkdir -p $(dir $@)
 	cp $< $@
 runner: $(STAGE)/eboot.bin $(STAGE)/app.jar $(STAGE)/runner/README.txt
@@ -108,7 +107,16 @@ $(STAGE)/sce_sys/param.sfo: $(BUILD)/settings
 	$(DOTNET) $(PKGTOOL) sfo_setentry $@ TITLE_ID --type Utf8 --maxsize 12 --value '$(TITLE_ID)'
 	$(DOTNET) $(PKGTOOL) sfo_setentry $@ VERSION --type Utf8 --maxsize 8 --value '$(VERSION)'
 
-$(STAGE)/package.gp4: $(STAGE)/eboot.bin $(STAGE)/app.jar $(STAGE)/runner/README.txt $(STAGE)/sce_sys/param.sfo $(PROJECT_DIR)/tools/make_gp4.py
+RELEASE_INPUTS := $(PROJECT_DIR)/tools/runtime-package-inputs.json
+RELEASE_LAUNCHER := $(PROJECT_DIR)/../graphics-probe/build/launcher-release/orbis-launcher.jar
+RELEASE_JARS := $(PROJECT_DIR)/../graphics-probe/build/downloads/runner-jars
+runtime-stage: runner $(STAGE)/sce_sys/param.sfo
+	$(PYTHON) $(PROJECT_DIR)/../graphics-probe/tools/repositories.py verify
+	$(PYTHON) $(PROJECT_DIR)/tools/runtime_package.py prepare-libraries --inputs $(RELEASE_INPUTS) --library-output $(RELEASE_JARS)
+	$(PYTHON) $(PROJECT_DIR)/../graphics-probe/tools/build_launcher.py --jars $(RELEASE_JARS) --gson $(RELEASE_JARS)/gson-2.8.9.jar --output $(dir $(RELEASE_LAUNCHER))
+	$(PYTHON) $(PROJECT_DIR)/tools/runtime_package.py assemble --inputs $(RELEASE_INPUTS) --stage $(STAGE) --launcher-jar $(RELEASE_LAUNCHER)
+
+$(STAGE)/package.gp4: runtime-stage $(PROJECT_DIR)/tools/make_gp4.py
 	$(PYTHON) $(PROJECT_DIR)/tools/check_runner_package.py $(STAGE)
 	$(PYTHON) $(PROJECT_DIR)/tools/make_gp4.py --root $(STAGE) --out $@ --content-id $(CONTENT_ID)
 package: $(STAGE)/package.gp4

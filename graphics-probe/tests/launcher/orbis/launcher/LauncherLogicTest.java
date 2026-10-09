@@ -26,6 +26,7 @@ public final class LauncherLogicTest {
         lwjglSelection();
         lwjglUpgrade();
         runtimeSelection();
+        installedBootstrap();
         consoleModSettings();
         scroller();
         packRules();
@@ -199,6 +200,38 @@ public final class LauncherLogicTest {
         // A default runner on JDK 21 runs everything itself.
         check(LaunchPreparation.runtime(Runtimes.discover(jdk21, root), installed("1.21.1", 21)) == null,
                 "a Java 21 default keeps java_home");
+        Path installedRoot = Files.createDirectories(root.resolve("installed"));
+        for (int feature : List.of(17, 21, 25)) {
+            Path home = Files.createDirectories(installedRoot.resolve("jdk" + feature));
+            Files.createDirectories(home.resolve("lib/server"));
+            Files.write(home.resolve("lib/server/libjvm.prx"), new byte[]{1});
+            Files.writeString(home.resolve("release"), "JAVA_VERSION=\"" + feature + ".0.1\"\n");
+        }
+        Runtimes packaged = Runtimes.discover(installedRoot.resolve("jdk17"), installedRoot);
+        check(packaged.all.size() == 3 && packaged.forJava(25).home().equals(installedRoot.resolve("jdk25")),
+                "direct installed runtime homes discovered without release-desktop");
+    }
+
+    private static void installedBootstrap() throws IOException {
+        Path root = Files.createTempDirectory("launcher-first-install");
+        Path runner = Files.createDirectories(root.resolve("runner"));
+        Path game = Files.createDirectories(root.resolve("game"));
+        Path metadata = Files.writeString(root.resolve("launcher.json"),
+                "{\"id\":\"orbis-launcher\",\"mainClass\":\"orbis.launcher.Launcher\",\"libraries\":[]}");
+        Files.writeString(runner.resolve("runner.conf"), "debug=false\n");
+        Files.writeString(runner.resolve("jvm-options.txt"), "-Xmx1024m\n-Dorbis.graphics.arenaMib=1536\n");
+        System.setProperty("orbis.launcher.home", root.resolve("home").toString());
+        System.setProperty("orbis.runner.root", runner.toString());
+        System.setProperty("orbis.launcher.gameMetadata", metadata.toString());
+        System.setProperty("user.dir", game.toString());
+        LauncherConfig config = LauncherConfig.load();
+        check(config.describe(config.selectedInstance()).equals("No game installed"), "fresh install has no built-in Minecraft");
+        try {
+            new LaunchPreparation(config).prepare(config.selectedInstance(), "offline-test");
+            throw new AssertionError("launcher bootstrap must never be launched as a game");
+        } catch (IOException expected) {
+            check(expected.getMessage().contains("Install"), expected.getMessage());
+        }
     }
 
     private static Path export(Path dir, String version) throws IOException {

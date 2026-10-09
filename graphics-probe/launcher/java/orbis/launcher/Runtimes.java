@@ -12,11 +12,8 @@ import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-/**
- * The Java runtimes on the console. runner.conf's java_home is the default runner (JDK 17): the
- * launcher always starts on it. Every other JDK export beside it (&lt;orbis root&gt;/&lt;name&gt;/release-desktop,
- * such as the optional JDK 21 runner at /data/orbis-jdk/jdk21/release-desktop) is offered for the
- * versions the default cannot run; each is recognised by its release file's JAVA_VERSION.
+/** Installed JDKs beside the running JVM, identified by JAVA_VERSION in their release files.
+ * Legacy development exports under release-desktop remain discoverable for host tools.
  */
 final class Runtimes {
     /** One runtime: its java_home and Java feature version (17, 21). */
@@ -28,7 +25,7 @@ final class Runtimes {
 
     final Runtime fallback;
     final List<Runtime> all;
-    /** Where other runtimes are looked for (/data/orbis-jdk). */
+    /** Where other runtimes are looked for (/app0/runtimes in the installed package). */
     final Path root;
 
     Runtimes(Runtime fallback, List<Runtime> others, Path root) {
@@ -53,7 +50,8 @@ final class Runtimes {
         if (root != null && Files.isDirectory(root, LinkOption.NOFOLLOW_LINKS)) {
             try (DirectoryStream<Path> dirs = Files.newDirectoryStream(root)) {
                 for (Path dir : dirs) {
-                    Path home = dir.resolve(EXPORT);
+                    if (!Files.isDirectory(dir, LinkOption.NOFOLLOW_LINKS)) continue;
+                    Path home = feature(dir, -1) > 0 ? dir : dir.resolve(EXPORT);
                     int feature = feature(home, -1);
                     if (feature > 0) others.add(new Runtime(home.toAbsolutePath().normalize(), feature));
                 }

@@ -91,3 +91,10 @@ bundles. Back up the launcher and all sibling repositories together.
 SDK/toolchain installations remain external inputs at their existing locations.
 No SDK migration, Mesa/JDK rebuild, console deployment or remote publication was
 performed as part of this repository split.
+
+## Installed distribution
+
+The launcher assembles the self-contained PKG from pinned, verified port exports.
+The native source repositories remain independent. Provided runtime libraries
+live inside each installed JDK; downloads and state remain in `/data`.
+See [PACKAGING.md](PACKAGING.md) for the layout, build and upgrade checks.

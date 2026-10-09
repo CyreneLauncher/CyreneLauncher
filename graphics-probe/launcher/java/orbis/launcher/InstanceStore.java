@@ -45,11 +45,17 @@ final class InstanceStore {
     private final Path importedDir;
     private final Path runtimeProfile, versionsRoot;
     private final int importedHeap, importedArena;
+    private final boolean launcherOnly;
     private final List<Instance> instances = new ArrayList<>();
     private String selectedId;
     private String recoveryWarning = "";
 
     InstanceStore(Path home, Path importedDir, Path runtimeProfile, Path versionsRoot, int heapMib, int arenaMib) {
+        this(home, importedDir, runtimeProfile, versionsRoot, heapMib, arenaMib, false);
+    }
+
+    InstanceStore(Path home, Path importedDir, Path runtimeProfile, Path versionsRoot, int heapMib, int arenaMib, boolean launcherOnly) {
+        this.launcherOnly = launcherOnly;
         this.root = home.toAbsolutePath().normalize().resolve("instances");
         this.importedDir = importedDir.toAbsolutePath().normalize();
         this.runtimeProfile = runtimeProfile.toAbsolutePath().normalize();
@@ -98,7 +104,7 @@ final class InstanceStore {
         instances.sort(Comparator.comparing(Instance::name, String.CASE_INSENSITIVE_ORDER));
         if (instances.isEmpty()) {
             String id = newId();
-            Instance imported = new Instance(id, "Existing Minecraft", importedDir, runtimeProfile,
+            Instance imported = new Instance(id, launcherOnly ? "New instance" : "Existing Minecraft", importedDir, runtimeProfile,
                     "", importedHeap, importedArena, true);
             writeRecord(imported);
             instances.add(imported);

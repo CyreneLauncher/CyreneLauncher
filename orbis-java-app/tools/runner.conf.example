@@ -1,14 +1,11 @@
-# Console remains the default. Desktop mode needs the separately FTP-installed
-# three-JAR Cacio export under desktop_bundle before startup. GPU mode needs a
-# graphics bundle (graphics-bundle.json) under graphics_bundle; see README.
-java_home=/data/orbis-jdk/jdk
-jar=/data/orbis-jdk/runner/target.jar
-working_directory=/data/orbis-jdk/runner
+# Packaged defaults; native library roots follow java_home.
+# Installed code is read-only; downloaded content and settings remain in /data.
+java_home=/app0/runtimes/jdk17
+jar=/app0/runtimes/jdk17/lib/orbis/graphics/lib/orbis-launcher.jar
+working_directory=/data/orbis-jdk/minecraft
 output_log=/data/orbis-jdk/runner/runner-output.log
 temporary_directory=/data/orbis-jdk/runner/tmp
 debug=false
-display=console
-desktop_bundle=/data/orbis-jdk/cacio
-graphics_bundle=/data/orbis-jdk/graphics
-version_metadata=/data/orbis-jdk/runner/version.json
+display=gpu
+version_metadata=/app0/manifests/launcher.json
 libraries=/data/orbis-jdk/libraries

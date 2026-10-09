@@ -1003,8 +1003,14 @@ int main(int argc, char **argv) {
     setvbuf(stdout, NULL, _IONBF, 0);
     orbis_log_open();
     char configuration_error[1024];
-    int configuration_result = runner_config_load(RUNNER_CONFIG_PATH, &runner_config,
+    int configuration_result = runner_config_seed_defaults("/app0/defaults", RUNNER_ROOT,
         configuration_error, sizeof(configuration_error));
+    if (!configuration_result)
+        configuration_result = runner_config_load(RUNNER_CONFIG_PATH, &runner_config,
+            configuration_error, sizeof(configuration_error));
+    if (!configuration_result)
+        configuration_result = runner_config_installed(&runner_config,
+            configuration_error, sizeof(configuration_error));
 #if ORBIS_PROFILE_SCREEN_CONSOLE
     // GPU mode leaves VideoOut and input to the graphics bundle. Console, desktop
     // and configuration failures keep the CPU screen for startup diagnostics.

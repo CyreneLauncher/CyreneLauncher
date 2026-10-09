@@ -1,8 +1,13 @@
+#define _POSIX_C_SOURCE 200809L
 #include "runner_config.h"
 #include <errno.h>
+#include <fcntl.h>
 #include <stdarg.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
+#include <unistd.h>
 
 static int fail(char *error, size_t size, const char *format, ...) {
     va_list args;
@@ -10,6 +15,85 @@ static int fail(char *error, size_t size, const char *format, ...) {
     if (size) vsnprintf(error, size, format, args);
     va_end(args);
     return -1;
+}
+int runner_config_seed_defaults(const char *defaults, const char *root, char *error, size_t size) {
+    char directory[RUNNER_PATH_CAPACITY];
+    if (*root != '/' || strlen(root) >= sizeof(directory)) return fail(error, size, "invalid runner directory");
+    strcpy(directory, root);
+    for (char *part = directory + 1; ; ++part) {
+        if (*part == '/' || !*part) {
+            char saved = *part; *part = 0;
+            if (mkdir(directory, 0777) < 0 && errno != EEXIST)
+                return fail(error, size, "cannot create %s: %s", directory, strerror(errno));
+            *part = saved;
+            if (!saved) break;
+        }
+    }
+    const char *names[] = {"runner.conf", "jvm-options.txt"};
+    for (unsigned i = 0; i < sizeof(names)/sizeof(names[0]); ++i) {
+        char source[1024], target[1024], temporary[1100], buffer[4096];
+        if (snprintf(source, sizeof(source), "%s/%s", defaults, names[i]) >= (int)sizeof(source) ||
+            snprintf(target, sizeof(target), "%s/%s", root, names[i]) >= (int)sizeof(target))
+            return fail(error, size, "runner defaults path too long");
+        struct stat existing;
+        if (lstat(target, &existing) == 0) continue;
+        if (errno != ENOENT) return fail(error, size, "cannot inspect %s: %s", target, strerror(errno));
+        snprintf(temporary, sizeof(temporary), "%s.seed-XXXXXX", target);
+        int out = mkstemp(temporary);
+        if (out < 0) return fail(error, size, "cannot initialize %s: %s", target, strerror(errno));
+        int in = open(source, O_RDONLY), saved_errno = 0;
+        if (in < 0) saved_errno = errno;
+        while (!saved_errno) {
+            ssize_t count = read(in, buffer, sizeof(buffer));
+            if (count < 0) { if (errno == EINTR) continue; saved_errno = errno; break; }
+            if (!count) break;
+            ssize_t written = 0;
+            while (written < count) {
+                ssize_t result = write(out, buffer + written, (size_t)(count - written));
+                if (result < 0 && errno == EINTR) continue;
+                if (result <= 0) { saved_errno = result < 0 ? errno : EIO; break; }
+                written += result;
+            }
+        }
+        if (in >= 0 && close(in) < 0 && !saved_errno) saved_errno = errno;
+        if (!saved_errno && fsync(out) < 0) saved_errno = errno;
+        if (close(out) < 0 && !saved_errno) saved_errno = errno;
+        if (saved_errno) {
+            unlink(temporary);
+            return fail(error, size, "cannot initialize %s: %s", target, strerror(saved_errno));
+        }
+        // Hard-link publication is atomic and exclusive: never replace user settings.
+        int published = link(temporary, target);
+        saved_errno = errno;
+        unlink(temporary);
+        if (published < 0 && saved_errno != EEXIST)
+            return fail(error, size, "cannot publish %s: %s", target, strerror(saved_errno));
+    }
+    return 0;
+}
+
+int runner_config_installed(RunnerConfig *config, char *error, size_t size) {
+    const char *names[] = {"jdk17", "jdk21", "jdk25", "jdk"};
+    const int features[] = {17, 21, 25, 17};
+    size_t length = strlen(config->java_home);
+    while (length > 1 && config->java_home[length - 1] == '/') config->java_home[--length] = 0;
+    int feature = 0;
+    for (unsigned i = 0; i < sizeof(names)/sizeof(names[0]); ++i) {
+        char legacy[128], installed[128];
+        snprintf(legacy, sizeof(legacy), "/data/orbis-jdk/%s", names[i]);
+        snprintf(installed, sizeof(installed), "/app0/runtimes/jdk%d", features[i]);
+        size_t n = strlen(legacy);
+        if (!strcmp(config->java_home, installed) ||
+            (!strncmp(config->java_home, legacy, n) &&
+             (!config->java_home[n] || !strcmp(config->java_home + n, "/release-desktop")))) {
+            feature = features[i]; break;
+        }
+    }
+    if (!feature) return fail(error, size, "select a packaged JDK 17, 21 or 25; unsupported java_home=%s", config->java_home);
+    snprintf(config->java_home, sizeof(config->java_home), "/app0/runtimes/jdk%d", feature);
+    snprintf(config->graphics_bundle, sizeof(config->graphics_bundle), "/app0/runtimes/jdk%d/lib/orbis/graphics", feature);
+    snprintf(config->desktop_bundle, sizeof(config->desktop_bundle), "/app0/runtimes/jdk%d/lib/orbis/desktop", feature);
+    return 0;
 }
 static int config_space(unsigned char c) {
     return c == ' ' || c == '\t' || c == '\r' || c == '\n' || c == '\f' || c == '\v';
@@ -44,10 +128,10 @@ static int debug_log_collision(const char *path) {
            !strcmp(normalized, RUNNER_ROOT "/runner-debug.log.1");
 }
 int runner_config_load(const char *path, RunnerConfig *config, char *error, size_t size) {
-    RunnerConfig parsed = {"/data/orbis-jdk/jdk", RUNNER_ROOT "/target.jar",
+    RunnerConfig parsed = {"/app0/runtimes/jdk17", "/app0/runtimes/jdk17/lib/orbis/graphics/lib/orbis-launcher.jar",
         RUNNER_ROOT, RUNNER_ROOT "/runner-output.log", RUNNER_ROOT "/tmp",
-        "/data/orbis-jdk/cacio", "/data/orbis-jdk/graphics", RUNNER_ROOT "/version.json",
-        "/data/orbis-jdk/libraries", 0, RUNNER_DISPLAY_CONSOLE, 0};
+        "/app0/runtimes/jdk17/lib/orbis/desktop", "/app0/runtimes/jdk17/lib/orbis/graphics", "/app0/manifests/launcher.json",
+        "/data/orbis-jdk/libraries", 0, RUNNER_DISPLAY_GPU, 0};
     const char *keys[] = {"java_home", "jar", "working_directory", "output_log", "temporary_directory", "debug", "display", "desktop_bundle", "graphics_bundle", "version_metadata", "libraries", "input_diagnostics"};
     char *values[] = {parsed.java_home, parsed.jar, parsed.working_directory, parsed.output_log, parsed.temporary_directory, NULL, NULL, parsed.desktop_bundle, parsed.graphics_bundle, parsed.version_metadata, parsed.libraries, NULL};
     unsigned seen = 0;

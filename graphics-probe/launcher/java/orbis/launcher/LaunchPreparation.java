@@ -40,6 +40,8 @@ final class LaunchPreparation {
         rollback(); // A previous interrupted transaction cannot contaminate this one.
         validateInstance(instance);
         VersionStore.Installed version = config.installed(instance);
+        if (version == null && config.launcherOnly)
+            throw new IOException("Install and select a Minecraft version before playing");
         if (version != null && config.versions.upgradeLwjgl(version))
             System.out.println("launcher: Minecraft " + version.minecraft() + " now runs on LWJGL 3.3.3");
         try {
@@ -253,8 +255,7 @@ final class LaunchPreparation {
         Runtimes.Runtime runtime = runtimes.forJava(version.java());
         if (runtime == null)
             throw new IOException("Minecraft " + version.minecraft() + " needs Java " + version.java()
-                    + "; upload a Java " + version.java() + " runtime export to " + runtimes.root + "/<name>/"
-                    + Runtimes.EXPORT);
+                    + "; update the application to install that runtime");
         return runtime;
     }
 
@@ -264,7 +265,11 @@ final class LaunchPreparation {
         set.put("working_directory", gameDir.toString());
         set.put("debug", String.valueOf(debugLog));
         // Only this launch runs on another runtime: the game restores runner.conf as it starts.
-        if (runtime != null) set.put("java_home", runtime.home().toString());
+        if (runtime != null) {
+            set.put("java_home", runtime.home().toString());
+            set.put("graphics_bundle", runtime.home().resolve("lib/orbis/graphics").toString());
+            set.put("desktop_bundle", runtime.home().resolve("lib/orbis/desktop").toString());
+        }
         // A downloaded version boots on its own client JAR and profile, which starts the launcher first.
         if (version != null) {
             set.put("jar", version.clientJar().toString());
@@ -294,7 +299,7 @@ final class LaunchPreparation {
     }
 
     private static final java.util.Set<String> PREPARED_KEYS =
-            java.util.Set.of("working_directory", "debug", "jar", "version_metadata", "java_home");
+            java.util.Set.of("working_directory", "debug", "jar", "version_metadata", "java_home", "graphics_bundle", "desktop_bundle");
 
     /** Restore only our configuration edits when another writer changed unrelated settings. */
     private static byte[] mergeConfigurationRecovery(byte[] original, byte[] prepared, byte[] current)

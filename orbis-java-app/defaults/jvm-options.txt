@@ -1,0 +1,6 @@
+-Xms256m
+-Xmx1024m
+-Dorbis.graphics.arenaMib=1536
+-Djava.awt.headless=true
+-Dorbis.launcher.gameMetadata=/app0/manifests/launcher.json
+-Dfabric.systemLibraries=/app0/app.jar

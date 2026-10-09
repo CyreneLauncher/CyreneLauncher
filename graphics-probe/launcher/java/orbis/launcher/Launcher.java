@@ -50,6 +50,8 @@ public final class Launcher {
                 if (account == null) throw new java.io.IOException("The requested account no longer exists");
                 AccountStore.Session session = new MicrosoftAuthClient(accounts, config.home).refresh(account.id());
                 VersionStore.Installed version = config.installed(instance);
+                if (version == null && config.launcherOnly)
+                    throw new java.io.IOException("Install and select a Minecraft version before playing");
                 if (version == null && !instance.runtimeProfile().equals(config.metadata.toAbsolutePath().normalize()))
                     throw new java.io.IOException("The instance's Minecraft version is no longer installed");
                 String[] gameArgs = LaunchArguments.build(base.toArray(String[]::new), instance, session, version);

@@ -24,6 +24,8 @@ typedef struct RunnerConfig {
     int input_diagnostics;
 } RunnerConfig;
 int runner_config_load(const char *path, RunnerConfig *config, char *error, size_t error_size);
+int runner_config_seed_defaults(const char *defaults, const char *root, char *error, size_t error_size);
+int runner_config_installed(RunnerConfig *config, char *error, size_t error_size);
 int runner_option_reserved(const char *option);
 /* Desktop-safe option inventory shared with the native preflight/launcher. */
 size_t runner_desktop_option_count(void);

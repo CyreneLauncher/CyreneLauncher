@@ -19,7 +19,7 @@ final class LauncherConfig {
     static final int MIN_ARENA_MIB = 1024, MAX_ARENA_MIB = 2048;
     static final int STEP_MIB = 128;
     /** runner_config.c's java_home when runner.conf names none. */
-    static final String DEFAULT_JAVA_HOME = "/data/orbis-jdk/jdk";
+    static final String DEFAULT_JAVA_HOME = "/app0/runtimes/jdk17";
     /** Heap plus arena that has run on the console (1.5 GiB each); more leaves too little native memory. */
     static final int MAX_TOTAL_MIB = 3072;
 
@@ -34,6 +34,7 @@ final class LauncherConfig {
     final Runtimes runtimes;
     final String versionId;
     final String gameMainClass;
+    final boolean launcherOnly;
     final String loaderVersion;
     int heapMib;
     int arenaMib;
@@ -46,6 +47,7 @@ final class LauncherConfig {
         this.metadata = metadata;
         String json = Files.readString(metadata, StandardCharsets.UTF_8);
         versionId = field(json, "id", "unknown");
+        launcherOnly = versionId.equals("orbis-launcher");
         gameMainClass = field(json, "mainClass", "net.minecraft.client.main.Main");
         Matcher loader = Pattern.compile("net\\.fabricmc:fabric-loader:([^\"]+)\"").matcher(json);
         loaderVersion = loader.find() ? loader.group(1) : "";
@@ -76,14 +78,16 @@ final class LauncherConfig {
             if (line.trim().startsWith("libraries=")) libraries = Path.of(line.trim().substring("libraries=".length()));
             if (line.trim().startsWith("java_home=")) javaHome = Path.of(line.trim().substring("java_home=".length()));
         }
-        runtimes = Runtimes.discover(javaHome, runnerRoot.getParent());
+        Path runningHome = Path.of(System.getProperty("java.home", DEFAULT_JAVA_HOME));
+        if (runningHome.startsWith(Path.of("/app0/runtimes"))) javaHome = runningHome;
+        runtimes = Runtimes.discover(javaHome, javaHome.getParent());
         VersionStore.offeredJava = runtimes.newest();
         List<String> arguments = Files.exists(runnerRoot.resolve("app-args.txt"))
                 ? Files.readAllLines(runnerRoot.resolve("app-args.txt"), StandardCharsets.UTF_8) : List.of();
         for (int i = 0; i + 1 < arguments.size(); i++)
             if (arguments.get(i).trim().equals("--assetsDir")) assets = Path.of(arguments.get(i + 1).trim());
         versions = new VersionStore(home, libraries, assets, metadata);
-        instances = new InstanceStore(home, gameDir, metadata, versions.versionsRoot(), heapMib, arenaMib);
+        instances = new InstanceStore(home, gameDir, metadata, versions.versionsRoot(), heapMib, arenaMib, launcherOnly);
         instances.load();
         use(instances.selected());
     }
@@ -93,7 +97,7 @@ final class LauncherConfig {
         Path runnerRoot = Path.of(System.getProperty("orbis.runner.root", "/data/orbis-jdk/runner"));
         Path gameDir = Path.of(System.getProperty("user.dir"));
         Path metadata = Path.of(System.getProperty("orbis.launcher.gameMetadata",
-                "/data/orbis-jdk/minecraft-runner/version.json"));
+                "/app0/manifests/launcher.json"));
         Files.createDirectories(home);
         return new LauncherConfig(home, runnerRoot, gameDir, metadata);
     }
@@ -150,12 +154,14 @@ final class LauncherConfig {
     /** What an instance runs, for display. */
     String describe(InstanceStore.Instance instance) {
         VersionStore.Installed version = installed(instance);
+        if (version == null && launcherOnly) return "No game installed";
         return version != null ? version.title()
                 : "Minecraft " + builtInGameVersion() + (loaderVersion.isEmpty() ? "" : "  Fabric " + loaderVersion);
     }
 
     /** The built-in runtime's Minecraft version: the end of a loader profile id such as fabric-loader-0.14.9-1.18.2. */
     String builtInGameVersion() {
+        if (launcherOnly) return "";
         Matcher m = Pattern.compile("(\\d+\\.\\d+(?:\\.\\d+)?)$").matcher(versionId);
         return m.find() ? m.group(1) : versionId;
     }
