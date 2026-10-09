@@ -65,6 +65,17 @@ public final class GpuLaunch {
         Path nativeDirectory = bundle.nativeLibraries().get(0).getParent();
         // LWJGL loads liblwjgl*.so from here; GL uses the EGL provider, never libGL; no jemalloc native.
         System.setProperty("org.lwjgl.librarypath", nativeDirectory.toString());
+        // Only the SDL profile ships VMA and has a tested Vulkan window bridge. Use the same
+        // platform PRX as EGL, so RADV shares the runtime, GPU arena and VideoOut owner.
+        if (plan.lwjglModules().containsKey("org.lwjgl:lwjgl-vulkan")
+                && bundle.nativeLibraries().stream().anyMatch(path -> path.getFileName().toString().equals("liblwjgl_vma.so"))) {
+            Path vulkan = bundle.nativeLibraries().stream()
+                    .filter(path -> path.getFileName().toString().equals("liborbis_lwjgl_platform.so"))
+                    .findFirst().orElseThrow(() -> new IllegalStateException("Vulkan profile has no platform PRX"));
+            System.setProperty("org.lwjgl.vulkan.libname", vulkan.toString());
+            System.setProperty("org.lwjgl.vulkan.explicitInit", "true");
+            System.out.println("runner: optional Vulkan driver=" + vulkan);
+        }
         System.setProperty("org.lwjgl.opengl.explicitInit", "true");
         System.setProperty("org.lwjgl.system.allocator", "system");
         System.out.println("runner: gpu class path +" + entries.size() + " entries (" + replaced.size() + " LWJGL modules replaced), natives="

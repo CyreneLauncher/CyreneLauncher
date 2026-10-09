@@ -24,6 +24,16 @@ public final class NativePlatform {
         return 1;
     }
 
+    public static int vulkanWindows, vulkanSurfaceResult;
+    public static long vulkanInstance, vulkanAllocator;
+    public static long nCreateVulkanWindow() { vulkanWindows++; return 1; }
+    public static int nVulkanCreateSurface(long instance, long allocator, long output) {
+        vulkanInstance = instance; vulkanAllocator = allocator;
+        if (vulkanSurfaceResult == 0) org.lwjgl.system.MemoryUtil.memPutLong(output, 0x9876);
+        return vulkanSurfaceResult;
+    }
+    public static boolean nVulkanPresentationSupport(long instance, long physical, int family) { return family == 0; }
+
     public static boolean nMakeCurrent(long window) { current = window; return true; }
 
     public static boolean nSwapBuffers(long window) { swaps++; return window == 1; }

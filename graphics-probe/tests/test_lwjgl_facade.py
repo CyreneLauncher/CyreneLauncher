@@ -43,7 +43,7 @@ with tempfile.TemporaryDirectory() as directory:
     javac('-d', real, root.parent / 'orbis-java-app/src/runner/gpu/NativeInput.java',
           root / 'lwjgl/java/orbis/graphics/NativePlatform.java')
     fakes = tmp / 'fakes'
-    javac('-d', fakes, root / 'tests/facade/orbis/graphics/NativePlatform.java',
+    javac('-cp', jars / f'lwjgl-{release}.jar', '-d', fakes, root / 'tests/facade/orbis/graphics/NativePlatform.java',
           root / 'tests/facade/runner/gpu/NativeInput.java')
     for name in ('runner/gpu/NativeInput.class', 'orbis/graphics/NativePlatform.class'):
         production = classfile.parse((real / name).read_bytes())
@@ -55,6 +55,8 @@ with tempfile.TemporaryDirectory() as directory:
         assert methods <= {(m.name, m.descriptor) for m in stand_in.methods}, name + ' methods'
 
     lwjgl = [jars / jar for jar in needed if 'glfw' not in jar]
+    if release == '3.4.3':
+        lwjgl.append(jars / f'lwjgl-vulkan-{release}.jar')
     classpath = ':'.join(map(str, [fakes, facade, *lwjgl]))
     tests = tmp / 'tests'
     javac('-cp', classpath, '-d', tests, root / 'tests/facade/FacadeBehaviorTest.java')
@@ -71,3 +73,12 @@ with tempfile.TemporaryDirectory() as directory:
         javac('-cp', classpath, '-d', tests, root / 'tests/facade/FacadeSdlTest.java')
         subprocess.run([str(boot_jdk / 'bin/java'), '-ea', '-Dorg.lwjgl.opengl.libname=/nonexistent/libGL.so',
                         '-cp', f'{tests}:{classpath}', 'FacadeSdlTest'], check=True)
+
+    if release == '3.4.3':
+        host_vulkan = tmp / 'libvulkan-test.so'
+        subprocess.run(['cc', '-shared', '-fPIC', '-I', str(root / 'build/sources/mesa/include'),
+                        str(root / 'tests/vulkan_loader_stub.c'), '-o', str(host_vulkan)], check=True)
+        javac('-cp', classpath, '-d', tests, root / 'tests/facade/FacadeVulkanTest.java')
+        subprocess.run([str(boot_jdk / 'bin/java'), '-ea', '-Dorg.lwjgl.vulkan.explicitInit=true',
+                        '-Dorg.lwjgl.opengl.libname=/nonexistent/libGL.so', '-cp', f'{tests}:{classpath}',
+                        'FacadeVulkanTest', str(host_vulkan)], check=True)

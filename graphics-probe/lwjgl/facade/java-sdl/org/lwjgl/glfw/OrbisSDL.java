@@ -3,6 +3,11 @@ package org.lwjgl.glfw;
 import java.nio.ByteBuffer;
 import java.nio.FloatBuffer;
 import java.nio.IntBuffer;
+import java.nio.LongBuffer;
+import org.lwjgl.vulkan.VK;
+import org.lwjgl.vulkan.VkInstance;
+import org.lwjgl.vulkan.VkPhysicalDevice;
+import org.lwjgl.vulkan.VkAllocationCallbacks;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -50,7 +55,7 @@ public final class OrbisSDL {
     // ---------------------------------------------------------------- SDL constants (SDL 3.4)
 
     private static final long WINDOW_FULLSCREEN = 0x1, WINDOW_OPENGL = 0x2, WINDOW_HIDDEN = 0x8,
-            WINDOW_MINIMIZED = 0x40, WINDOW_MOUSE_GRABBED = 0x100, WINDOW_INPUT_FOCUS = 0x200,
+            WINDOW_VULKAN = 0x10000000, WINDOW_MINIMIZED = 0x40, WINDOW_MOUSE_GRABBED = 0x100, WINDOW_INPUT_FOCUS = 0x200,
             WINDOW_MOUSE_FOCUS = 0x400, WINDOW_MOUSE_RELATIVE_MODE = 0x8000;
     private static final int EVENT_QUIT = 0x100, EVENT_WINDOW_MOVED = 517, EVENT_WINDOW_RESIZED = 518,
             EVENT_WINDOW_PIXEL_SIZE_CHANGED = 519, EVENT_WINDOW_MINIMIZED = 521, EVENT_WINDOW_RESTORED = 523,
@@ -93,7 +98,7 @@ public final class OrbisSDL {
     /** The GLFW facade's one window, created with the first SDL window. */
     private static long glfwWindow;
     private static final long CONTEXT = 0x5344_4c43_0000_0001L;
-    private static boolean contextCreated, initialized;
+    private static boolean contextCreated, initialized, vulkanWindow, vulkanLoaded;
 
     private static int glMajor = 3, glMinor = 3, glProfile, glFlags, glDepth = 24, glStencil = 8;
 
@@ -364,8 +369,14 @@ public final class OrbisSDL {
             fail("Video subsystem has not been initialized");
             return NULL;
         }
+        boolean wantsVulkan = (flags & WINDOW_VULKAN) != 0;
+        if (wantsVulkan && (flags & WINDOW_OPENGL) != 0) { fail("Window cannot use both OpenGL and Vulkan"); return NULL; }
+        if (glfwWindow != NULL && wantsVulkan != vulkanWindow) {
+            fail("Only one graphics backend can own the console window"); return NULL;
+        }
         if (glfwWindow == NULL) {
             OrbisGLFW.glfwDefaultWindowHints();
+            OrbisGLFW.glfwWindowHint(GLFW_CLIENT_API, wantsVulkan ? GLFW_NO_API : GLFW_OPENGL_API);
             OrbisGLFW.glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, glMajor);
             OrbisGLFW.glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, glMinor);
             OrbisGLFW.glfwWindowHint(GLFW_OPENGL_PROFILE,
@@ -380,9 +391,10 @@ public final class OrbisSDL {
                 return NULL;
             }
             glfwWindow = handle;
+            vulkanWindow = wantsVulkan;
             installCallbacks(handle);
         }
-        Window window = new Window(nextWindowId++, (flags | WINDOW_OPENGL) & ~WINDOW_MINIMIZED,
+        Window window = new Window(nextWindowId++, flags & ~WINDOW_MINIMIZED,
                 title == null ? "" : title.toString());
         windows.put(window.handle, window);
         if ((flags & WINDOW_HIDDEN) == 0 || inputWindow == null || (inputWindow.flags & WINDOW_HIDDEN) != 0) {
@@ -411,6 +423,7 @@ public final class OrbisSDL {
             OrbisGLFW.glfwDestroyWindow(glfwWindow);
             glfwWindow = NULL;
             contextCreated = false;
+            vulkanWindow = false;
             textInput = relativeMode = grabbed = false;
             buttonMask = 0;
             memSet(keyboardState, 0);
@@ -570,6 +583,7 @@ public final class OrbisSDL {
     /** One context, created with the window; every SDL window shares it. */
     public static long SDL_GL_CreateContext(long handle) {
         if (window(handle) == null) return NULL;
+        if (vulkanWindow) { fail("Vulkan window has no OpenGL context"); return NULL; }
         if (contextCreated) {
             fail("Only one OpenGL context is supported");
             return NULL;
@@ -628,13 +642,55 @@ public final class OrbisSDL {
         return true;
     }
 
-    // ---------------------------------------------------------------- Vulkan: none on the console
+    // ---------------------------------------------------------------- Vulkan: direct RADV and Orbis VideoOut WSI
 
     public static boolean SDL_Vulkan_LoadLibrary(CharSequence path) {
-        return fail("Vulkan is not supported");
+        try {
+            if (!(VK.getFunctionProvider() instanceof SharedLibrary)) return fail("Vulkan requires a shared library provider");
+            SharedLibrary library = (SharedLibrary) VK.getFunctionProvider();
+            if (path != null && !path.toString().equals(library.getPath()))
+                return fail("Vulkan library must be the same driver loaded by LWJGL");
+            if (library.getFunctionAddress("vkGetInstanceProcAddr") == NULL) return fail("Vulkan entry point is unavailable");
+            vulkanLoaded = true;
+            return true;
+        } catch (IllegalStateException | LinkageError unavailable) {
+            return fail("Vulkan loader unavailable: " + unavailable.getMessage());
+        }
     }
 
-    public static void SDL_Vulkan_UnloadLibrary() { }
+    public static void SDL_Vulkan_UnloadLibrary() { vulkanLoaded = false; }
+
+    public static long SDL_Vulkan_GetVkGetInstanceProcAddr() {
+        return vulkanLoaded ? VK.getFunctionProvider().getFunctionAddress("vkGetInstanceProcAddr") : NULL;
+    }
+
+    private static final class VulkanExtensions {
+        // SDL owns this memory, independent of MemoryStack frames and until process exit.
+        static final ByteBuffer surface = memASCII("VK_KHR_surface"), headless = memASCII("VK_EXT_headless_surface");
+        static final PointerBuffer names = org.lwjgl.BufferUtils.createPointerBuffer(2)
+                .put(0, memAddress(surface)).put(1, memAddress(headless));
+    }
+
+    public static PointerBuffer SDL_Vulkan_GetInstanceExtensions() {
+        if (!vulkanLoaded) { fail("Vulkan library has not been loaded"); return null; }
+        return VulkanExtensions.names.duplicate();
+    }
+
+    public static boolean SDL_Vulkan_GetPresentationSupport(VkInstance instance, VkPhysicalDevice physical, int family) {
+        if (!vulkanLoaded || instance == null || physical == null || family < 0) return false;
+        return NativePlatform.nVulkanPresentationSupport(instance.address(), physical.address(), family);
+    }
+
+    public static boolean SDL_Vulkan_CreateSurface(long handle, VkInstance instance,
+                                                   VkAllocationCallbacks allocator, LongBuffer output) {
+        Window window = window(handle);
+        if (window == null) return false;
+        if (!vulkanLoaded || (window.flags & WINDOW_VULKAN) == 0 || instance == null
+                || output == null || !output.hasRemaining()) return fail("Invalid Vulkan surface request");
+        int result = NativePlatform.nVulkanCreateSurface(instance.address(), allocator == null ? NULL : allocator.address(),
+                memAddress(output));
+        return result == 0 || fail("Vulkan surface creation failed: " + NativePlatform.nLastError());
+    }
 
     // ---------------------------------------------------------------- mouse
 

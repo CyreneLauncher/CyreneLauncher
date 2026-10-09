@@ -36,6 +36,7 @@ final class OrbisGLFW {
 
     private static boolean initialized, inputAvailable, dispatching;
     private static long window;
+    private static int windowClientApi = GLFW_OPENGL_API;
     private static int framebufferWidth = INPUT_WIDTH, framebufferHeight = INPUT_HEIGHT;
     private static boolean shouldClose, fullscreen;
     private static CharSequence title = "";
@@ -487,8 +488,8 @@ final class OrbisGLFW {
                 hintProfile = value; break;
             case GLFW_OPENGL_FORWARD_COMPAT: hintForwardCompat = value != GLFW_FALSE; break;
             case GLFW_CLIENT_API:
-                if (value != GLFW_OPENGL_API) {
-                    error(GLFW_INVALID_VALUE, "Only desktop OpenGL is available");
+                if (value != GLFW_OPENGL_API && value != GLFW_NO_API) {
+                    error(GLFW_INVALID_VALUE, "Only desktop OpenGL or no client API is available");
                     break;
                 }
                 hintClientApi = value; break;
@@ -618,11 +619,11 @@ final class OrbisGLFW {
             error(GLFW_PLATFORM_ERROR, "Shared contexts are not supported");
             return NULL;
         }
-        if (hintClientApi != GLFW_OPENGL_API) {
+        if (hintClientApi != GLFW_OPENGL_API && hintClientApi != GLFW_NO_API) {
             error(GLFW_API_UNAVAILABLE, "Only desktop OpenGL contexts are supported");
             return NULL;
         }
-        long handle = NativePlatform.nCreateWindow(hintMajor, hintMinor, hintProfile == GLFW_OPENGL_CORE_PROFILE,
+        long handle = hintClientApi == GLFW_NO_API ? NativePlatform.nCreateVulkanWindow() : NativePlatform.nCreateWindow(hintMajor, hintMinor, hintProfile == GLFW_OPENGL_CORE_PROFILE,
                 hintForwardCompat, hintDepth, hintStencil);
         if (handle == NULL) {
             error(GLFW_VERSION_UNAVAILABLE, "Context " + hintMajor + "." + hintMinor + " unavailable: "
@@ -630,6 +631,7 @@ final class OrbisGLFW {
             return NULL;
         }
         window = handle;
+        windowClientApi = hintClientApi;
         startInput();
         framebufferWidth = NativePlatform.nFramebufferWidth(handle);
         framebufferHeight = NativePlatform.nFramebufferHeight(handle);
@@ -865,7 +867,7 @@ final class OrbisGLFW {
             case GLFW_HOVERED: return systemOwnsScreen() ? GLFW_FALSE : GLFW_TRUE;
             case GLFW_RESIZABLE: case GLFW_DECORATED: case GLFW_FLOATING:
             case GLFW_TRANSPARENT_FRAMEBUFFER: case GLFW_MAXIMIZED: return GLFW_FALSE;
-            case GLFW_CLIENT_API: return GLFW_OPENGL_API;
+            case GLFW_CLIENT_API: return windowClientApi;
             case GLFW_CONTEXT_VERSION_MAJOR: return hintMajor;
             case GLFW_CONTEXT_VERSION_MINOR: return hintMinor;
             case GLFW_OPENGL_PROFILE: return hintProfile;
@@ -895,6 +897,10 @@ final class OrbisGLFW {
     static void glfwMakeContextCurrent(long handle) {
         if (!requireInit()) return;
         if (handle != NULL && !requireWindow(handle)) return;
+        if (handle != NULL && windowClientApi == GLFW_NO_API) {
+            error(GLFW_NO_WINDOW_CONTEXT, "Window has no OpenGL context");
+            return;
+        }
         if (!NativePlatform.nMakeCurrent(handle)) {
             error(GLFW_PLATFORM_ERROR, "eglMakeCurrent failed: " + NativePlatform.nLastError());
             return;
@@ -931,6 +937,10 @@ final class OrbisGLFW {
 
     static void glfwSwapBuffers(long handle) {
         if (!requireWindow(handle)) return;
+        if (windowClientApi == GLFW_NO_API) {
+            error(GLFW_NO_WINDOW_CONTEXT, "Window has no OpenGL context");
+            return;
+        }
         drawPointer();
         if (!NativePlatform.nSwapBuffers(handle))
             error(GLFW_PLATFORM_ERROR, "eglSwapBuffers failed: " + NativePlatform.nLastError());

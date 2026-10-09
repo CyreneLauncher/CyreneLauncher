@@ -46,7 +46,7 @@ SDL_REPLACED = ('SDL', 'SDLInit', 'SDLVideo', 'SDLEvents', 'SDLKeyboard', 'SDLMo
                 'SDLPixels', 'SDLStdinc', 'SDLVulkan')
 # Minecraft 26.3's direct SDL calls (its OpenGL backend, window, input, clipboard, cursors, message boxes,
 # links) and Controlify 3.5's (cursor visibility). Each must reach OrbisSDL. 26.3's four Vulkan surface
-# calls follow a successful SDL_Vulkan_LoadLibrary only, which never happens on the console.
+# calls use the direct RADV loader and the console's headless/VideoOut WSI.
 REQUIRED_SDL = {
     'SDL getLibrary ()Lorg/lwjgl/system/SharedLibrary;',
     'SDLClipboard SDL_GetClipboardText ()Ljava/lang/String;', 'SDLClipboard SDL_SetClipboardText (Ljava/lang/CharSequence;)Z',
@@ -98,6 +98,10 @@ REQUIRED_SDL = {
     'SDLVideo SDL_SetWindowMinimumSize (JII)Z', 'SDLVideo SDL_SetWindowMouseGrab (JZ)Z',
     'SDLVideo SDL_SetWindowPosition (JII)Z', 'SDLVideo SDL_SetWindowSize (JII)Z',
     'SDLVideo SDL_SetWindowTitle (JLjava/lang/CharSequence;)Z', 'SDLVideo SDL_SyncWindow (J)Z',
+    'SDLVulkan SDL_Vulkan_GetVkGetInstanceProcAddr ()J',
+    'SDLVulkan SDL_Vulkan_GetInstanceExtensions ()Lorg/lwjgl/PointerBuffer;',
+    'SDLVulkan SDL_Vulkan_GetPresentationSupport (Lorg/lwjgl/vulkan/VkInstance;Lorg/lwjgl/vulkan/VkPhysicalDevice;I)Z',
+    'SDLVulkan SDL_Vulkan_CreateSurface (JLorg/lwjgl/vulkan/VkInstance;Lorg/lwjgl/vulkan/VkAllocationCallbacks;Ljava/nio/LongBuffer;)Z',
     'SDLVulkan SDL_Vulkan_LoadLibrary (Ljava/lang/CharSequence;)Z', 'SDLVulkan SDL_Vulkan_UnloadLibrary ()V',
 }
 # Minecraft 1.18.2's direct GLFW references (graphics-probe/results/lwjgl-abi-audit.md) plus
