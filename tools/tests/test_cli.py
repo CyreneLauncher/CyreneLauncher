@@ -39,6 +39,25 @@ class CliTests(unittest.TestCase):
             (root/'lib/server').mkdir(parents=True);(root/'lib/server/libjvm.prx').write_bytes(b'jvm')
             first=cli.runtime_files(root);(root/'lib/server/libjvm.prx').write_bytes(b'changed')
             self.assertNotEqual(first,cli.runtime_files(root))
+    def test_recorded_inventory_rejects_modified_output(self):
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d);(root/'component').mkdir();(root/'component/file').write_bytes(b'original')
+            recorded={'component':{'file':cli.digest(root/'component/file')}}
+            cli.verify_inventories(root,recorded)
+            (root/'component/file').write_bytes(b'changed')
+            with self.assertRaises(ValueError):cli.verify_inventories(root,recorded)
+    def test_jdk_provenance_rejects_modified_binary(self):
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d);(root/'release').write_text('JAVA_VERSION="17.0.1"')
+            (root/'lib/server').mkdir(parents=True);(root/'lib/server/libjvm.prx').write_bytes(b'jvm')
+            report={'lock_sha256':'lock','libc_sha256':'libc','source':{'version':'17'},'output_files':cli.runtime_files(root)}
+            (root/'build-provenance.json').write_text(json.dumps(report))
+            cli.verify_jdk(root,{'version':'17'},'lock','libc')
+            (root/'lib/server/libjvm.prx').write_bytes(b'changed')
+            with self.assertRaises(ValueError):cli.verify_jdk(root,{'version':'17'},'lock','libc')
+    def test_recorded_inventory_rejects_escape(self):
+        with tempfile.TemporaryDirectory() as d:
+            with self.assertRaises(ValueError):cli.verify_inventories(Path(d),{'../escape':{}})
     def test_failed_stage_is_not_recorded(self):
         with tempfile.TemporaryDirectory() as d:
             runner=cli.Runner(Path(d))

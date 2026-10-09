@@ -63,6 +63,16 @@ def runtime_files(root):
     return rp.inventory(root)
 
 
+def verify_jdk(root, source, lock_sha, libc_sha):
+    root=Path(root)
+    report=json.loads((root/'build-provenance.json').read_text())
+    files=runtime_files(root);files.pop('build-provenance.json',None)
+    if report['lock_sha256']!=lock_sha or report['libc_sha256']!=libc_sha or report['source']!=source:
+        raise ValueError('Runtime provenance mismatch: '+str(root))
+    if report.get('output_files')!=files:
+        raise ValueError('Runtime output inventory mismatch; preserve and rebuild: '+str(root))
+
+
 class Runner:
     def __init__(self, logs):
         self.logs = Path(logs)
@@ -137,10 +147,8 @@ def jdks(args, runner):
     for version in (17,21,25):
         output = WORK/'orbis-openjdk/output'/f'jdk{version}'
         if output.exists():
-            report = json.loads((output/'build-provenance.json').read_text())
-            if report['lock_sha256'] != digest(builder.parent/'versions.lock.json') or report['libc_sha256'] != digest(args.toolchain/'lib/libc.a'):
-                raise ValueError('Stale JDK export; preserve it and rebuild: '+str(output))
-            runtime_files(output)
+            lock=builder.parent/'versions.lock.json'
+            verify_jdk(output,json.loads(lock.read_text())['versions'][str(version)],digest(lock),digest(args.toolchain/'lib/libc.a'))
             print(f'JDK {version}: reusing completed export with matching lock and libc')
             continue
         script(runner,f'jdk{version}',builder,'build',str(version),'--boot-jdk',getattr(args,'boot_jdk'+str(version)),
@@ -163,12 +171,12 @@ def native(args, runner):
     for version in ('3.2.2','3.3.3','3.4.1','3.4.3'):
         script(runner,'lwjgl-'+version,tools/'build_lwjgl_natives.py',*common,'--jni-headers',args.boot_jdk17/'include','--release',version,'--fetch')
         script(runner,'facade-'+version,tools/'build_lwjgl_facade.py','--release',version,'--boot-jdk',args.boot_jdk17,'--jars',build/'java-jars'/version,'--fetch')
-    script(runner,'optional',tools/'build_lwjgl_optional.py',*common,'--jars',build/'java-jars/3.2.2')
+    script(runner,'optional',tools/'build_lwjgl_optional.py',*common,'--jni-headers',args.boot_jdk17/'include','--jars',build/'java-jars/3.2.2')
     script(runner,'openal',tools/'build_openal.py',*common,'--fetch')
     for version in ('3.3.3','3.4.1','3.4.3'):
         script(runner,'freetype-'+version,tools/'build_freetype.py',*common,'--release',version,'--fetch')
     script(runner,'spirv',tools/'build_spirv.py',*common,'--release','3.4.3','--fetch')
-    script(runner,'vma',tools/'build_vma.py',*common,'--release','3.4.3','--jars',build/'java-jars/3.4.3','--fetch')
+    script(runner,'vma',tools/'build_vma.py',*common,'--jni-headers',args.boot_jdk17/'include','--release','3.4.3','--jars',build/'java-jars/3.4.3','--fetch')
     script(runner,'sdl',tools/'build_sdl3.py',*common,'--fetch')
 
 
@@ -180,6 +188,63 @@ def launcher(args, runner):
     runner.run('cacio-export',['make','-C',APP,'cacio-export','BOOT_JDK='+str(args.boot_jdk17)])
     script(runner,'graphics-bundle',GP/'tools/package_graphics_bundle.py','--boot-jdk',args.boot_jdk17,
            '--platform',GP/'build/platform-native','--vma-sdl',GP/'build/vma-3.4.3','--output',GP/'build/graphics-bundle-native')
+
+
+def component_paths():
+    return [WORK/'orbis-openjdk/output'/f'jdk{v}' for v in (17,21,25)] + [GP/'build/graphics-bundle-native',APP/'build-cacio/export']
+
+
+def inventory(root):
+    root=Path(root)
+    if not root.is_dir():raise ValueError('Missing component: '+str(root))
+    files={}
+    for p in sorted(root.rglob('*')):
+        if p.is_symlink():raise ValueError('Link in component: '+str(p))
+        if p.is_file():files[p.relative_to(root).as_posix()]=digest(p)
+    if not files:raise ValueError('Empty component: '+str(root))
+    return files
+
+
+def verify_inventories(root, recorded):
+    root=Path(root)
+    for name,files in recorded.items():
+        relative=Path(name)
+        if relative.is_absolute() or '..' in relative.parts:raise ValueError('Unsafe component path: '+name)
+        if inventory(root/relative)!=files:raise ValueError('Component inventory mismatch: '+name)
+
+
+def record_components(args):
+    lock=WORK/'orbis-openjdk/versions.lock.json'
+    expected=json.loads(lock.read_text())['versions']
+    for v in (17,21,25):
+        root=WORK/'orbis-openjdk/output'/f'jdk{v}'
+        verify_jdk(root,expected[str(v)],digest(lock),digest(args.toolchain/'lib/libc.a'))
+    info=json.loads((GP/'build/graphics-bundle-native/build-info.json').read_text())
+    if info['mesa_lock']!=json.loads((GP/'deps.lock.json').read_text())['sources']:
+        raise ValueError('Graphics source provenance mismatch')
+    platform=json.loads((GP/'build/platform-native/platform-audit.json').read_text())
+    if platform['graphics_drivers']!={'opengl':'radeonsi','vulkan':'radv','zink_compiled':False}:
+        raise ValueError('Native driver audit missing')
+    seal={'schema':1,'locks':{str(p.relative_to(WORK)):digest(p) for p in (ROOT/'repositories.lock.json',lock,GP/'deps.lock.json')},
+          'libc_sha256':digest(args.toolchain/'lib/libc.a'),
+          'components':{str(p.relative_to(WORK)):inventory(p) for p in component_paths()}}
+    target=APP/'build-inputs/component-inventory.json';target.parent.mkdir(parents=True,exist_ok=True)
+    target.write_text(json.dumps(seal,indent=2)+'\n')
+
+
+def verify_components(toolchain=None, root=WORK, seal=None):
+    if seal is None:seal=json.loads((APP/'build-inputs/component-inventory.json').read_text())
+    if seal.get('schema')!=1:raise ValueError('Unsupported component inventory')
+    expected_locks={str(p.relative_to(WORK)) for p in (ROOT/'repositories.lock.json',WORK/'orbis-openjdk/versions.lock.json',GP/'deps.lock.json')}
+    expected_components={str(p.relative_to(WORK)) for p in component_paths()}
+    if set(seal['locks'])!=expected_locks or set(seal['components'])!=expected_components:
+        raise ValueError('Unexpected component inventory layout')
+    for name,sha in seal['locks'].items():
+        if digest(WORK/name)!=sha:raise ValueError('Component lock mismatch: '+name)
+    if toolchain and digest(toolchain/'lib/libc.a')!=seal['libc_sha256']:
+        raise ValueError('Component toolchain mismatch')
+    verify_inventories(root,seal['components'])
+    return seal
 
 
 def package_inputs():
@@ -197,6 +262,7 @@ def package_inputs():
 
 
 def package(args,runner):
+    verify_components(args.toolchain)
     inputs=package_inputs(); build=APP/'build-cyrene'
     runner.run('package',['make','-C',APP,'package','SDK='+str(args.sdk),'TOOLCHAIN='+str(args.toolchain),
                          'BOOT_JDK='+str(args.boot_jdk17),'JAVA22_JDK='+str(args.boot_jdk25),
@@ -214,6 +280,7 @@ def package(args,runner):
 
 
 def artifacts(args):
+    verify_components(args.toolchain)
     paths = [WORK/'orbis-openjdk/output'/f'jdk{v}' for v in (17,21,25)]
     paths += [GP/'build/graphics-bundle-native',APP/'build-cacio/export']
     for path in paths:
@@ -227,6 +294,7 @@ def artifacts(args):
     archive=args.archive.resolve();archive.parent.mkdir(parents=True,exist_ok=True)
     with tarfile.open(archive,'w:gz') as out:
         for path in paths:out.add(path,arcname=str(path.relative_to(WORK)))
+        out.add(APP/'build-inputs/component-inventory.json',arcname='metadata/component-inventory.json')
         for path in (ROOT/'repositories.lock.json',WORK/'orbis-openjdk/versions.lock.json'):
             out.add(path,arcname='metadata/'+path.name)
     archive.with_name(archive.name+'.sha256').write_text(digest(archive)+'  '+archive.name+'\n')
@@ -240,6 +308,8 @@ def import_artifacts(args):
         temporary=Path(d);extract(args.archive,temporary)
         for lock in (ROOT/'repositories.lock.json',WORK/'orbis-openjdk/versions.lock.json'):
             if digest(temporary/'metadata'/lock.name)!=digest(lock):raise ValueError('Component revision mismatch: '+lock.name)
+        seal=json.loads((temporary/'metadata/component-inventory.json').read_text())
+        verify_components(args.toolchain,temporary,seal)
         sources=[temporary/'orbis-openjdk/output'/f'jdk{v}' for v in (17,21,25)]
         sources += [temporary/ROOT.name/'graphics-probe/build/graphics-bundle-native',temporary/ROOT.name/'orbis-java-app/build-cacio/export']
         for source in sources:
@@ -249,6 +319,8 @@ def import_artifacts(args):
             if destination.exists():raise ValueError('Preserve existing output before import: '+str(destination))
         for source in sources:
             destination=WORK/source.relative_to(temporary);destination.parent.mkdir(parents=True,exist_ok=True);shutil.move(source,destination)
+        target=APP/'build-inputs/component-inventory.json';target.parent.mkdir(parents=True,exist_ok=True)
+        target.write_text(json.dumps(seal,indent=2)+'\n')
     print('Components imported; package assembly will verify every input.')
 
 
@@ -275,7 +347,8 @@ def main():
             doctor(args);bootstrap(runner);dependencies(runner)
             if args.command in ('build','jdks'):jdks(args,runner)
             if args.command in ('build','native'):native(args,runner)
-            if args.command in ('build','launcher'):launcher(args,runner)
+            if args.command in ('build','launcher'):
+                launcher(args,runner);record_components(args)
             if args.command in ('build','package'):package(args,runner)
         return 0
     except (ValueError,RuntimeError,OSError,KeyError,subprocess.CalledProcessError) as error:
