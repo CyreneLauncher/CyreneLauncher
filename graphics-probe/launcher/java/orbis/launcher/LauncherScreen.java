@@ -1672,7 +1672,7 @@ class LauncherScreen {
 
     private void draw() {
         float s = r.s;
-        r.text("ORBIS LAUNCHER", 120 * s, 70 * s, 6 * s, TEXT);
+        r.text("CYRENE LAUNCHER", 120 * s, 70 * s, 6 * s, TEXT);
         r.text("Minecraft for PlayStation 4", 124 * s, 130 * s, 2.5f * s, DIM);
         drawSections(s);
         InstanceStore.Instance active = config.selectedInstance();
