@@ -92,7 +92,7 @@ def main():
     parser.add_argument('--root', type=Path, required=True)
     parser.add_argument('--archive', type=Path, required=True)
     parser.add_argument('components', nargs='*')
-    args = parser.parse_args()
+    args = parser.parse_intermixed_args()
     if args.action == 'pack':
         pack(args.root, args.archive, args.components)
     else:

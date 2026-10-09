@@ -81,6 +81,26 @@ class ToolchainTests(unittest.TestCase):
 
 
 class ArtifactTests(unittest.TestCase):
+    def test_workflow_cli_accepts_components_after_options(self):
+        script = Path(__file__).parents[1] / 'build_artifacts.py'
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / 'source'
+            component = source / 'orbis-openjdk/output/jdk17'
+            component.mkdir(parents=True)
+            (component / 'release').write_text('JAVA_VERSION="17"')
+            archive = root / 'jdk17.tar.gz'
+            result = subprocess.run(['python3', str(script), 'pack', '--root', str(source),
+                                     '--archive', str(archive), 'orbis-openjdk/output/jdk17'],
+                                    capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            destination = root / 'destination'
+            result = subprocess.run(['python3', str(script), 'unpack', '--root', str(destination),
+                                     '--archive', str(archive)], capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual((destination / 'orbis-openjdk/output/jdk17/release').read_text(),
+                             'JAVA_VERSION="17"')
+
     def test_artifact_roundtrip_preserves_mode_and_checks_content(self):
         artifacts = load('build_artifacts')
         with tempfile.TemporaryDirectory() as directory:
