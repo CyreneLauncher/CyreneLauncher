@@ -2,11 +2,32 @@
  * a second libvulkan with its own static Mesa would create competing owners. */
 #include "orbis_vulkan.h"
 #include <stdlib.h>
+#include <string.h>
 
 VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL radv_GetInstanceProcAddr(VkInstance instance, const char *name);
 
+/* The layer queries are the loader's to answer, and it reports "no layers" with VK_SUCCESS however it is
+ * asked. RADV, reached directly here, answers a properties array (even for a count of 0) with
+ * VK_ERROR_LAYER_NOT_PRESENT, and Minecraft 26.3 gave up on Vulkan over that. */
+static VKAPI_ATTR VkResult VKAPI_CALL orbis_EnumerateInstanceLayerProperties(uint32_t *count, VkLayerProperties *properties) {
+    (void)properties;
+    *count = 0;
+    return VK_SUCCESS;
+}
+
+static VKAPI_ATTR VkResult VKAPI_CALL orbis_EnumerateDeviceLayerProperties(VkPhysicalDevice physical, uint32_t *count,
+                                                                           VkLayerProperties *properties) {
+    (void)physical; (void)properties;
+    *count = 0;
+    return VK_SUCCESS;
+}
+
 __attribute__((visibility("default"))) VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL
 vkGetInstanceProcAddr(VkInstance instance, const char *name) {
+    if (name && strcmp(name, "vkEnumerateInstanceLayerProperties") == 0)
+        return (PFN_vkVoidFunction)orbis_EnumerateInstanceLayerProperties;
+    if (name && strcmp(name, "vkEnumerateDeviceLayerProperties") == 0)
+        return (PFN_vkVoidFunction)orbis_EnumerateDeviceLayerProperties;
     return radv_GetInstanceProcAddr(instance, name);
 }
 
