@@ -1,0 +1,91 @@
+diff --git a/src/amd/common/ac_orbis_drm.c b/src/amd/common/ac_orbis_drm.c
+index e4055c6..536917b 100644
+--- a/src/amd/common/ac_orbis_drm.c
++++ b/src/amd/common/ac_orbis_drm.c
+@@ -1264,6 +1264,51 @@ static simple_mtx_t orbis_retire_lock = SIMPLE_MTX_INITIALIZER;
+  * capacity bounds it long before that. */
+ #define ORBIS_CHAIN_MAX_DEPTH 4096
+ 
++/* ⚠ DIAGNOSTIC (0050): EVERY CHAIN HOP OF THE CHUNK BEING FLATTENED, TO TELL A LOOP FROM A LONG RECORDING.
++ *
++ * Minecraft 26.3 on RADV: after ~147 good frames of six draws each, one submission overflowed the 2 MiB staging
++ * slot and every later one did too, identically. Six draws are not 2 MiB; a chain whose targets come round again
++ * is, because the walk follows it until the slot is full and the depth bound (4096) is never reached first. A loop
++ * is a chain target seen twice in one chunk's walk: it is refused at once with the hops that form it, instead of
++ * after copying the same IBs until the slot overflows. The first few refusals of any kind print the hop list. */
++struct orbis_chain_hop {
++   uint64_t addr;
++   uint32_t size_dw;
++   uint32_t at_dw;
++};
++static struct orbis_chain_hop orbis_chain_hops[ORBIS_CHAIN_MAX_DEPTH];
++static unsigned               orbis_chain_hop_count;
++
++static void
++orbis_chain_report(const char *why, unsigned repeat_of)
++{
++   static unsigned reports;
++   if (reports >= 4)
++      return;
++   ++reports;
++   const unsigned n = orbis_chain_hop_count;
++   mesa_loge("orbis-drm: CHAIN TRACE %u (%s): %u hop(s) in this chunk", reports, why, n);
++   if (repeat_of != UINT_MAX && n > 0)
++      mesa_loge("orbis-drm: CHAIN TRACE hop %u targets 0x%" PRIx64 " (%u dw) again - first reached as hop %u, so "
++                "hops %u..%u form a loop",
++                n - 1, orbis_chain_hops[n - 1].addr, orbis_chain_hops[n - 1].size_dw, repeat_of, repeat_of, n - 1);
++   for (unsigned h = 0; h < n; h++) {
++      if (h == 24 && n > 48) {
++         mesa_loge("orbis-drm: CHAIN TRACE ... %u hop(s) omitted ...", n - 48);
++         h = n - 24;
++      }
++      const struct orbis_chain_hop *const hop = &orbis_chain_hops[h];
++      /* The first dwords of each target say what kind of IB it is (preamble, command buffer, postamble). */
++      const uint32_t *const t = (const uint32_t *)(uintptr_t)hop->addr;
++      mesa_loge("orbis-drm: CHAIN TRACE hop %u: 0x%" PRIx64 " %u dw, chained from output dword %u; head %08x %08x "
++                "%08x %08x, tail %08x %08x %08x %08x",
++                h, hop->addr, hop->size_dw, hop->at_dw, t[0], hop->size_dw > 1 ? t[1] : 0,
++                hop->size_dw > 2 ? t[2] : 0, hop->size_dw > 3 ? t[3] : 0,
++                hop->size_dw >= 4 ? t[hop->size_dw - 4] : 0, hop->size_dw >= 3 ? t[hop->size_dw - 3] : 0,
++                hop->size_dw >= 2 ? t[hop->size_dw - 2] : 0, t[hop->size_dw - 1]);
++   }
++}
++
+ /* ⚠ MOVED OUT OF THE __PS4__ SEAM, because building a PM4 packet is not a console operation. It sat in the
+  * backing-store arm until the flattener - which both arms run - started emitting one for the retired-side
+  * progress marker, and the host build failed to link. Same rule as the diagnostics block earlier: code that
+@@ -1399,6 +1444,18 @@ orbis_copy_ib(uint32_t *dst, const uint32_t *dst_end, const uint32_t *src, uint3
+             mesa_logw("orbis-drm: chain target 0x%" PRIx64 " (%u dw) is outside the arena - not flattened", addr,
+                       size_dw);
+          } else {
++            /* 0050: a target already reached in this chunk's walk is a loop - refuse it with the hops. */
++            unsigned repeat_of = UINT_MAX;
++            for (unsigned h = 0; h < orbis_chain_hop_count && repeat_of == UINT_MAX; h++)
++               if (orbis_chain_hops[h].addr == addr)
++                  repeat_of = h;
++            if (orbis_chain_hop_count < ORBIS_CHAIN_MAX_DEPTH)
++               orbis_chain_hops[orbis_chain_hop_count++] = (struct orbis_chain_hop){
++                  addr, size_dw, out_base != NULL ? (uint32_t)(dst - out_base) : 0};
++            if (repeat_of != UINT_MAX) {
++               orbis_chain_report("loop", repeat_of);
++               return NULL;
++            }
+             ++*chains;
+             /* The chain replaces everything after it in this IB, so this is a tail call rather than a splice. */
+             return orbis_copy_ib(dst, dst_end, (const uint32_t *)(uintptr_t)addr, size_dw, depth + 1, chains,
+@@ -1490,6 +1547,7 @@ orbis_build_flat(uint32_t *cb, uint32_t cb_dwords, void **dcb, uint32_t *dcb_byt
+ 
+    for (unsigned i = 0; i < n_dcb; i++) {
+       const uint32_t *const before = dw;
++      orbis_chain_hop_count = 0; /* 0050: a loop is a repeat within one chunk's walk */
+       dw = orbis_copy_ib(dw, dst_end, (const uint32_t *)dcb[i], dcb_bytes[i] / 4, 0, &chains, cb, marks,
+                          &next_mark, eop);
+       if (dw == NULL) {
+@@ -1498,6 +1556,7 @@ orbis_build_flat(uint32_t *cb, uint32_t cb_dwords, void **dcb, uint32_t *dcb_byt
+          mesa_loge("orbis-drm: submission does not fit the %u dword staging buffer - chunk %u of %u, %u dwords "
+                    "already written, this chunk alone is %u dwords before its chains",
+                    cb_dwords, i, n_dcb, (unsigned)(before - cb), dcb_bytes[i] / 4);
++         orbis_chain_report("refused", UINT_MAX);
+          return NULL;
+       }
+    }

@@ -1,0 +1,58 @@
+diff --git a/src/amd/common/ac_descriptors.c b/src/amd/common/ac_descriptors.c
+--- a/src/amd/common/ac_descriptors.c
++++ b/src/amd/common/ac_descriptors.c
+@@ -976,7 +976,11 @@
+       /* With the Pro's alternate tiling the DB is told the alternate layout, as Sony's driver does: pipe config
+        * from GB_TILE_MODE bits 27-31, bank height / aspect / count from GB_MACROTILE_MODE bits 8-13 (the bank
+        * width is shared). See ac_orbis_alt_tiling. */
+-      if (info->family == CHIP_GLADIUS && ac_orbis_alt_tiling()) {
++      /* Only radeonsi's DS surfaces use the alternate DB layout. Its
++       * depth sampling path flushes through the DB into a standard-layout
++       * copy; RADV reads the original image directly. Keep this per-call so
++       * a Vulkan-to-GL fallback in one platform PRX retains radeonsi HiZ. */
++      if (state->orbis_alt_depth && info->family == CHIP_GLADIUS && ac_orbis_alt_tiling()) {
+          ds->u.gfx6.db_depth_info &= C_02803C_PIPE_CONFIG & C_02803C_BANK_HEIGHT & C_02803C_MACRO_TILE_ASPECT &
+                                      C_02803C_NUM_BANKS;
+          ds->u.gfx6.db_depth_info |= S_02803C_PIPE_CONFIG(tile_mode >> 27) |
+diff --git a/src/amd/common/ac_descriptors.h b/src/amd/common/ac_descriptors.h
+--- a/src/amd/common/ac_descriptors.h
++++ b/src/amd/common/ac_descriptors.h
+@@ -380,6 +380,10 @@
+    uint32_t htile_enabled : 1;
+    uint32_t htile_stencil_disabled : 1;
+    uint32_t vrs_enabled : 1;
++
++   /* Orbis Pro: radeonsi can sample alternate-layout depth through a DB-to-CB
++    * copy. RADV samples it directly and must retain the standard DB layout. */
++   uint32_t orbis_alt_depth : 1;
+ };
+ 
+ struct ac_ds_surface {
+diff --git a/src/gallium/drivers/radeonsi/si_state.c b/src/gallium/drivers/radeonsi/si_state.c
+--- a/src/gallium/drivers/radeonsi/si_state.c
++++ b/src/gallium/drivers/radeonsi/si_state.c
+@@ -2413,6 +2413,9 @@
+       .allow_expclear = sctx->gfx_level <= GFX11_7,
+       .htile_enabled = sctx->gfx_level < GFX12 && si_htile_enabled(tex, level, PIPE_MASK_ZS),
+       .htile_stencil_disabled = tex->htile_stencil_disabled,
++#ifdef HAVE_ORBIS_PLATFORM
++      .orbis_alt_depth = true,
++#endif
+    };
+ 
+    ac_init_ds_surface(&sctx->screen->info, &ds_state, &zs->ds);
+diff --git a/src/amd/vulkan/radv_image_view.c b/src/amd/vulkan/radv_image_view.c
+--- a/src/amd/vulkan/radv_image_view.c
++++ b/src/amd/vulkan/radv_image_view.c
+@@ -595,6 +595,11 @@
+       .htile_enabled = radv_htile_enabled(iview->image, level),
+       .htile_stencil_disabled = radv_image_tile_stencil_disabled(device, iview->image),
+       .vrs_enabled = radv_image_has_vrs_htile(device, iview->image),
++#ifdef HAVE_ORBIS_PLATFORM
++      /* RADV samples depth directly: DB and texture unit must use the same
++       * standard layout, even when Orbis Pro alternate tiling is enabled. */
++      .orbis_alt_depth = false,
++#endif
+    };
+ 
+    ac_init_ds_surface(&pdev->info, &ds_state, &ds->ac);

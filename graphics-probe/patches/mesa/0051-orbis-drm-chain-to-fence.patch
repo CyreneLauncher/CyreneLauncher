@@ -1,0 +1,474 @@
+diff --git a/src/amd/common/ac_orbis_drm.c b/src/amd/common/ac_orbis_drm.c
+--- a/src/amd/common/ac_orbis_drm.c
++++ b/src/amd/common/ac_orbis_drm.c
+@@ -1575,6 +1575,165 @@
+    return dw;
+ }
+ 
++/* Chain-to-fence construction, shared by the host tests and both submit arms. */
++#define ORBIS_CHAIN_CHUNKS 16
++struct orbis_chain_node { uint32_t *ib; uint32_t dw; };
++struct orbis_chain_plan {
++   struct orbis_chain_node nodes[ORBIS_CHAIN_MAX_DEPTH];
++   unsigned count, tails[ORBIS_CHAIN_CHUNKS], chunks;
++   uint32_t saved[ORBIS_CHAIN_CHUNKS][4];
++   uint64_t total_dw;
++   const char *why;
++};
++
++/* Never dereference a packet-supplied address until its entire range is checked.
++ * The private slot is allowed only by the validator, not by RADV tail discovery. */
++static bool
++orbis_chain_range(uint64_t addr, uint32_t dw, const uint32_t *private_ib, uint32_t private_dw)
++{
++   const uint64_t bytes = (uint64_t)dw * 4;
++   const uint64_t own = (uint64_t)(uintptr_t)private_ib;
++   return dw != 0 && dw <= 0xfffffu && (addr & 3u) == 0 &&
++          ((addr >= orbis_va_base && addr < orbis_va_end && bytes <= orbis_va_end - addr) ||
++           (private_ib != NULL && addr >= own && addr - own < (uint64_t)private_dw * 4 &&
++            bytes <= (uint64_t)private_dw * 4 - (addr - own)));
++}
++
++static bool
++orbis_walk_chain(struct orbis_chain_plan *p, uint32_t *ib, uint32_t n,
++                 const uint32_t *private_ib, uint32_t private_dw)
++{
++   for (;;) {
++      const uint64_t addr = (uint64_t)(uintptr_t)ib;
++      if (!orbis_chain_range(addr, n, private_ib, private_dw)) {
++         p->why = "IB outside arena/private slot or invalid size";
++         return false;
++      }
++      if (p->count >= ORBIS_CHAIN_MAX_DEPTH) {
++         p->why = "chain depth limit";
++         return false;
++      }
++      /* A repeated or overlapping IB across chunks is also unsafe: one tail cannot
++       * jump to two different successors. Refuse before changing any memory. */
++      for (unsigned h = 0; h < p->count; h++) {
++         const uint64_t prev = (uint64_t)(uintptr_t)p->nodes[h].ib;
++         if (addr < prev + (uint64_t)p->nodes[h].dw * 4 && prev < addr + (uint64_t)n * 4) {
++            p->why = "repeated/overlapping IB";
++            return false;
++         }
++      }
++      p->nodes[p->count++] = (struct orbis_chain_node){ib, n};
++      p->total_dw += n;
++      bool chained = false;
++      for (uint32_t i = 0; i < n;) {
++         const uint32_t hdr = ib[i];
++         if ((hdr & 0xc0000000u) == 0x80000000u) {
++            ++i;
++            continue;
++         }
++         if ((hdr & 0xc0000000u) != 0xc0000000u) {
++            p->why = "non-packet before IB tail";
++            return false;
++         }
++         const uint32_t op = (hdr >> 8) & 0xffu;
++         const uint32_t words = 2 + ((hdr >> 16) & 0x3fffu);
++         /* RADV's padding sentinel does not hide an overwritten CHAIN behind it. */
++         if (hdr == 0xffff1000u) {
++            ++i;
++            continue;
++         }
++         if (words > n - i || (op == 0x3f && words != 4)) {
++            p->why = "malformed/truncated packet";
++            return false;
++         }
++         if (op == 0x3f && (ib[i + 3] & (1u << 20))) {
++            const uint64_t next = (uint64_t)ib[i + 1] | ((uint64_t)(ib[i + 2] & 0xffffu) << 32);
++            n = ib[i + 3] & 0xfffffu;
++            ib = (uint32_t *)(uintptr_t)next;
++            chained = true;
++            break; /* CHAIN does not return; all later dwords are dead. */
++         }
++         i += words;
++      }
++      if (!chained)
++         return true;
++   }
++}
++
++static bool
++orbis_prepare_chain(struct orbis_chain_plan *p, void **dcb, uint32_t *bytes, unsigned count)
++{
++   memset(p, 0, sizeof(*p));
++   if (count == 0 || count > ORBIS_CHAIN_CHUNKS) {
++      p->why = "invalid chunk count";
++      return false;
++   }
++   for (unsigned c = 0; c < count; c++) {
++      if ((bytes[c] & 3u) != 0 ||
++          !orbis_walk_chain(p, dcb[c], bytes[c] / 4, NULL, 0)) {
++         if (p->why == NULL)
++            p->why = "unaligned IB size";
++         return false;
++      }
++      const unsigned last = p->count - 1;
++      struct orbis_chain_node *node = &p->nodes[last];
++      /* The slot must be a packet boundary, not a NOP-looking value in a payload. */
++      uint32_t i = 0;
++      while (i < node->dw && node->dw - i > 4) {
++         const uint32_t hdr = node->ib[i];
++         uint32_t words = (hdr & 0xc0000000u) == 0x80000000u ? 1 : 2 + ((hdr >> 16) & 0x3fffu);
++         if (hdr == 0xffff1000u)
++            words = 1;
++         i += words;
++      }
++      if (node->dw < 4 || i != node->dw - 4 || node->ib[i] != ORBIS_PM4_TYPE3(0x10, 3)) {
++         p->why = "final IB has no reserved NOP(2) tail slot";
++         return false;
++      }
++      p->tails[c] = last;
++      memcpy(p->saved[c], node->ib + i, sizeof(p->saved[c]));
++   }
++   /* Leave room in the bounded validator/hung list for the fence and optional init IB. */
++   if (p->count > ORBIS_CHAIN_MAX_DEPTH - 2) {
++      p->why = "chain depth leaves no room for fence";
++      return false;
++   }
++   p->chunks = count;
++   return true;
++}
++
++static void
++orbis_chain_jump(uint32_t *tail, const uint32_t *target, uint32_t dw)
++{
++   const uint64_t addr = (uint64_t)(uintptr_t)target;
++   tail[0] = ORBIS_PM4_TYPE3(0x3f, 3);
++   tail[1] = (uint32_t)addr;
++   tail[2] = (uint32_t)(addr >> 32);
++   tail[3] = (1u << 20) | (1u << 23) | dw; /* CHAIN, VALID; same fields as RADV. */
++}
++
++static void
++orbis_link_chain(struct orbis_chain_plan *p, void **dcb, uint32_t *bytes,
++                 uint32_t *fence, uint32_t fence_dw)
++{
++   for (unsigned c = 0; c < p->chunks; c++) {
++      struct orbis_chain_node *node = &p->nodes[p->tails[c]];
++      const uint32_t *next = c + 1 < p->chunks ? dcb[c + 1] : fence;
++      const uint32_t next_dw = c + 1 < p->chunks ? bytes[c + 1] / 4 : fence_dw;
++      orbis_chain_jump(node->ib + node->dw - 4, next, next_dw);
++   }
++}
++
++static void
++orbis_restore_chain(struct orbis_chain_plan *p)
++{
++   for (unsigned c = 0; c < p->chunks; c++) {
++      struct orbis_chain_node *node = &p->nodes[p->tails[c]];
++      memcpy(node->ib + node->dw - 4, p->saved[c], sizeof(p->saved[c]));
++   }
++}
++/* End chain-to-fence construction. */
++
+ /* ⚠ THE FLATTENER HAS A SELF-TEST, AND IT RUNS ON BOTH ARMS AT EVERY BOOT.
+  *
+  * The code above is the fix for a defect that took an evening of console flashes to find, and its input - a
+@@ -2818,6 +2977,52 @@
+ }
+ 
+ static void
++orbis_selftest_chain(void)
++{
++   const uint32_t size = ORBIS_FENCE_CB_BYTES / 4 + 16;
++   uint32_t *region = calloc(size, sizeof(uint32_t));
++   struct orbis_chain_plan *p = calloc(1, sizeof(*p));
++   static uint32_t fence[64] __attribute__((aligned(256)));
++   const uint64_t saved_base = orbis_va_base, saved_end = orbis_va_end;
++   bool ok = region != NULL && p != NULL;
++   if (ok) {
++      const uint32_t half = ORBIS_FENCE_CB_BYTES / 8;
++      for (uint32_t i = 0; i < size; i++)
++         region[i] = 0x80000000u;
++      region[half - 4] = ORBIS_PM4_TYPE3(0x10, 3);
++      region[2 * half - 4] = ORBIS_PM4_TYPE3(0x10, 3);
++      region[size - 4] = ORBIS_PM4_TYPE3(0x10, 3);
++      void *dcb[3] = {region, region + half, region + 2 * half};
++      uint32_t bytes[3] = {half * 4, half * 4, 64};
++      orbis_va_base = (uint64_t)(uintptr_t)region;
++      orbis_va_end = orbis_va_base + (uint64_t)size * 4;
++      ok = orbis_prepare_chain(p, dcb, bytes, 3) && p->total_dw == size;
++      if (ok) {
++         uint32_t *dw = orbis_emit_eop(fence, 0x100000040ull, 6,
++                                      ORBIS_EOP_DST_SEL_MC | ORBIS_EOP_DATA_SEL_32BIT);
++         dw = orbis_emit_eop(dw, 0x100000000ull, 7,
++                            ORBIS_EOP_DST_SEL_MC | ORBIS_EOP_DATA_SEL_32BIT |
++                            (ORBIS_EOP_INT_SEL << ORBIS_EOP_INT_SEL_SHIFT));
++         dw = orbis_pad_ib(dw, fence);
++         orbis_link_chain(p, dcb, bytes, fence, (uint32_t)(dw - fence));
++         ok = region[half - 4] == ORBIS_PM4_TYPE3(0x3f, 3) &&
++              region[size - 3] == (uint32_t)(uintptr_t)fence && fence[10] == 7 && dw == fence + 16;
++         orbis_restore_chain(p);
++         ok = ok && region[half - 4] == ORBIS_PM4_TYPE3(0x10, 3) &&
++              region[size - 4] == ORBIS_PM4_TYPE3(0x10, 3);
++      }
++   }
++   orbis_va_base = saved_base;
++   orbis_va_end = saved_end;
++   free(p);
++   free(region);
++   if (ok)
++      mesa_logi("orbis-drm: CHAIN FENCE SELF-TEST OK - oversized stream linked and tails restored");
++   else
++      mesa_loge("orbis-drm: CHAIN FENCE SELF-TEST FAILED");
++}
++
++static void
+ orbis_selftest_pad(void)
+ {
+    uint32_t buf[ORBIS_FENCE_CB_PAD_DW * 3];
+@@ -2984,7 +3189,16 @@
+    uint64_t seq;
+    uint32_t dwords;
+    uint32_t stream[ORBIS_FENCE_CB_BYTES / 4];
++   unsigned chain_count;
++   struct orbis_chain_node chain[ORBIS_CHAIN_MAX_DEPTH];
+ };
++static void
++orbis_dump_hung_chain(const struct orbis_hung_slot *hs)
++{
++   for (unsigned i = 0; i < hs->chain_count; i++)
++      mesa_loge("orbis-drm: HUNG chain submit #%" PRIu64 " IB %u: 0x%" PRIx64 " %u dw",
++                hs->seq, i, (uint64_t)(uintptr_t)hs->chain[i].ib, hs->chain[i].dw);
++}
+ static struct orbis_hung_slot orbis_hung_ring[ORBIS_HUNG_RING];
+ static simple_mtx_t orbis_hung_snapshot_lock = SIMPLE_MTX_INITIALIZER;
+ 
+@@ -3170,11 +3384,16 @@
+    if (hs->seq == pending && hs->dwords > 0 && hs->dwords <= ARRAY_SIZE(capture.stream)) {
+       capture.seq = hs->seq;
+       capture.dwords = hs->dwords;
++      capture.chain_count = hs->chain_count;
++      memcpy(capture.chain, hs->chain, hs->chain_count * sizeof(hs->chain[0]));
+       memcpy(capture.stream, hs->stream, (size_t)hs->dwords * sizeof(uint32_t));
+    }
+    simple_mtx_unlock(&orbis_hung_snapshot_lock);
+-   if (capture.seq == pending && capture.dwords > 0)
+-      orbis_dump_ib(capture.seq, capture.stream, capture.dwords, "WAIT_STALL", false);
++   if (capture.seq == pending && capture.dwords > 0) {
++      orbis_dump_hung_chain(&capture);
++      orbis_dump_ib(capture.seq, capture.stream, capture.dwords,
++                    capture.chain_count ? "WAIT_STALL fence" : "WAIT_STALL", false);
++   }
+    else
+       mesa_logw("orbis-drm: WAIT_STALL submit #%" PRIu64 " is absent from the %u-slot snapshot ring",
+                 pending, ORBIS_HUNG_RING);
+@@ -6179,6 +6398,7 @@
+    if (orbis_budget(&selftest_done, 1)) {
+       orbis_selftest_flatten();
+       orbis_selftest_pad();
++      orbis_selftest_chain();
+       orbis_selftest_dead_pool();
+       orbis_selftest_futex();
+       /* Separate call rather than a tail of the one above, because that one returns early on every
+@@ -9855,6 +10075,7 @@
+                    "for %u submissions while %" PRIu64 " were queued. Dumping the stream it is stuck in.",
+                    hung, label, stall, queued + 1 - hung);
+          if (hs->seq == hung && hs->dwords > 0) {
++            orbis_dump_hung_chain(hs);
+             orbis_dump_ib(hung, hs->stream, hs->dwords, "HUNG", true);
+ 
+             /* ⚠ EVERY ADDRESS THE CP WAS TOLD TO READ, CHECKED AGAINST WHAT THIS PROCESS ACTUALLY MAPPED.
+@@ -10065,6 +10286,13 @@
+    ORBIS_SUBMIT_STAGE("entered");
+    simple_mtx_lock(&orbis_submit_lock);
+    ORBIS_SUBMIT_STAGE("took the submit lock");
++   static struct orbis_chain_plan submit_chain;
++   static bool chain_poisoned;
++   bool chain_mode = false;
++   if (chain_poisoned) {
++      simple_mtx_unlock(&orbis_submit_lock);
++      return orbis_submit_return(-EIO, orbis_submit_t0);
++   }
+ 
+    /* +1 for the arm's own fence command buffer, which goes LAST so that its end-of-pipe event follows every
+     * IB in the submission. */
+@@ -10285,6 +10513,34 @@
+       }
+    }
+ 
++   {
++      static uint32_t host_cb[ORBIS_FENCE_CB_BYTES / 4] __attribute__((aligned(256)));
++      uint32_t *dw = orbis_build_flat(host_cb, ARRAY_SIZE(host_cb), dcb, dcb_bytes, n_dcb, seq, 32);
++      const char *force_flat = getenv("ORBIS_FLATTEN");
++      if (dw == NULL && !(force_flat && !strcmp(force_flat, "1")) &&
++          orbis_prepare_chain(&submit_chain, dcb, dcb_bytes, n_dcb)) {
++         dw = orbis_emit_eop(host_cb, (uint64_t)(uintptr_t)orbis_fence_scratch, (uint32_t)seq - 1,
++                            ORBIS_EOP_DST_SEL_MC | ORBIS_EOP_DATA_SEL_32BIT);
++         dw = orbis_emit_eop(dw, (uint64_t)(uintptr_t)orbis_fence_label, (uint32_t)seq,
++                            ORBIS_EOP_DST_SEL_MC | ORBIS_EOP_DATA_SEL_32BIT |
++                            (ORBIS_EOP_INT_SEL << ORBIS_EOP_INT_SEL_SHIFT));
++         dw = orbis_pad_ib(dw, host_cb);
++         orbis_link_chain(&submit_chain, dcb, dcb_bytes, host_cb, (uint32_t)(dw - host_cb));
++         static struct orbis_chain_plan validation;
++         memset(&validation, 0, sizeof(validation));
++         chain_mode = orbis_walk_chain(&validation, dcb[0], dcb_bytes[0] / 4,
++                                       host_cb, ARRAY_SIZE(host_cb));
++         orbis_restore_chain(&submit_chain);
++         if (!chain_mode)
++            dw = NULL;
++         mesa_logi("orbis-drm: host chain construction %s - nothing executed", chain_mode ? "OK" : "FAILED");
++      }
++      if (dw == NULL) {
++         --orbis_submit_seq_no;
++         simple_mtx_unlock(&orbis_submit_lock);
++         return orbis_submit_return(-ENOMEM, orbis_submit_t0);
++      }
++   }
+    *orbis_fence_label = (uint32_t)seq;
+    simple_mtx_unlock(&orbis_submit_lock);
+ #else
+@@ -10349,6 +10605,34 @@
+       uint32_t *dw = orbis_build_flat(cb, ORBIS_FENCE_CB_BYTES / 4, dcb, dcb_bytes, n_dcb, seq, 32);
+       orbis_api_time(ORBIS_ID_ARM_BUILD_FLAT, os_time_get_nano() - orbis_flat_t0);
+       orbis_api_count(ORBIS_ID_ARM_BUILD_FLAT, 1);
++      if (dw == NULL) {
++         const char *force_flat = getenv("ORBIS_FLATTEN");
++         /* Truncation diagnostics require an owned flat stream. Do not silently
++          * apply their dword offsets to the private fence IB. */
++         if (!(force_flat && !strcmp(force_flat, "1")) &&
++             getenv("ORBIS_TRUNCATE") == NULL && getenv("ORBIS_TRUNCATE_BIG") == NULL &&
++             orbis_prepare_chain(&submit_chain, dcb, dcb_bytes, n_dcb)) {
++            /* Slot reuse alone cannot protect a simultaneously reused RADV IB.
++             * Wait for ALL older work before changing any tail, then wait for our
++             * own fence and restore below before RADV can resubmit. */
++            const int64_t deadline = orbis_deadline(OS_TIMEOUT_INFINITE, "chain-before-patch");
++            while ((int32_t)(*orbis_fence_label - ((uint32_t)seq - 1)) < 0) {
++               if (os_time_get_nano() >= (uint64_t)deadline) {
++                  --orbis_submit_seq_no;
++                  simple_mtx_unlock(&orbis_submit_lock);
++                  return orbis_submit_return(-ETIME, orbis_submit_t0);
++               }
++               orbis_poll_pause();
++            }
++            chain_mode = true;
++            dw = cb; /* Only the EOP pair goes in the private slot. */
++            mesa_logi("orbis-drm: submit #%" PRIu64 ": chain-to-fence, %u chunks, %u IBs, %" PRIu64 " dw",
++                      seq, n_dcb, submit_chain.count, submit_chain.total_dw);
++         } else {
++            mesa_logw("orbis-drm: chain-to-fence unavailable; retaining flat refusal: %s",
++                      submit_chain.why ? submit_chain.why : "forced flatten/truncation");
++         }
++      }
+       if (dw == NULL) {
+          /* Nothing was submitted, so nothing will ever write this sequence number. Give the ticket back rather
+           * than leave the counter ahead of the fence for the rest of the process - still under the lock, so no
+@@ -10412,7 +10696,27 @@
+                          sony_init_dw);
+             }
+ 
+-            if (sony_init_dw > 0 && sony_init_dw <= ARRAY_SIZE(sony_init) &&
++            if (chain_mode && sony_init_dw > 0 && sony_init_dw <= ARRAY_SIZE(sony_init)) {
++               uint32_t *head = cb + 64; /* fence is at cb; both addresses are 256-byte aligned */
++               memcpy(head, sony_init, (size_t)sony_init_dw * 4);
++               uint32_t *end = orbis_pad_ib(head + sony_init_dw + 4, head);
++               orbis_chain_jump(end - 4, dcb[0], dcb_bytes[0] / 4);
++               /* Pad before the jump, rather than after a non-returning CHAIN. */
++               if (end - 4 > head + sony_init_dw) {
++                  uint32_t *pad = head + sony_init_dw;
++                  const unsigned n = (unsigned)(end - 4 - pad);
++                  if (n == 1)
++                     *pad = 0x80000000u;
++                  else {
++                     *pad++ = ORBIS_PM4_TYPE3(0x10, n - 1);
++                     while (pad < end - 4)
++                        *pad++ = 0;
++                  }
++               }
++               /* Link the RADV chunks first; the head replaces only the submitted root. */
++               submit_chain.nodes[submit_chain.count++] = (struct orbis_chain_node){head, (uint32_t)(end - head)};
++            }
++            if (!chain_mode && sony_init_dw > 0 && sony_init_dw <= ARRAY_SIZE(sony_init) &&
+                 (uint32_t)(dw - cb) + sony_init_dw + 64 < ORBIS_FENCE_CB_BYTES / 4) {
+                /* Room is checked against the whole buffer rather than assumed: this runs before the fence
+                 * packets are appended and shifting the stream by 256 dwords must not be what overflows it. */
+@@ -10541,9 +10845,18 @@
+        * wrong; see orbis_pad_ib. */
+       dw = orbis_pad_ib(dw, cb);
+ 
+-      /* ONE entry, replacing the list. */
+-      dcb[0] = cb;
+-      dcb_bytes[0] = (uint32_t)((dw - cb) * 4);
++      /* ONE entry in both modes. The CP follows RADV's IBs to our small fence. */
++      if (chain_mode) {
++         orbis_link_chain(&submit_chain, dcb, dcb_bytes, cb, (uint32_t)(dw - cb));
++         const struct orbis_chain_node *last = &submit_chain.nodes[submit_chain.count - 1];
++         if (last->ib == cb + 64) {
++            dcb[0] = last->ib;
++            dcb_bytes[0] = last->dw * 4;
++         }
++      } else {
++         dcb[0] = cb;
++         dcb_bytes[0] = (uint32_t)((dw - cb) * 4);
++      }
+       n_dcb = 1;
+ 
+       /* Into the ring, so that if THIS is the submission that hangs, the next one can print it. Copied rather
+@@ -10552,6 +10865,11 @@
+       if (orbis_dump_hung_enabled()) {
+          simple_mtx_lock(&orbis_hung_snapshot_lock);
+          struct orbis_hung_slot *const hs = &orbis_hung_ring[seq % ORBIS_HUNG_RING];
++         hs->chain_count = chain_mode ? submit_chain.count + 1 : 0;
++         if (chain_mode) {
++            memcpy(hs->chain, submit_chain.nodes, submit_chain.count * sizeof(hs->chain[0]));
++            hs->chain[submit_chain.count] = (struct orbis_chain_node){cb, (uint32_t)(dw - cb)};
++         }
+          hs->dwords = (uint32_t)(dw - cb);
+          memcpy(hs->stream, cb, (size_t)hs->dwords * 4);
+          /* Last, so a reader can never see a size that does not match the sequence number. */
+@@ -10602,7 +10920,19 @@
+       static unsigned       said;
+       uint32_t              i = 0;
+ 
+-      while (i < n) {
++      if (chain_mode) {
++         static struct orbis_chain_plan validation;
++         memset(&validation, 0, sizeof(validation));
++         uint32_t *slot_cb = orbis_fence_cb + ((seq - 1) % ORBIS_FENCE_CB_SLOTS) * (ORBIS_FENCE_CB_BYTES / 4);
++         if (!orbis_walk_chain(&validation, (uint32_t *)w, n, slot_cb, ORBIS_FENCE_CB_BYTES / 4)) {
++            mesa_loge("orbis-drm: chained stream INVALID: %s", validation.why);
++            orbis_restore_chain(&submit_chain);
++            --orbis_submit_seq_no;
++            simple_mtx_unlock(&orbis_submit_lock);
++            return orbis_submit_return(-EINVAL, orbis_submit_t0);
++         }
++      }
++      while (!chain_mode && i < n) {
+          const uint32_t hdr = w[i];
+          /* A type-2 packet is one dword with no body - the CP skips it. This arm emits exactly one, as the
+           * one-dword tail pad, so the walk has to know the shape or it reports its own padding as garbage. */
+@@ -10819,11 +11149,31 @@
+       }
+    }
+ 
++   __builtin_ia32_sfence();
+    sceGnmFlushGarlic();
+ 
+    const uint64_t t0 = os_time_get_nano();
+    const int32_t err = sceGnmSubmitCommandBuffers(n_dcb, dcb, dcb_bytes, NULL, NULL);
+    const uint64_t t1 = os_time_get_nano();
++   if (chain_mode) {
++      if (err == 0) {
++         const int64_t deadline = orbis_deadline(OS_TIMEOUT_INFINITE, "chain-tail-restore");
++         while ((int32_t)(*orbis_fence_label - (uint32_t)seq) < 0) {
++            if (os_time_get_nano() >= (uint64_t)deadline) {
++               /* Accepted work can still read the patched tails. Never restore or
++                * reuse them on a timeout; quarantine the queue until device teardown. */
++               chain_poisoned = true;
++               mesa_loge("orbis-drm: chain fence #%" PRIu64 " timed out; tails retained, queue refused", seq);
++               orbis_dump_wait_stall();
++               simple_mtx_unlock(&orbis_submit_lock);
++               return orbis_submit_return(-ETIME, orbis_submit_t0);
++            }
++            orbis_poll_pause();
++         }
++      }
++      orbis_restore_chain(&submit_chain);
++      __builtin_ia32_sfence();
++   }
+    if (getenv("ORBIS_WATCH_STRICT") != NULL && err == 0) {
+       /* Bounded, like every wait in this file: if the GPU does not get there, the check is skipped rather than the
+        * process hanging, and the wait itself says so. */
