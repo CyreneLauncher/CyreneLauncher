@@ -42,8 +42,13 @@ def prepare(lock_file, output):
         for name, item in sources.items():
             destination = output / name
             seed = item.get("seed")
-            remote = seed if seed and Path(seed).is_dir() else item["url"]
+            seed_path = Path(seed) if seed else None
+            if seed_path is not None and not seed_path.is_absolute():
+                seed_path = Path(lock_file).resolve().parent / seed_path
+            remote = str(seed_path) if seed_path is not None and seed_path.is_dir() else item["url"]
             git("clone", "--quiet", "--no-checkout", remote, destination)
+            # A local seed is an acceleration source, not the canonical upstream remote.
+            git("-C", destination, "remote", "set-url", "origin", item["url"])
             try:
                 git("-C", destination, "checkout", "--quiet", "--detach", item["revision"])
             except subprocess.CalledProcessError as error:

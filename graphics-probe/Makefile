@@ -4,7 +4,13 @@ PKGTOOL ?= /home/wonder/pkgtool-net8/PkgTool.Core.dll
 DOTNET ?= dotnet
 PYTHON ?= python3
 
-.PHONY: package graphics-bundle lwjgl-smoke lwjgl-compat minecraft-prepare
+.PHONY: package graphics-bundle lwjgl-smoke lwjgl-compat minecraft-prepare repositories-verify repositories-bootstrap
+repositories-verify:
+	$(PYTHON) $(PROJECT_DIR)/tools/repositories.py verify
+
+repositories-bootstrap:
+	$(PYTHON) $(PROJECT_DIR)/tools/repositories.py bootstrap $(if $(SEED_ROOT),--seed-root $(SEED_ROOT))
+
 package:
 	bash $(PROJECT_DIR)/tools/build_probe.sh $(PROJECT_DIR)/build/target $(SDK)
 	$(PYTHON) $(PROJECT_DIR)/tools/package_probe.py --sdk $(SDK) --pkgtool $(PKGTOOL) --dotnet $(DOTNET)

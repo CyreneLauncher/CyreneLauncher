@@ -1,0 +1,116 @@
+{
+  "schema": 1,
+  "components": {
+    "mesa-orbis": {
+      "directory": "mesa-orbis",
+      "revision": "97f9e341c9ccc3abe900b1662f7f8dcd5d0bd619",
+      "url": null,
+      "dependencies": [
+        "orbis-compat",
+        "orbis-porting-kit"
+      ]
+    },
+    "lwjgl-orbis": {
+      "directory": "lwjgl-orbis",
+      "revision": "42c7f730d4956de43ee069c7dbd7ec081dd7ded7",
+      "url": null,
+      "dependencies": [
+        "openal-soft-orbis",
+        "sdl-orbis",
+        "orbis-runtime-support",
+        "orbis-compat"
+      ]
+    },
+    "openal-soft-orbis": {
+      "directory": "openal-soft-orbis",
+      "revision": "277e07c70b78aa25fba7d6dd7499cf680c3ac002",
+      "url": null,
+      "dependencies": [
+        "lwjgl-orbis",
+        "orbis-runtime-support",
+        "orbis-compat"
+      ]
+    },
+    "sdl-orbis": {
+      "directory": "sdl-orbis",
+      "revision": "443ad2bffab8eeb603279abc00c40757dbba21dc",
+      "url": null,
+      "dependencies": [
+        "lwjgl-orbis",
+        "orbis-runtime-support"
+      ]
+    },
+    "orbis-runtime-support": {
+      "directory": "orbis-runtime-support",
+      "revision": "fc3fcc7f508dcb3c9d947f5b67f0fb2bcda2c2c5",
+      "url": null
+    },
+    "jdk17u": {
+      "directory": "jdk17u",
+      "revision": "140b38f08241dc40a157840681b26ad0128926bf",
+      "url": null
+    },
+    "jdk21u": {
+      "directory": "jdk21u",
+      "revision": "c35fb5ecc37ae16a426b12346cbbec323e6a9813",
+      "url": null
+    },
+    "jdk25u": {
+      "directory": "jdk25u",
+      "revision": "424fb3759523484ada60b1b5d711163a3badd419",
+      "url": null
+    },
+    "orbis-compat": {
+      "directory": "orbis-compat",
+      "revision": "6922a7b6f4291a28edd239f1a4db50ed7aa00359",
+      "url": "https://github.com/orbis-ports/orbis-compat.git"
+    },
+    "orbis-porting-kit": {
+      "directory": "orbis-porting-kit",
+      "revision": "213b0c38ff25ea7ca402c8844a6494086d0f1cae",
+      "url": "https://github.com/orbis-ports/orbis-porting-kit.git"
+    }
+  },
+  "links": {
+    "graphics-probe/lwjgl": {
+      "component": "lwjgl-orbis",
+      "path": "."
+    },
+    "graphics-probe/patches/mesa": {
+      "component": "mesa-orbis",
+      "path": "orbis-port/patches"
+    },
+    "graphics-probe/lwjgl/openal": {
+      "component": "openal-soft-orbis",
+      "path": "."
+    },
+    "graphics-probe/lwjgl/sdl": {
+      "component": "sdl-orbis",
+      "path": "."
+    },
+    "orbis-java-app/tools/native_dlfcn.c": {
+      "component": "orbis-runtime-support",
+      "path": "native_dlfcn.c"
+    },
+    "orbis-java-app/tools/orbis_prx_tls.c": {
+      "component": "orbis-runtime-support",
+      "path": "orbis_prx_tls.c"
+    },
+    "orbis-java-app/tools/orbis_initializers.c": {
+      "component": "orbis-runtime-support",
+      "path": "orbis_initializers.c"
+    },
+    "orbis-java-app/tools/orbis_runtime.c": {
+      "component": "orbis-runtime-support",
+      "path": "orbis_runtime.c"
+    },
+    "orbis-java-app/tools/orbis_runtime.h": {
+      "component": "orbis-runtime-support",
+      "path": "orbis_runtime.h"
+    },
+    "orbis-java-app/tools/prepare_jvm_link.py": {
+      "component": "orbis-runtime-support",
+      "path": "prepare_jvm_link.py"
+    }
+  }
+}

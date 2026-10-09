@@ -86,6 +86,28 @@ class BuildContract(unittest.TestCase):
             self.assertIn("moving revision", result.stderr)
             self.assertFalse((Path(temp) / "sources").exists())
 
+    def test_relative_seed_uses_lock_directory_and_retains_canonical_remote(self):
+        BUILD.mkdir(exist_ok=True)
+        with tempfile.TemporaryDirectory(dir=BUILD) as temp:
+            base = Path(temp)
+            repo = base / 'seed'
+            subprocess.run(['git', 'init', '-q', repo], check=True)
+            subprocess.run(['git', '-C', repo, '-c', 'user.name=Probe',
+                            '-c', 'user.email=probe@example.invalid', 'commit',
+                            '-qm', 'Seed', '--allow-empty'], check=True)
+            revision = subprocess.check_output(['git', '-C', repo, 'rev-parse', 'HEAD'], text=True).strip()
+            lock_dir = base / 'config'
+            lock_dir.mkdir()
+            lock = lock_dir / 'lock.json'
+            canonical = 'https://example.invalid/canonical.git'
+            lock.write_text(json.dumps({'sources': {'mesa': {
+                'url': canonical, 'seed': '../seed', 'revision': revision}}}))
+            output = base / 'sources'
+            result = self.run_script('prepare_sources.py', '--lock', lock, '--output', output)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            origin = subprocess.check_output(['git', '-C', output / 'mesa', 'remote', 'get-url', 'origin'], text=True).strip()
+            self.assertEqual(origin, canonical)
+
     def test_rejects_mismatched_revision(self):
         BUILD.mkdir(exist_ok=True)
         with tempfile.TemporaryDirectory(dir=BUILD) as temp:
