@@ -63,12 +63,13 @@ int runner_config_seed_defaults(const char *defaults, const char *root, char *er
             unlink(temporary);
             return fail(error, size, "cannot initialize %s: %s", target, strerror(saved_errno));
         }
-        // Hard-link publication is atomic and exclusive: never replace user settings.
-        int published = link(temporary, target);
-        saved_errno = errno;
-        unlink(temporary);
-        if (published < 0 && saved_errno != EEXIST)
+        // The SDK libc's link is an ENOSYS stub; libkernel's rename is atomic. The probe above
+        // skipped existing user settings, and only the runner writes them at first start.
+        if (rename(temporary, target) < 0) {
+            saved_errno = errno;
+            unlink(temporary);
             return fail(error, size, "cannot publish %s: %s", target, strerror(saved_errno));
+        }
     }
     return 0;
 }

@@ -223,26 +223,34 @@ class Renderer {
         return id;
     }
 
-    /** Minecraft's 16x16-glyph ascii.png; a glyph's width runs to its last opaque column. */
+    /**
+     * Minecraft's 16x16-glyph ascii.png from a game JAR on the class path, else the built-in console
+     * font (the installed launcher starts with no game); a glyph's width runs to its last opaque column.
+     */
     private int loadFont() throws IOException {
-        BufferedImage image;
+        int w, h;
+        int[] pixels;
         try (InputStream in = ClassLoader.getSystemResourceAsStream("assets/minecraft/textures/font/ascii.png")) {
-            if (in == null) throw new IOException("ascii.png is not on the class path");
-            image = ImageIO.read(in);
-        }
-        int w = image.getWidth(), h = image.getHeight(), cell = w / 16;
-        ByteBuffer rgba = MemoryUtil.memAlloc(w * h * 4);
-        for (int y = 0; y < h; y++)
-            for (int x = 0; x < w; x++) {
-                int argb = image.getRGB(x, y);
-                rgba.put((byte) (argb >> 16)).put((byte) (argb >> 8)).put((byte) argb).put((byte) (argb >>> 24));
+            if (in != null) {
+                BufferedImage image = ImageIO.read(in);
+                w = image.getWidth();
+                h = image.getHeight();
+                pixels = image.getRGB(0, 0, w, h, null, 0, w);
+            } else {
+                w = h = ConsoleFont.SIZE;
+                pixels = ConsoleFont.atlas();
             }
+        }
+        int cell = w / 16;
+        ByteBuffer rgba = MemoryUtil.memAlloc(w * h * 4);
+        for (int argb : pixels)
+            rgba.put((byte) (argb >> 16)).put((byte) (argb >> 8)).put((byte) argb).put((byte) (argb >>> 24));
         rgba.flip();
         for (int c = 0; c < 256; c++) {
             int last = -1;
             for (int x = 0; x < cell; x++)
                 for (int y = 0; y < cell; y++)
-                    if ((image.getRGB((c % 16) * cell + x, (c / 16) * cell + y) >>> 24) != 0) last = x;
+                    if ((pixels[((c / 16) * cell + y) * w + (c % 16) * cell + x] >>> 24) != 0) last = x;
             glyphWidth[c] = (last + 2) * 8 / cell;
         }
         glyphWidth[' '] = 4;
