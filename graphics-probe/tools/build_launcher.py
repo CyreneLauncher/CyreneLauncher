@@ -49,6 +49,11 @@ classpath = ':'.join(str(lwjgl_sources.java_artifact(arguments.jars, name)) for 
                      ('lwjgl-3.2.2.jar', 'lwjgl-opengl-3.2.2.jar', 'lwjgl-glfw-3.2.2.jar')) + ':' + arguments.gson
 classpath += ''.join(':' + str(path) for path in third_party)
 qr_lock = json.loads((ROOT / 'launcher/qr-sources.lock.json').read_text())
+font_lock = json.loads((ROOT / 'launcher/fonts/inter.lock.json').read_text())
+for name, expected in font_lock['generated_files'].items():
+    resource = ROOT / 'launcher/resources/orbis/launcher/fonts' / name
+    if hashlib.sha256(resource.read_bytes()).hexdigest() != expected:
+        raise SystemExit(f'bundled font resource differs from its lock: {name}')
 for name, pinned in qr_lock['files'].items():
     path = SOURCES / 'orbis/launcher/qr' / name
     if hashlib.sha256(path.read_bytes()).hexdigest() != pinned['vendored_sha256']:
@@ -81,6 +86,9 @@ with zipfile.ZipFile(compat_jar, 'w', zipfile.ZIP_DEFLATED) as archive:
 
 jar = out / 'orbis-launcher.jar'
 with zipfile.ZipFile(jar, 'w', zipfile.ZIP_DEFLATED) as archive:
+    for resource in sorted((ROOT / 'launcher/resources').rglob('*')):
+        if resource.is_file():
+            archive.write(resource, resource.relative_to(ROOT / 'launcher/resources').as_posix())
     archive.write(compat_jar, 'orbis/launcher/orbis-compat.jar')
     for path in sorted(classes.rglob('*.class')):
         name = path.relative_to(classes).as_posix()

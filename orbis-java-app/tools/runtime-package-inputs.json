@@ -882,7 +882,7 @@
   },
   "graphics": {
     "source": "graphics-probe/build/graphics-bundle-native",
-    "manifest_sha256": "6c06ba017d5b32217cae32ec1eb464df496ae82210f70cf9fbbb0c13791a31e8"
+    "manifest_sha256": "dff3d177a436fd8c9dfe6d0de6dee63bf96b462f677b7441e40d401c36753fa7"
   },
   "desktop": {
     "source": "orbis-java-app/build-cacio/export",

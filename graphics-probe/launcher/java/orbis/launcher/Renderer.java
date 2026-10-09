@@ -3,6 +3,7 @@ package orbis.launcher;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.DataInputStream;
 import java.nio.ByteBuffer;
 import java.nio.FloatBuffer;
 import java.util.ArrayList;
@@ -15,8 +16,8 @@ import org.lwjgl.system.MemoryUtil;
 import static org.lwjgl.opengl.GL30C.*;
 
 /**
- * The launcher's drawing: solid rectangles, uploaded images and Minecraft's ascii.png font (read from
- * the game JAR on the class path), batched into one core-profile shader. Coordinates are screen pixels with the
+ * The launcher's drawing: solid rectangles, uploaded images and bundled Inter text,
+ * batched into one core-profile shader. Coordinates are screen pixels with the
  * origin at the top left; {@link #s} scales a 1080-line layout to the framebuffer.
  */
 class Renderer {
@@ -27,7 +28,8 @@ class Renderer {
     int width, height;
     float s = 1f;
     private int program, vao, vbo, white, font, screenUniform, textureUniform;
-    final int[] glyphWidth = new int[256];
+    final float[] glyphWidth = new float[256];
+    private float fontQuadSize = 8, fontOffsetX, fontOffsetY;
     private final FloatBuffer vertices = MemoryUtil.memAllocFloat(6 * 8 * 4096);
     private int vertexCount, boundTexture = -1;
 
@@ -147,7 +149,8 @@ class Renderer {
         for (int i = 0; i < text.length(); i++) {
             int c = glyph(text.charAt(i));
             float u = (c % 16) / 16f, v = (c / 16) / 16f;
-            if (c != ' ') quad(x, y, 8 * scale, 8 * scale, u, v, u + 1 / 16f, v + 1 / 16f, color);
+            if (c != ' ') quad(x + fontOffsetX * scale, y + fontOffsetY * scale,
+                    fontQuadSize * scale, fontQuadSize * scale, u, v, u + 1 / 16f, v + 1 / 16f, color);
             x += glyphWidth[c] * scale;
         }
     }
@@ -224,10 +227,36 @@ class Renderer {
     }
 
     /**
-     * Minecraft's 16x16-glyph ascii.png from a game JAR on the class path, else the built-in console
-     * font (the installed launcher starts with no game); a glyph's width runs to its last opaque column.
+     * Bundled Inter with fractional advances and smooth filtering. Older development JARs without
+     * the atlas can still use Minecraft's ascii.png or the built-in console font.
      */
     private int loadFont() throws IOException {
+        try (InputStream in = Renderer.class.getResourceAsStream("fonts/inter-atlas.png")) {
+            if (in != null) {
+                BufferedImage image = ImageIO.read(in);
+                if (image == null || image.getWidth() != 640 || image.getHeight() != 640)
+                    throw new IOException("Invalid bundled Inter atlas");
+                try (InputStream metrics = Renderer.class.getResourceAsStream("fonts/inter-advances.bin")) {
+                    if (metrics == null) throw new IOException("Missing Inter glyph advances");
+                    DataInputStream data = new DataInputStream(metrics);
+                    for (int c = 0; c < 256; c++) glyphWidth[c] = data.readFloat();
+                }
+                fontQuadSize = 10;
+                fontOffsetX = -0.5f;
+                fontOffsetY = -1.75f;
+                int[] pixels = image.getRGB(0, 0, 640, 640, null, 0, 640);
+                ByteBuffer rgba = MemoryUtil.memAlloc(640 * 640 * 4);
+                try {
+                    for (int argb : pixels)
+                        rgba.put((byte) (argb >> 16)).put((byte) (argb >> 8))
+                                .put((byte) argb).put((byte) (argb >>> 24));
+                    rgba.flip();
+                    return upload(640, 640, rgba);
+                } finally {
+                    MemoryUtil.memFree(rgba);
+                }
+            }
+        }
         int w, h;
         int[] pixels;
         try (InputStream in = ClassLoader.getSystemResourceAsStream("assets/minecraft/textures/font/ascii.png")) {

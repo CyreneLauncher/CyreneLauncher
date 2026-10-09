@@ -1,0 +1,9 @@
+{
+  "source": "https://rsms.me/inter/font-files/InterVariable.ttf",
+  "license": "SIL Open Font License 1.1",
+  "font_sha256": "4989b125924991b90d05b2d16e0e388c48f7d5bb8b30539bbf9c755278d0ccaf",
+  "generated_files": {
+    "inter-advances.bin": "7c523e4b05b85f0ec66c6e41901b46d178d4a07b4dfb493c38c07eb85fef4eab",
+    "inter-atlas.png": "aee717a0b0afb92c2088e1298bfb2528cec1d1f84ed709220a9354c4b3d7e39c"
+  }
+}
