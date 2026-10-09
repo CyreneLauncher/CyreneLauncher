@@ -51,16 +51,17 @@
     "mesa": {
       "url": "https://github.com/orbis-ports/mesa-ps4.git",
       "revision": "1a59cc147b54e3970814b37313e2f27357672e9d",
-      "seed": "/tmp/mesa-ps4-audit"
+      "seed": "../../mesa-orbis"
     },
     "orbis-compat": {
       "url": "https://github.com/orbis-ports/orbis-compat.git",
       "revision": "6922a7b6f4291a28edd239f1a4db50ed7aa00359",
-      "seed": "/tmp/orbis-compat-audit"
+      "seed": "../../orbis-compat"
     },
     "orbis-porting-kit": {
       "url": "https://github.com/orbis-ports/orbis-porting-kit.git",
-      "revision": "213b0c38ff25ea7ca402c8844a6494086d0f1cae"
+      "revision": "213b0c38ff25ea7ca402c8844a6494086d0f1cae",
+      "seed": "../../orbis-porting-kit"
     }
   }
 }
