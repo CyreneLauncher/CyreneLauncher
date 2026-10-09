@@ -60,7 +60,7 @@ MODULES = ('liblwjgl', 'liblwjgl_opengl', 'liblwjgl_stb') + (() if arguments.rel
 stamp = (orbis_prx.stamp_recipe(build_stamp.Stamp(out, 'lwjgl-natives'), tools)
          .files(Path(__file__), Path(lwjgl_sources.__file__), ROOT / 'lwjgl/lwjgl-sources.lock.json',
                 ROOT / f"lwjgl/{ffi_key.split('-')[0]}", ROOT / 'lwjgl/tinyfd/orbis_tinyfd_3_3.c',
-                ROOT / 'lwjgl/opengl/orbis_opengl_onload.c')
+                ROOT / 'lwjgl/opengl/orbis_opengl_onload.c', ROOT / 'lwjgl/core/orbis_library_path.c')
          .stats(Path(arguments.jni_headers))
          .value('arguments', {k: v for k, v in vars(arguments).items() if k not in ('fetch', 'downloads')}))
 if stamp.current(out / 'lwjgl-audit.json', *[out / f'{name}{suffix}' for name in MODULES for suffix in ('.so', '.prx')]):
@@ -106,7 +106,14 @@ else:
 # io_uring has no Orbis counterpart; its bindings stay out like the Windows ones.
 core_sources = (sorted((lwjgl / 'core/src/main/c').glob('*.c')) + sorted((lwjgl / 'core/src/generated/c').glob('*.c'))
                 + sorted(p for p in (lwjgl / 'core/src/generated/c/linux').glob('*.c') if 'liburing' not in p.name))
-core_objects = compile_all(core_sources, out / 'obj/core', *lwjgl_flags, *ffi_flags)
+# 3.4.3: Minecraft 26.3's Vulkan backend asks for the Vulkan library's path; LWJGL's ELF lookup crashes on
+# modules the runtime's dlopen loads, so lwjgl/core/orbis_library_path.c answers instead (upstream's is renamed).
+orbis_path = arguments.release == '3.4.3'
+core_objects = compile_all(core_sources, out / 'obj/core', *lwjgl_flags, *ffi_flags,
+                           *(['-DJava_org_lwjgl_system_SharedLibraryUtil_getLibraryPath=lwjgl_upstream_getLibraryPath']
+                             if orbis_path else []))
+if orbis_path:
+    core_objects += compile_all([ROOT / 'lwjgl/core/orbis_library_path.c'], out / 'obj/core-orbis', *lwjgl_flags)
 # 3.4.x: JNI_OnLoad installs the GLFW facade's EGL provider while GL initializes (Minecraft 26.2).
 opengl_objects = compile_all(sorted(p for p in (lwjgl / 'opengl/src/generated/c').glob('*.c')
                                     if p.name != 'org_lwjgl_opengl_WGL.c')
