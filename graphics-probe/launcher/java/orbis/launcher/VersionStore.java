@@ -50,7 +50,7 @@ import com.google.gson.JsonParser;
  */
 final class VersionStore {
     enum Loader {
-        FABRIC("Fabric"), QUILT("Quilt"), VANILLA("Vanilla");
+        FABRIC("Fabric"), QUILT("Quilt"), VANILLA("Vanilla"), FORGE("Forge"), NEOFORGE("NeoForge");
         final String title;
         Loader(String title) { this.title = title; }
     }
@@ -136,6 +136,7 @@ final class VersionStore {
             case FABRIC -> ids(fetch("https://meta.fabricmc.net/v2/versions/game", MAX_JSON), "version");
             case QUILT -> ids(fetch("https://meta.quiltmc.org/v3/versions/game", MAX_JSON), "version");
             case VANILLA -> null;
+            case FORGE, NEOFORGE -> ForgeInstaller.catalog(loader).keySet();
         };
         List<GameVersion> out = new ArrayList<>();
         for (JsonElement element : manifest.getAsJsonArray("versions")) {
@@ -151,6 +152,7 @@ final class VersionStore {
     /** The newest stable loader for a release (Quilt's list is unordered and marks pre-releases with a hyphen). */
     String latestLoader(Loader loader, String minecraft) throws IOException {
         if (loader == Loader.VANILLA) return "";
+        if (ForgeInstaller.family(loader)) return ForgeInstaller.latest(loader, minecraft);
         String url = loader == Loader.FABRIC ? "https://meta.fabricmc.net/v2/versions/loader/" + minecraft
                 : "https://meta.quiltmc.org/v3/versions/loader/" + minecraft;
         String best = null;
