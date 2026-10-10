@@ -1,0 +1,15 @@
+{
+  "version": "1.10",
+  "license": "0BSD",
+  "license_file": "legal/xz-java-COPYING.txt",
+  "license_url": "https://raw.githubusercontent.com/tukaani-project/xz-java/v1.10/COPYING",
+  "license_sha256": "1e77ef26cee5216d6531e49cbf2f6111a0270dc7b322fc65477063c5aff88766",
+  "purpose": "Unpacking the Java runtimes downloaded from orbis-openjdk's release (.tar.xz); classes merged into orbis-launcher.jar",
+  "package": "org/tukaani/xz/",
+  "jars": {
+    "xz-1.10.jar": {
+      "url": "https://repo1.maven.org/maven2/org/tukaani/xz/1.10/xz-1.10.jar",
+      "sha256": "95c63c1a55b22dd6453890a419cc1a640f790bbf7d8ae82db1e30aefefb08888"
+    }
+  }
+}

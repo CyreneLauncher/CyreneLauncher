@@ -57,7 +57,9 @@ class RuntimeReleaseTests(unittest.TestCase):
                 cli.fetch_jdks(args)
                 self.assertIn('jdk-111111111111',(root/'orbis-openjdk/output/jdk17/release').read_text())
                 self.assertEqual(cli.installed_jdk_release()['tag'],'jdk-111111111111')
-                cli.check_installed_jdk(root/'orbis-openjdk/output/jdk21',21,cli.digest(toolchain/'lib/libc.a'))
+                cli.check_installed_jdk(root/'orbis-openjdk/output/jdk17',17,cli.digest(toolchain/'lib/libc.a'))
+                # Only the packaged runtime: the launcher downloads 21 and 25 itself.
+                self.assertFalse((root/'orbis-openjdk/output/jdk21').exists())
                 cli.fetch_jdks(args)  # the same release again is a no-op
                 newer=self.release(root,'jdk-222222222222',toolchain)
                 with self.assertRaises(ValueError):  # never replaces an installed release silently

@@ -3,10 +3,10 @@
 ## Update
 
 Install the matching self-contained Cyrene Launcher PKG from `releases/` with the PS4
-application closed. Its `runtimes/jdk17`, `jdk21` and `jdk25` graphics directories all
-contain the native graphics bundle: radeonsi for OpenGL and RADV for Vulkan. Zink is
-not compiled into the bundle. The application uses the selected JDK's packaged graphics;
-uploading an old external bundle alone does not update those packaged files.
+application closed. Its `orbis/graphics` directory holds the native graphics bundle every
+runtime uses: radeonsi for OpenGL and RADV for Vulkan. Zink is not compiled into the bundle.
+Uploading an old external bundle alone does not update those packaged files. JDK 21 and 25
+are downloaded on first use into `/data/orbis-jdk/runtimes` (see PACKAGING.md).
 
 The release graphics input is `graphics-probe/build/graphics-bundle-native/`. The
 launcher JAR and native platform must be from the same verified package. Minecraft 26.3
@@ -62,7 +62,8 @@ closes the application; reopening it normally shows the launcher.
 Instances → Create instance opens the version list. Left/Right picks the loader (Fabric, Quilt
 or Vanilla); Cross on a release names the new instance, then downloads what it needs with
 progress (Circle cancels; a later attempt resumes and re-checks what was already downloaded).
-Releases 1.14 to 1.20.4 are offered: everything that runs on Java 17. The built-in 1.18.2 with
+Releases 1.14 to 26.3 are offered. A version that needs Java 21 or 25 also downloads that
+runtime the first time (see PACKAGING.md). The built-in 1.18.2 with
 Fabric needs no download.
 
 Libraries and assets are shared with the built-in installation (`/data/orbis-jdk/libraries`,

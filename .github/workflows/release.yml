@@ -133,7 +133,8 @@ jobs:
           # Record the commit the rolling release currently points at.
           gh release view "$JDK_RELEASE" --repo "$repository" --json tagName,targetCommitish,url > incoming/jdks/release.json
           tag=$(python3 -c "import json;print(json.load(open('incoming/jdks/release.json'))['tagName'])")
-          gh release download "$tag" --repo "$repository" --pattern 'jre*-orbis-x86_64.tar.xz' \
+          # The package carries JDK 17; the launcher downloads 21 and 25 from the same release.
+          gh release download "$tag" --repo "$repository" --pattern 'jre17-orbis-x86_64.tar.xz' \
             --pattern SHA256SUMS --dir incoming/jdks
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:

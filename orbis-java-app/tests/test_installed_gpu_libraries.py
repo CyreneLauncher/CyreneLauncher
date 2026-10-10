@@ -29,12 +29,13 @@ public class InstalledLibraries {
         }
         if (args.length > 0) {
             Path stage = Path.of(args[0]);
-            for (int feature : new int[]{17, 21, 25}) {
-                Path home = stage.resolve("runtimes/jdk" + feature);
+            {
+                // The launcher runs on the packaged JDK 17; the graphics bundle sits once beside it.
+                Path home = stage.resolve("runtimes/jdk17");
                 ResolvedLaunchPlan plan = VersionMetadataResolver.resolve(stage.resolve("manifests/launcher.json"),
                         home.resolve("lib/orbis/libraries"), MetadataPlatform.ORBIS);
                 if (!plan.mainClass().equals("orbis.launcher.Launcher")) throw new AssertionError("bootstrap main");
-                GraphicsBundle bundle = LwjglProfileRegistry.select(plan, home.resolve("lib/orbis/graphics"));
+                GraphicsBundle bundle = LwjglProfileRegistry.select(plan, stage.resolve("orbis/graphics"));
                 ArrayList<URL> urls = new ArrayList<>();
                 for (Path jar : bundle.javaAdapters()) urls.add(jar.toUri().toURL());
                 for (Path jar : plan.classpath()) urls.add(jar.toUri().toURL());

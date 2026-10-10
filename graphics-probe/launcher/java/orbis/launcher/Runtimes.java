@@ -12,7 +12,7 @@ import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-/** Installed JDKs beside the running JVM, identified by JAVA_VERSION in their release files.
+/** The packaged JDK and the downloaded ones (RuntimeInstaller), identified by JAVA_VERSION in their release files.
  * Legacy development exports under release-desktop remain discoverable for host tools.
  */
 final class Runtimes {
@@ -25,12 +25,9 @@ final class Runtimes {
 
     final Runtime fallback;
     final List<Runtime> all;
-    /** Where other runtimes are looked for (/app0/runtimes in the installed package). */
-    final Path root;
 
-    Runtimes(Runtime fallback, List<Runtime> others, Path root) {
+    Runtimes(Runtime fallback, List<Runtime> others) {
         this.fallback = fallback;
-        this.root = root;
         List<Runtime> list = new ArrayList<>();
         list.add(fallback);
         for (Runtime runtime : others)
@@ -40,17 +37,21 @@ final class Runtimes {
     }
 
     /**
-     * The default runner (java_home) plus the exports under root. An unreadable default counts as the
-     * running JVM's version: the launcher itself runs on the default.
+     * The default runner (java_home) plus the runtimes under roots (/app0/runtimes, and
+     * /data/orbis-jdk/runtimes for downloaded ones). An unreadable default counts as the running JVM's
+     * version: the launcher itself runs on the default.
      */
-    static Runtimes discover(Path defaultHome, Path root) {
+    static Runtimes discover(Path defaultHome, Path... roots) {
         int running = java.lang.Runtime.version().feature();
         Runtime fallback = new Runtime(defaultHome.toAbsolutePath().normalize(), feature(defaultHome, running));
         List<Runtime> others = new ArrayList<>();
-        if (root != null && Files.isDirectory(root, LinkOption.NOFOLLOW_LINKS)) {
+        for (Path root : roots) {
+            if (root == null || !Files.isDirectory(root, LinkOption.NOFOLLOW_LINKS)) continue;
             try (DirectoryStream<Path> dirs = Files.newDirectoryStream(root)) {
                 for (Path dir : dirs) {
-                    if (!Files.isDirectory(dir, LinkOption.NOFOLLOW_LINKS)) continue;
+                    // Hidden directories are RuntimeInstaller's staging and replaced runtimes.
+                    if (!Files.isDirectory(dir, LinkOption.NOFOLLOW_LINKS) || dir.getFileName().toString().startsWith("."))
+                        continue;
                     Path home = feature(dir, -1) > 0 ? dir : dir.resolve(EXPORT);
                     int feature = feature(home, -1);
                     if (feature > 0) others.add(new Runtime(home.toAbsolutePath().normalize(), feature));
@@ -59,7 +60,7 @@ final class Runtimes {
                 System.err.println("launcher: cannot list Java runtimes in " + root + ": " + unreadable.getMessage());
             }
         }
-        return new Runtimes(fallback, others, root);
+        return new Runtimes(fallback, others);
     }
 
     /** JAVA_VERSION's feature number from home/release, or orElse when it is missing or unreadable. */

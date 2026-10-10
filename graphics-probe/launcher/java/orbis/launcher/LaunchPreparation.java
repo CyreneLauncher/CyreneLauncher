@@ -16,6 +16,8 @@ import com.google.gson.JsonParser;
 /** Reversible runner settings transaction; only a matching short-lived intent can launch a game. */
 final class LaunchPreparation {
     private static final int MAX_FILE_BYTES = 262144;
+    /** runner_config.c's bundle paths; the package carries them once, outside any runtime. */
+    static final String GRAPHICS_BUNDLE = "/app0/orbis/graphics", DESKTOP_BUNDLE = "/app0/orbis/desktop";
     private static final int MAX_JOURNAL_BYTES = 4 * ((MAX_FILE_BYTES + 2) / 3 * 4) + 16384;
     private final LauncherConfig config;
     private final Path journal, nextStart, optionsFile, confFile;
@@ -256,7 +258,7 @@ final class LaunchPreparation {
         Runtimes.Runtime runtime = runtimes.forJava(version.java());
         if (runtime == null)
             throw new IOException("Minecraft " + version.minecraft() + " needs Java " + version.java()
-                    + "; update the application to install that runtime");
+                    + "; its runtime has not been downloaded");
         return runtime;
     }
 
@@ -268,8 +270,9 @@ final class LaunchPreparation {
         // Only this launch runs on another runtime: the game restores runner.conf as it starts.
         if (runtime != null) {
             set.put("java_home", runtime.home().toString());
-            set.put("graphics_bundle", runtime.home().resolve("lib/orbis/graphics").toString());
-            set.put("desktop_bundle", runtime.home().resolve("lib/orbis/desktop").toString());
+            // One copy of each bundle in the package serves every runtime.
+            set.put("graphics_bundle", GRAPHICS_BUNDLE);
+            set.put("desktop_bundle", DESKTOP_BUNDLE);
         }
         // A downloaded version boots on its own client JAR and profile, which starts the launcher first.
         if (version != null) {

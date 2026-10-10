@@ -5,6 +5,7 @@
   "license_url": "https://raw.githubusercontent.com/haraldk/TwelveMonkeys/twelvemonkeys-3.15.3/LICENSE.txt",
   "license_sha256": "10e1e2688c74b337e0ca9e3a6a02e16319c3ee4cec79b768bca28ab8823ffde2",
   "purpose": "WebP decoding for Modrinth icons and gallery images; classes merged into orbis-launcher.jar without META-INF/services, so the game ImageIO is unchanged",
+  "package": "com/twelvemonkeys/",
   "jars": {
     "imageio-webp-3.15.3.jar": {
       "url": "https://repo1.maven.org/maven2/com/twelvemonkeys/imageio/imageio-webp/3.15.3/imageio-webp-3.15.3.jar",

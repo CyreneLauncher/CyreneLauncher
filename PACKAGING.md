@@ -10,20 +10,26 @@ Assembly uses verified exports, rather than rebuilding Mesa or the JDKs.
   app.jar                      Java bootstrap
   defaults/                    first-start settings
   manifests/                   launcher profile and payload hash inventory
-  runtimes/jdk17/               JDK 17
-  runtimes/jdk21/               JDK 21
-  runtimes/jdk25/               JDK 25
-    lib/orbis/graphics/         Mesa, LWJGL, SDL, OpenAL and Java adapters
-    lib/orbis/desktop/          Cacio desktop adapters
+  runtimes/jdk17/               JDK 17, which the launcher runs on
     lib/orbis/libraries/        launcher Java dependencies
+  orbis/graphics/               Mesa, LWJGL, SDL, OpenAL and Java adapters, for every runtime
+  orbis/desktop/                Cacio desktop adapters, for every runtime
 /data/orbis-jdk/                downloads, instances, settings and caches
+  runtimes/jdk21/, jdk25/       downloaded Java runtimes
 ```
 
-Each JDK has its own copy of the provided libraries. Runtime selection switches
-Java, graphics and desktop roots together; the launch transaction restores them
-after the game exits. The launcher bootstrap resolves its eight Java dependencies
-from the selected installed JDK. Minecraft, loader and mod dependencies resolve
-from the writable library cache under `/data`.
+As AngelAuraMC's launcher does, the package carries one runtime and the launcher downloads
+the others when a Minecraft version first needs one (`RuntimeInstaller`): JDK 21 for 1.20.5+
+and JDK 25 for 26.1+, from orbis-openjdk's `download` release, checked against its
+`SHA256SUMS`. Before each such launch and install it compares that checksum with the installed
+runtime's and downloads the new build when the release has moved on; offline, the installed
+runtime is used. The release must be public for consoles to reach it.
+
+Runtime selection switches only `java_home`; every runtime uses the one graphics and
+desktop bundle. The launch transaction restores runner.conf after the game exits. Settings
+from earlier packages, which named per-JDK bundles, are moved onto these paths at start.
+The launcher bootstrap resolves its eight Java dependencies from the packaged JDK 17.
+Minecraft, loader and mod dependencies resolve from the writable library cache under `/data`.
 
 On a fresh install, the runner publishes complete default settings exclusively
 into `/data/orbis-jdk/runner`. It preserves existing settings. The installed

@@ -10,6 +10,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 MANIFEST = 'manifests/runtime-package.json'
+GRAPHICS, DESKTOP = 'orbis/graphics', 'orbis/desktop'
 BASE = {'eboot.bin', 'app.jar', 'runner/README.txt', 'sce_sys/param.sfo',
         'sce_sys/icon0.png', 'sce_sys/about/right.sprx', 'sce_module/libc.prx',
         'sce_module/libSceFios2.prx'}
@@ -103,6 +104,9 @@ def assemble(inputs, stage, launcher_jar):
         copy_manifest = json.loads((graphics_root / 'graphics-bundle.json').read_text())
         if digest(graphics_root / 'graphics-bundle.json') != graphics['manifest_sha256']:
             raise ValueError('graphics manifest input hash mismatch')
+        # Only the runtime the launcher runs on is packaged; it downloads the others (RuntimeInstaller).
+        if list(inputs['runtimes']) != ['jdk17']:
+            raise ValueError('the package carries JDK 17 only')
         for runtime, item in inputs['runtimes'].items():
             home = out / 'runtimes' / safe_path(runtime)
             source = ROOT / item['source']
@@ -112,21 +116,21 @@ def assemble(inputs, stage, launcher_jar):
                 copy_verified(source / safe_path(name), home / name, sha)
             if f'JAVA_VERSION="{item["feature"]}.' not in (home / 'release').read_text():
                 raise ValueError('runtime Java feature mismatch: ' + runtime)
-            bundle = home / 'lib/orbis/graphics'
-            emitted = json.loads(json.dumps(copy_manifest))
-            for name, sha in copy_manifest['files'].items():
-                if name == 'build-info.json':
-                    emitted['files'].pop(name)
-                    continue
-                original = graphics_root / safe_path(name)
-                copy_verified(original, bundle / name, sha)
-            shutil.copyfile(launcher_jar, bundle / 'lib/orbis-launcher.jar')
-            emitted['files']['lib/orbis-launcher.jar'] = digest(launcher_jar)
-            (bundle / 'graphics-bundle.json').write_text(json.dumps(emitted, indent=2) + '\n')
-            for name, item in inputs['desktop']['files'].items():
-                copy_verified(ROOT / inputs['desktop']['source'] / safe_path(name), home / 'lib/orbis/desktop' / name, item)
             for name, item in inputs['launcher_libraries'].items():
                 copy_verified(ROOT / item['source'], home / 'lib/orbis/libraries' / safe_path(name), item['sha256'])
+        # One copy of each bundle serves every runtime (runner_config.h).
+        bundle = out / GRAPHICS
+        emitted = json.loads(json.dumps(copy_manifest))
+        for name, sha in copy_manifest['files'].items():
+            if name == 'build-info.json':
+                emitted['files'].pop(name)
+                continue
+            copy_verified(graphics_root / safe_path(name), bundle / name, sha)
+        shutil.copyfile(launcher_jar, bundle / 'lib/orbis-launcher.jar')
+        emitted['files']['lib/orbis-launcher.jar'] = digest(launcher_jar)
+        (bundle / 'graphics-bundle.json').write_text(json.dumps(emitted, indent=2) + '\n')
+        for name, item in inputs['desktop']['files'].items():
+            copy_verified(ROOT / inputs['desktop']['source'] / safe_path(name), out / DESKTOP / name, item)
         for name in ('runner.conf', 'jvm-options.txt'):
             target = out / 'defaults' / name
             target.parent.mkdir(exist_ok=True)

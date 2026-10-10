@@ -13,12 +13,11 @@ Override SDK, TOOLCHAIN, BOOT_JDK, JNI_HEADERS, JNI_PLATFORM, PKGTOOL and DOTNET
 `clean` removes the runner build. Install
 `orbis-java-app/build-runner/output/IV0000-OJDK00003_00-ORBISJARRUNNER01.pkg`.
 
-Java runtimes are separate projects. Each sibling JDK port (`../jdk17u`, `../jdk21u`, `../jdk25u`)
-exports its runtime with its own `orbis-export` directory; upload an export's contents to its own
-folder, for example `/data/orbis-jdk/jdk/release-desktop/` (JDK 17, the default runner) and
-`/data/orbis-jdk/jdk21/release-desktop/` (JDK 21, the optional runner for Minecraft 1.20.5+).
+Java runtimes come from orbis-openjdk. The package carries JDK 17 (`/app0/runtimes/jdk17`), and
+the launcher downloads JDK 21 and 25 into `/data/orbis-jdk/runtimes/` when a version needs them.
 `runner.conf`'s `java_home` names the runtime the application starts on; the Minecraft launcher
 switches it for a single launch when a version needs a newer Java (see `graphics-probe/launcher`).
+Every runtime uses the one graphics bundle at `/app0/orbis/graphics`.
 The eboot uses only the JNI invocation API and `app.jar` targets Java 17, so one package serves both.
 
 ## Application configuration

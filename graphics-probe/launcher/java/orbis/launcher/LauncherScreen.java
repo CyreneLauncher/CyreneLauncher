@@ -964,7 +964,10 @@ class LauncherScreen {
             if (dirty) config.save();
             AccountStore.Account account = accounts().resolveAccount(instance.accountId());
             authClient().refresh(account.id());
-            return new LaunchPreparation(config).prepare(config.instances.get(instance.id()), account.id());
+            InstanceStore.Instance current = config.instances.get(instance.id());
+            VersionStore.Installed version = config.installed(current);
+            if (version != null) prepareRuntime(version.java());
+            return new LaunchPreparation(config).prepare(current, account.id());
         }, request -> {
             setStatus("Starting Minecraft...", ACCENT);
             presentNow();
@@ -1009,7 +1012,14 @@ class LauncherScreen {
 
     protected VersionStore.Installed installVersion(VersionStore.GameVersion version, VersionStore.Loader loader,
                                                     InstanceStore.Operation op) throws IOException {
-        return config.versions.install(version, loader, op);
+        VersionStore.Installed installed = config.versions.install(version, loader, op);
+        config.ensureRuntime(installed.java(), op::progress);
+        return installed;
+    }
+
+    /** Before a launch: the runtime the version needs, downloaded or updated, with progress in the status line. */
+    protected void prepareRuntime(int java) throws IOException {
+        config.ensureRuntime(java, text -> results.add(() -> setStatus(text, DIM)));
     }
 
     /** The game profile a new instance runs: the built-in 1.18.2, an installed version, or a fresh download. */
