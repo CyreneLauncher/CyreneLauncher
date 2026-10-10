@@ -174,7 +174,7 @@ JDK_RELEASE = WORK/'orbis-openjdk/output/release.json'
 
 
 def runtime_asset(version):
-    return 'orbis-jdk'+version+'-x86_64.tar.xz'
+    return 'jre'+version+'-orbis-x86_64.tar.xz'
 
 
 def installed_jdk_release():
@@ -209,14 +209,14 @@ def github_request(url, accept='application/vnd.github+json'):
 
 
 def jdk_release(args):
-    """The orbis-openjdk release to install (latest unless --jdk-tag), with local paths of its files."""
+    """The orbis-openjdk release to install (the rolling download release unless --jdk-tag), with its files."""
     repository=repository_name(json.loads((ROOT/'repositories.lock.json').read_text())['components']['orbis-openjdk']['url'])
     if args.from_dir:
         # As written by `gh release view --json tagName,targetCommitish` beside the downloaded assets.
         meta=json.loads((args.from_dir/'release.json').read_text())
         tag,commit,directory=meta['tagName'],meta['targetCommitish'],args.from_dir
     else:
-        url=f'https://api.github.com/repos/{repository}/releases/'+('tags/'+args.jdk_tag if args.jdk_tag else 'latest')
+        url=f'https://api.github.com/repos/{repository}/releases/tags/'+(args.jdk_tag or 'download')
         with github_request(url) as response:meta=json.load(response)
         tag,commit=meta['tag_name'],meta['target_commitish']
         directory=ROOT/'dist/runtime-downloads'/tag;directory.mkdir(parents=True,exist_ok=True)
@@ -232,7 +232,7 @@ def jdk_release(args):
 
 
 def fetch_jdks(args):
-    """Install the runtimes of the latest orbis-openjdk release (or --jdk-tag)."""
+    """Install the runtimes of orbis-openjdk's download release (or --jdk-tag)."""
     release=jdk_release(args)
     libc=digest(args.toolchain/'lib/libc.a')
     output=WORK/'orbis-openjdk/output'
@@ -533,7 +533,7 @@ def main():
     parser.add_argument('--jdk',choices=['all','17','21','25'],default='all',help='Select one runtime for the jdks or fetch-jdks command')
     parser.add_argument('--from',dest='from_dir',type=Path,help='Directory of downloaded release assets: JDK archives directly, port releases in one subdirectory per repository')
     parser.add_argument('--check',action='store_true',help='With pin-libraries: only verify the existing pins')
-    parser.add_argument('--jdk-tag',help='With fetch-jdks or build: install this orbis-openjdk release instead of the latest')
+    parser.add_argument('--jdk-tag',help='With fetch-jdks or build: install this orbis-openjdk release instead of download')
     parser.add_argument('--sdk',type=Path,default=Path(os.environ.get('ORBIS_SDK') or '/home/wonder/ps4-payload-sdk'))
     parser.add_argument('--toolchain',type=Path,default=Path(os.environ.get('PS4_TOOLCHAIN') or '/home/wonder/PS4Toolchain'))
     parser.add_argument('--pkgtool',type=Path,default=Path(os.environ.get('PKGTOOL') or '/home/wonder/pkgtool-net8/PkgTool.Core.dll'))

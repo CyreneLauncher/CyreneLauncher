@@ -37,7 +37,7 @@ class RuntimeReleaseTests(unittest.TestCase):
             # Built from another orbis-openjdk revision than the launcher pins: only libc must match.
             (runtime/'build-provenance.json').write_text(json.dumps({'version':version,'source':{'base':'other'},
                 'lock_sha256':'0'*64,'libc_sha256':libc or cli.digest(toolchain/'lib/libc.a'),'output_files':files}))
-            with tarfile.open(assets/f'orbis-jdk{version}-x86_64.tar.xz','w:xz') as out:
+            with tarfile.open(assets/cli.runtime_asset(version),'w:xz') as out:
                 out.add(runtime,arcname=member or 'jdk'+version)
         (assets/'SHA256SUMS').write_text(''.join(cli.digest(a)+'  '+a.name+'\n' for a in sorted(assets.glob('*.tar.xz'))))
         (assets/'release.json').write_text(json.dumps({'tagName':tag,'targetCommitish':'b'*40}))
@@ -67,7 +67,7 @@ class RuntimeReleaseTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             root=Path(d);launcher,toolchain=self.layout(root)
             cases=[self.release(root,'jdk-libc',toolchain,libc='f'*64),self.release(root,'jdk-moved',toolchain,member='jdk25')]
-            corrupt=self.release(root,'jdk-corrupt',toolchain);(corrupt/'orbis-jdk17-x86_64.tar.xz').write_bytes(b'corrupt')
+            corrupt=self.release(root,'jdk-corrupt',toolchain);(corrupt/cli.runtime_asset('17')).write_bytes(b'corrupt')
             a,b,c=self.patches(root,launcher)
             with a,b,c:
                 for assets in [*cases,corrupt]:

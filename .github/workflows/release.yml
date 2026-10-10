@@ -12,7 +12,11 @@ on:
         default: false
         type: boolean
       jdk_release:
-        description: orbis-openjdk release tag to package (empty for the latest)
+        description: orbis-openjdk release to package
+        default: download
+        type: string
+      release_tag:
+        description: Tag for the draft release (empty for v<version>)
         default: ''
         type: string
 permissions:
@@ -48,6 +52,13 @@ jobs:
         with:
           path: orbis-launcher
           persist-credentials: false
+      - name: Allow cloning the private port repositories
+        env:
+          TOKEN: ${{ secrets.CYRENE_RELEASES_TOKEN }}
+        run: |
+          if [ -n "$TOKEN" ]; then
+            git config --global url."https://x-access-token:${TOKEN}@github.com/CyreneLauncher/".insteadOf "https://github.com/CyreneLauncher/"
+          fi
       - uses: ./orbis-launcher/.github/actions/build-host
         with:
           jdks: '17 25'
@@ -99,10 +110,17 @@ jobs:
         with:
           path: orbis-launcher
           persist-credentials: false
+      - name: Allow cloning the private port repositories
+        env:
+          TOKEN: ${{ secrets.CYRENE_RELEASES_TOKEN }}
+        run: |
+          if [ -n "$TOKEN" ]; then
+            git config --global url."https://x-access-token:${TOKEN}@github.com/CyreneLauncher/".insteadOf "https://github.com/CyreneLauncher/"
+          fi
       - uses: ./orbis-launcher/.github/actions/build-host
         with:
           jdks: '17 25'
-      - name: Download the latest runtimes from orbis-openjdk
+      - name: Download the runtimes from orbis-openjdk
         env:
           # The default token cannot read another private repository; set this secret to a
           # token with read access to the CyreneLauncher repositories' releases while they are private.
@@ -112,10 +130,10 @@ jobs:
         run: |
           repository=$(python3 -c "import json;u=json.load(open('orbis-launcher/repositories.lock.json'))['components']['orbis-openjdk']['url'];print(u.removeprefix('https://github.com/').removesuffix('.git'))")
           mkdir -p incoming/jdks
-          # Without a tag, gh release view answers with the latest release; record which one it was.
-          gh release view $JDK_RELEASE --repo "$repository" --json tagName,targetCommitish,url > incoming/jdks/release.json
+          # Record the commit the rolling release currently points at.
+          gh release view "$JDK_RELEASE" --repo "$repository" --json tagName,targetCommitish,url > incoming/jdks/release.json
           tag=$(python3 -c "import json;print(json.load(open('incoming/jdks/release.json'))['tagName'])")
-          gh release download "$tag" --repo "$repository" --pattern 'orbis-jdk*-x86_64.tar.xz' \
+          gh release download "$tag" --repo "$repository" --pattern 'jre*-orbis-x86_64.tar.xz' \
             --pattern SHA256SUMS --dir incoming/jdks
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
@@ -159,9 +177,10 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           APP_VERSION: ${{ inputs.version }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
         shell: bash
         run: |
-          gh release create "v${APP_VERSION}" orbis-launcher/dist/* \
+          gh release create "${RELEASE_TAG:-v${APP_VERSION}}" orbis-launcher/dist/* \
             --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --draft \
             --title "Cyrene Launcher ${APP_VERSION}" \
             --notes "Built on GitHub-hosted Ubuntu from pinned sources and SDKs, with the runtimes of orbis-openjdk $(python3 -c "import json;print(json.load(open('incoming/jdks/release.json'))['tagName'])"). Includes the verified PKG, reusable components, checksums and runtime manifest. Console testing status must be recorded before publishing this draft."
