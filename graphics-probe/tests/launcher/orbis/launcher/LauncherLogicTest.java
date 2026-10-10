@@ -30,6 +30,7 @@ public final class LauncherLogicTest {
         ownershipAndAssets();
         runtimeDownload();
         instanceArguments();
+        skinFaces();
         check(LauncherScreen.consoleMode("pro")[0].contains("Pro mode")
                 && LauncherScreen.consoleMode("pro-base")[0].contains("Boost Mode")
                 && LauncherScreen.consoleMode("base")[0].startsWith("PS4 ")
@@ -218,6 +219,34 @@ public final class LauncherLogicTest {
         Runtimes packaged = Runtimes.discover(installedRoot.resolve("jdk17"), installedRoot);
         check(packaged.all.size() == 3 && packaged.forJava(25).home().equals(installedRoot.resolve("jdk25")),
                 "direct installed runtime homes discovered without release-desktop");
+    }
+
+    /** The account widget's face: the skin's face with its hat over it, cached for offline starts. */
+    private static void skinFaces() throws IOException {
+        java.awt.image.BufferedImage skin = new java.awt.image.BufferedImage(64, 64, java.awt.image.BufferedImage.TYPE_INT_ARGB);
+        for (int y = 8; y < 16; y++) for (int x = 8; x < 16; x++) skin.setRGB(x, y, 0xff336699);
+        skin.setRGB(40, 8, 0xffff0000);                       // one opaque hat pixel over the face's corner
+        java.io.ByteArrayOutputStream png = new java.io.ByteArrayOutputStream();
+        javax.imageio.ImageIO.write(skin, "png", png);
+        String textures = java.util.Base64.getEncoder().encodeToString(
+                "{\"textures\":{\"SKIN\":{\"url\":\"http://textures.minecraft.net/texture/abc\"}}}".getBytes(StandardCharsets.UTF_8));
+        String profile = "{\"id\":\"0123456789abcdef0123456789abcdef\",\"properties\":[{\"name\":\"textures\",\"value\":\""
+                + textures + "\"}]}";
+        List<String> fetched = new ArrayList<>();
+        Path cache = Files.createTempDirectory("skins");
+        SkinFaces faces = new SkinFaces(cache, (url, max) -> {
+            fetched.add(url);
+            if (url.startsWith("https://sessionserver.mojang.com/")) return profile.getBytes(StandardCharsets.UTF_8);
+            if (url.equals("https://textures.minecraft.net/texture/abc")) return png.toByteArray();
+            throw new IOException("unexpected " + url);
+        });
+        int[] face = faces.face("01234567-89ab-cdef-0123-456789abcdef");
+        check(face != null && face.length == 64 && face[0] == 0xffff0000 && face[1] == 0xff336699, "face with its hat");
+        check(fetched.size() == 2 && fetched.get(1).startsWith("https://"), "skins are fetched over HTTPS: " + fetched);
+        check(faces.face("0123456789abcdef0123456789abcdef")[1] == 0xff336699 && fetched.size() == 2, "the cached face is reused");
+        check(SkinFaces.skinUrl("{\"properties\":[{\"name\":\"textures\",\"value\":\"" + java.util.Base64.getEncoder()
+                .encodeToString("{\"textures\":{\"SKIN\":{\"url\":\"https://evil.example/x\"}}}".getBytes(StandardCharsets.UTF_8))
+                + "\"}]}") == null, "skins only from textures.minecraft.net");
     }
 
     /** An instance's own arguments: split like a shell, kept with the instance, never over what is managed. */
@@ -703,7 +732,7 @@ public final class LauncherLogicTest {
                     "image crop stays inside the texture");
         }
         int textures;
-        @Override int upload(int w, int h, java.nio.ByteBuffer rgba) {
+        @Override int upload(int w, int h, java.nio.ByteBuffer rgba, boolean nearest) {
             check(rgba.remaining() == w * h * 4, "upload size matches");
             return ++textures;
         }
@@ -898,6 +927,10 @@ public final class LauncherLogicTest {
             this.packs = packs;
         }
 
+        @Override protected SkinFaces.Source skinSource() {
+            return (url, max) -> { throw new IOException("offline"); };
+        }
+
         @Override protected byte[] fetchPackFile(String url, long max) throws IOException {
             check(url.startsWith("https://cdn.modrinth.com/"), "pack files only from allowed hosts: " + url);
             packFetches++;
@@ -932,7 +965,7 @@ public final class LauncherLogicTest {
         @Override void presentNow() {}
         @Override void closeWindow() { closes++; }
         /** No system dialog on the host: editing stays inline. */
-        @Override protected boolean beginSystemKeyboard(String title, int maxLength) { return false; }
+        @Override protected boolean beginSystemKeyboard(String title, int maxLength, boolean multiline) { return false; }
 
         /** The next start consumes the request; only the imported instance's directory is the host's cwd. */
         @Override int relaunch(String intent) {

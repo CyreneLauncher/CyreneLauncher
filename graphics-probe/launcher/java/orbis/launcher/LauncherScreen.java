@@ -391,8 +391,8 @@ class LauncherScreen {
         input.releaseBarrier();
         if (source == Input.Source.CONTROLLER) {
             systemKeyboardOpen = field == Field.SEARCH ? beginSystemKeyboard("Search mods", 100)
-                    : field == Field.JVM_ARGS ? beginSystemKeyboard("JVM arguments", InstanceArguments.MAX_LENGTH)
-                    : field == Field.GAME_ARGS ? beginSystemKeyboard("Minecraft arguments", InstanceArguments.MAX_LENGTH)
+                    : field == Field.JVM_ARGS ? beginSystemKeyboard("JVM arguments", InstanceArguments.MAX_LENGTH, true)
+                    : field == Field.GAME_ARGS ? beginSystemKeyboard("Minecraft arguments", InstanceArguments.MAX_LENGTH, true)
                     : beginSystemKeyboard("Instance name", 80);
             if (!systemKeyboardOpen) setStatus("System keyboard unavailable. Use a physical keyboard to edit.", WARN);
         }
@@ -400,8 +400,12 @@ class LauncherScreen {
 
     /** Native keyboard lifecycle stays behind these hooks so a failed dialog keeps inline editing usable. */
     protected boolean beginSystemKeyboard(String title, int maxLength) {
+        return beginSystemKeyboard(title, maxLength, false);
+    }
+
+    protected boolean beginSystemKeyboard(String title, int maxLength, boolean multiline) {
         try {
-            return systemKeyboard.begin(editor.value(), title, maxLength);
+            return systemKeyboard.begin(editor.value(), title, maxLength, multiline);
         } catch (RuntimeException failure) {
             setStatus("System keyboard unavailable: " + failure.getMessage() + ". Use a physical keyboard.", WARN);
             return false;
@@ -533,8 +537,9 @@ class LauncherScreen {
      */
     void applyMouse(List<Input.Mouse> events) {
         for (Input.Mouse m : events) {
-            // Pointing alone does not switch the hints; a click or the wheel does.
-            if (m.kind() != Input.MouseKind.MOVE) lastInput = Input.Source.MOUSE;
+            // The mouse is in use as soon as it moves: hovering highlights and the hints name keys.
+            lastInput = Input.Source.MOUSE;
+            if (m.kind() == Input.MouseKind.MOVE || m.kind() == Input.MouseKind.PRESS) { mouseX = m.x(); mouseY = m.y(); }
             switch (m.kind()) {
                 case MOVE -> { if (!busy && !systemKeyboardOpen) clicks.hover(m.x(), m.y()); }
                 case PRESS -> {
@@ -1109,6 +1114,49 @@ class LauncherScreen {
             AccountStore.Account account = accounts().get(id);
             return account == null ? "Add your own account" : account.username();
         } catch (IOException failure) { return "Unavailable"; }
+    }
+
+    /** Uploaded skin faces by account UUID (0: none to show), and those being fetched. */
+    private final java.util.Map<String, Integer> faces = new java.util.HashMap<>();
+    private final java.util.Set<String> facesLoading = new java.util.HashSet<>();
+
+    /** The network seam for skins, replaced in tests. */
+    protected SkinFaces.Source skinSource() {
+        return VersionStore::fetch;
+    }
+
+    /** The selected account's skin face, fetched in the background the first time; 0 until it is there. */
+    private int faceTexture() {
+        String uuid;
+        try {
+            String id = accounts().defaultAccountId();
+            uuid = accountList().stream().filter(a -> a.id().equals(id)).map(AccountStore.Account::uuid).findFirst().orElse(null);
+        } catch (IOException failure) { return 0; }
+        if (uuid == null) return 0;
+        Integer known = faces.get(uuid);
+        if (known != null) return known;
+        if (facesLoading.add(uuid)) {
+            SkinFaces skins = new SkinFaces(config.home.resolve("cache/skins"), skinSource());
+            infoWorker.execute(() -> {
+                int[] face;
+                try { face = skins.face(uuid); }
+                catch (IOException | RuntimeException unavailable) { face = null; }
+                int[] pixels = face;
+                results.add(() -> {
+                    int texture = 0;
+                    if (pixels != null) {
+                        java.nio.ByteBuffer rgba = org.lwjgl.system.MemoryUtil.memAlloc(pixels.length * 4);
+                        for (int argb : pixels)
+                            rgba.put((byte) (argb >> 16)).put((byte) (argb >> 8)).put((byte) argb).put((byte) (argb >>> 24));
+                        rgba.flip();
+                        texture = r.upload(SkinFaces.SIZE, SkinFaces.SIZE, rgba, true);
+                        org.lwjgl.system.MemoryUtil.memFree(rgba);
+                    }
+                    faces.put(uuid, texture);
+                });
+            });
+        }
+        return 0;
     }
 
     /** The account Play uses: the selected one, for every instance. */
@@ -1867,10 +1915,13 @@ class LauncherScreen {
                 r.width(r.fit(active.name(), 420 * s, 2.1f * s), 2.1f * s));
         float chipX = right - textW - avatar - 50 * s;
         r.roundRect(chipX, 26 * s, right - chipX, 80 * s, 40 * s, PANEL_HI);
-        r.disc(chipX + 9 * s, 35 * s, avatar, ACCENT);
-        String initial = account.isEmpty() ? "?" : account.substring(account.lastIndexOf(' ') + 1, account.lastIndexOf(' ') + 2)
-                .toUpperCase(java.util.Locale.ROOT);
-        r.textCentered(initial, chipX + 9 * s, 35 * s, avatar, avatar, 3.4f * s, TEXT);
+        int face = faceTexture();
+        if (face > 0) r.roundImage(face, chipX + 9 * s, 35 * s, avatar, avatar, avatar / 2, PANEL_HI);
+        else {
+            r.disc(chipX + 9 * s, 35 * s, avatar, ACCENT);
+            String initial = account.isEmpty() ? "?" : account.substring(0, 1).toUpperCase(java.util.Locale.ROOT);
+            r.textCentered(initial, chipX + 9 * s, 35 * s, avatar, avatar, 3.4f * s, TEXT);
+        }
         r.textMiddle(r.fit(account, 420 * s, 2.7f * s), chipX + avatar + 26 * s, 34 * s, 34 * s, 2.7f * s, TEXT);
         r.textMiddle(r.fit(active.name(), 420 * s, 2.1f * s), chipX + avatar + 26 * s, 68 * s, 28 * s, 2.1f * s, DIM);
     }
@@ -1894,7 +1945,8 @@ class LauncherScreen {
         for (int i = 0; i < SECTIONS.length; i++) {
             float w = r.width(SECTION_TITLES[i], scale) + 2 * pad;
             if (i == current) r.roundRect(x, y, w, h, h / 2, ACCENT);
-            r.textMiddle(SECTION_TITLES[i], x + pad, y, h, scale, i == current ? TEXT : DIM);
+            else if (hovered(x, y, w, h)) r.roundRect(x, y, w, h, h / 2, PANEL_HI);
+            r.textMiddle(SECTION_TITLES[i], x + pad, y, h, scale, i == current || hovered(x, y, w, h) ? TEXT : DIM);
             int index = i;
             clicks.add(x, y, w, h, null, () -> {
                 if (!idle()) return;
@@ -1984,7 +2036,7 @@ class LauncherScreen {
                 x + 35 * s, line + 98 * s, 30 * s, 2.1f * s, WARN);
 
         float py = top + cardH + 22 * s, ph = 86 * s;
-        boolean playOn = focus == Focus.DETAIL && detailSelected == 0 && !editor.active();
+        boolean playOn = focus == Focus.DETAIL && detailSelected == 0 && !editor.active() || hovered(x, py, w, ph);
         playButton(x, py, w, ph, playOn);
         hit(x, py, w, ph, () -> { focus = Focus.DETAIL; detailSelected = 0; }, Input.Action.CONFIRM);
         for (int i = 1; i < HOME_ACTIONS.size(); i++) {
@@ -2006,9 +2058,21 @@ class LauncherScreen {
                 + r.capBottom(3.6f * s), 2.3f * s, DIM);
     }
 
-    /** A list row: a panel, and when chosen a lighter one marked with the accent on its left. */
+    /** Where the pointer is, while the mouse is the device in use. */
+    private float mouseX = -1, mouseY = -1;
+
+    /** Whether the mouse is in use and over the rectangle, outside any clip the hit regions honour. */
+    private boolean hovered(float x, float y, float w, float h) {
+        if (lastInput != Input.Source.MOUSE || systemKeyboardOpen) return false;
+        if (hitClip != null && (mouseX < hitClip[0] || mouseY < hitClip[1] || mouseX >= hitClip[0] + hitClip[2]
+                || mouseY >= hitClip[1] + hitClip[3])) return false;
+        return mouseX >= x && mouseY >= y && mouseX < x + w && mouseY < y + h;
+    }
+
+    /** A list row: a panel, and when chosen (or under the mouse) a lighter one marked with the accent on its left. */
     private void row(float x, float y, float w, float h, boolean chosen) {
         float s = r.s;
+        if (!chosen && hovered(x, y, w, h)) { r.roundRect(x, y, w, h, 12 * s, PANEL_HI); return; }
         if (chosen) {
             r.roundRect(x, y, w, h, 12 * s, PANEL_HI);
             r.roundRect(x, y + h * 0.18f, 6 * s, h * 0.64f, 3 * s, ACCENT);
@@ -2083,6 +2147,8 @@ class LauncherScreen {
     private void choice(float x, float y, String no, String yes, boolean yesChosen, int yesColor,
                         Runnable chooseNo, Runnable chooseYes) {
         float s = r.s;
+        if (hovered(x, y, 360 * s, 60 * s)) r.roundFrame(x - 4 * s, y - 4 * s, 368 * s, 68 * s, 18 * s, WHITE);
+        if (hovered(x + 410 * s, y, 360 * s, 60 * s)) r.roundFrame(x + 406 * s, y - 4 * s, 368 * s, 68 * s, 18 * s, WHITE);
         r.roundRect(x, y, 360 * s, 60 * s, 14 * s, yesChosen ? PANEL : ACCENT);
         r.textCentered(no, x, y, 360 * s, 60 * s, 3 * s, TEXT);
         hit(x, y, 360 * s, 60 * s, chooseNo, Input.Action.CONFIRM);
@@ -2092,22 +2158,46 @@ class LauncherScreen {
     }
 
     private void drawNameDialog(float s) {
-        float x = 350 * s, y = 330 * s;
-        dialog(x, y, 1220 * s, 320 * s);
+        boolean args = editingField == Field.JVM_ARGS || editingField == Field.GAME_ARGS;
+        float x = 350 * s, w = 1220 * s, fieldH = args ? 260 * s : 60 * s, h = 260 * s + fieldH, y = (r.height - h) / 2;
+        dialog(x, y, w, h);
         r.text(editingField == Field.JVM_ARGS ? "JVM ARGUMENTS" : editingField == Field.GAME_ARGS ? "MINECRAFT ARGUMENTS"
                 : nameMode == NameMode.CREATE ? "CREATE INSTANCE" : nameMode == NameMode.CLONE
                 ? "CLONE INSTANCE" : "RENAME INSTANCE", x + 40 * s, y + 35 * s, 3.5f * s, TEXT);
         String value = editor.value();
-        String caret = value.substring(0, editor.caret()) + "|" + value.substring(editor.caret());
-        r.roundRect(x + 30 * s, y + 100 * s, 1160 * s, 60 * s, 12 * s, PANEL);
-        r.textMiddle(r.fit(caret, 1120 * s, 3.5f * s), x + 50 * s, y + 100 * s, 60 * s, 3.5f * s, ACCENT_HI);
-        float by = y + 220 * s, bh = 60 * s;
-        r.roundRect(x + 40 * s, by, 260 * s, bh, 14 * s, ACCENT);
+        String withCaret = value.substring(0, editor.caret()) + "|" + value.substring(editor.caret());
+        float fx = x + 30 * s, fy = y + 100 * s, fw = w - 60 * s, inner = fw - 40 * s;
+        r.roundRect(fx, fy, fw, fieldH, 12 * s, PANEL);
+        r.roundFrame(fx, fy, fw, fieldH, 12 * s, ACCENT);
+        if (args) {
+            // Wrapped over several lines, scrolled so the caret's line stays in view.
+            float scale = 2.6f * s, lineH = 36 * s;
+            List<String> lines = wrapLines(withCaret, inner, scale);
+            int caretLine = 0;
+            for (int k = 0, seen = 0; k < lines.size(); k++) {
+                seen += lines.get(k).length();
+                if (seen >= editor.caret() + 1) { caretLine = k; break; }
+                caretLine = k;
+            }
+            int visible = (int) ((fieldH - 24 * s) / lineH), first = Math.max(0, caretLine - visible + 1);
+            for (int k = first; k < Math.min(lines.size(), first + visible); k++)
+                r.text(lines.get(k), fx + 20 * s, fy + 16 * s + (k - first) * lineH, scale, ACCENT_HI);
+        } else {
+            // One line that scrolls to keep the caret in view, as a text field does.
+            float scale = 3.5f * s;
+            String before = value.substring(0, editor.caret()) + "|", after = value.substring(editor.caret());
+            String shown = r.width(before, scale) > inner ? r.fitEnd(before, inner, scale) : before;
+            while (!after.isEmpty() && r.width(shown + after, scale) > inner) after = after.substring(0, after.length() - 1);
+            r.textMiddle(shown + after, fx + 20 * s, fy, fieldH, scale, ACCENT_HI);
+        }
+        float by = fy + fieldH + 40 * s, bh = 60 * s;
+        r.roundRect(x + 40 * s, by, 260 * s, bh, 14 * s, hovered(x + 40 * s, by, 260 * s, bh) ? ACCENT_HI : ACCENT);
         r.textCentered("Accept", x + 40 * s, by, 260 * s, bh, 3 * s, TEXT);
         hit(x + 40 * s, by, 260 * s, bh, null, Input.Action.CONFIRM);
-        r.roundRect(x + 340 * s, by, 260 * s, bh, 14 * s, PANEL);
+        r.roundRect(x + 340 * s, by, 260 * s, bh, 14 * s, hovered(x + 340 * s, by, 260 * s, bh) ? PANEL_HI : PANEL);
         r.textCentered("Cancel", x + 340 * s, by, 260 * s, bh, 3 * s, TEXT);
         hit(x + 340 * s, by, 260 * s, bh, null, Input.Action.BACK);
+        if (args) r.textMiddle("Spaces or new lines separate arguments.", x + 640 * s, by, bh, 2.2f * s, DIM);
     }
 
     private void drawCloneOptions(float s) {
@@ -2232,8 +2322,9 @@ class LauncherScreen {
         if (p.installable()) choice(x + 40 * s, y + h - 90 * s, "Install", "Cancel", dialogChoice == 1, PANEL_HI,
                 () -> dialogChoice = 0, () -> dialogChoice = 1);
         else {
-            r.rect(x + 40 * s, y + h - 90 * s, 360 * s, 60 * s, ACCENT);
-            r.text("Close", x + 65 * s, y + h - 78 * s, 3 * s, TEXT);
+            r.roundRect(x + 40 * s, y + h - 90 * s, 360 * s, 60 * s, 14 * s,
+                    hovered(x + 40 * s, y + h - 90 * s, 360 * s, 60 * s) ? ACCENT_HI : ACCENT);
+            r.textCentered("Close", x + 40 * s, y + h - 90 * s, 360 * s, 60 * s, 3 * s, TEXT);
             hit(x + 40 * s, y + h - 90 * s, 360 * s, 60 * s, () -> dialogChoice = 1, Input.Action.CONFIRM);
         }
     }
@@ -2272,8 +2363,9 @@ class LauncherScreen {
         if (p.installable()) choice(x + 40 * s, y + h - 90 * s, "Create instance", "Cancel", dialogChoice == 1, PANEL_HI,
                 () -> dialogChoice = 0, () -> dialogChoice = 1);
         else {
-            r.rect(x + 40 * s, y + h - 90 * s, 360 * s, 60 * s, ACCENT);
-            r.text("Close", x + 65 * s, y + h - 78 * s, 3 * s, TEXT);
+            r.roundRect(x + 40 * s, y + h - 90 * s, 360 * s, 60 * s, 14 * s,
+                    hovered(x + 40 * s, y + h - 90 * s, 360 * s, 60 * s) ? ACCENT_HI : ACCENT);
+            r.textCentered("Close", x + 40 * s, y + h - 90 * s, 360 * s, 60 * s, 3 * s, TEXT);
             hit(x + 40 * s, y + h - 90 * s, 360 * s, 60 * s, () -> dialogChoice = 1, Input.Action.CONFIRM);
         }
     }
@@ -2281,28 +2373,40 @@ class LauncherScreen {
     private void drawSettings(float s) {
         InstanceStore.Instance current = config.selectedInstance();
         pageTitle("Instance settings", current.name());
-        String[][] rows = {
-                {"Java heap", "< " + config.heapMib + " MiB >"},
-                {"GPU memory", "< " + config.arenaMib + " MiB >"},
-                {"JVM arguments", current.jvmArgs().isEmpty() ? "None" : current.jvmArgs()},
-                {"Minecraft arguments", current.gameArgs().isEmpty() ? "None" : current.gameArgs()},
-                {"Runner debug log (all instances)", "< " + (config.debugLog ? "On" : "Off") + " >"},
-                {"Save", ""}, {"Back", ""}};
+        String[] labels = {"Java heap", "GPU memory", "JVM arguments", "Minecraft arguments",
+                "Runner debug log (all instances)", "Save", "Back"};
         float x = 120 * s, w = 1000 * s, rowH = 72 * s, y = 250 * s;
-        for (int i = 0; i < rows.length; i++) {
+        for (int i = 0; i < labels.length; i++) {
             boolean on = i == selected && !editor.active() && !systemKeyboardOpen;
-            float ry = y + i * rowH + (i >= 5 ? 24 * s : 0);
-            if (i < 5) r.roundRect(x, ry, w, rowH - 10 * s, 12 * s, PANEL);
-            row(x, ry, w, rowH - 10 * s, on);
-            float rh = rowH - 10 * s;
-            r.textMiddle(rows[i][0], x + 34 * s, ry, rh, 2.7f * s, on ? TEXT : i >= 5 ? DIM : TEXT);
-            if (!rows[i][1].isEmpty()) {
-                String value = r.fit(rows[i][1], 520 * s, 2.5f * s);
-                boolean none = rows[i][1].equals("None");
-                r.textMiddle(value, x + w - 34 * s - r.width(value, 2.5f * s), ry, rh, 2.5f * s, none ? DIM : ACCENT_HI);
-            }
+            float ry = y + i * rowH + (i >= 5 ? 24 * s : 0), rh = rowH - 10 * s;
+            if (i < 5) r.roundRect(x, ry, w, rh, 12 * s, PANEL);
+            row(x, ry, w, rh, on);
+            r.textMiddle(labels[i], x + 34 * s, ry, rh, 2.7f * s, on || i < 5 ? TEXT : DIM);
             int index = i;
-            hit(x, ry, w, rowH - 10 * s, () -> selected = index, Input.Action.CONFIRM);
+            hit(x, ry, w, rh, () -> selected = index, Input.Action.CONFIRM);
+            float right = x + w - 24 * s;
+            if (i <= 1) {
+                // A stepper the mouse can use: minus, the value, plus.
+                String value = (i == 0 ? config.heapMib : config.arenaMib) + " MiB";
+                float b = 44 * s, by = ry + (rh - b) / 2, vw = 190 * s;
+                float plus = right - b, minus = plus - vw - b;
+                stepButton("+", plus, by, b, () -> selected = index, Input.Action.RIGHT);
+                r.textCentered(value, minus + b, ry, vw, rh, 2.6f * s, ACCENT_HI);
+                stepButton("-", minus, by, b, () -> selected = index, Input.Action.LEFT);
+            } else if (i == 4) {
+                // A switch: the knob on the right and the accent when on.
+                float sw = 84 * s, sh = 42 * s, sx = right - sw, sy = ry + (rh - sh) / 2;
+                boolean hover = hovered(sx, sy, sw, sh);
+                r.roundRect(sx, sy, sw, sh, sh / 2, config.debugLog ? (hover ? ACCENT_HI : ACCENT) : (hover ? LINE : CHIP));
+                r.disc(config.debugLog ? sx + sw - sh + 4 * s : sx + 4 * s, sy + 4 * s, sh - 8 * s, WHITE);
+                hit(sx, sy, sw, sh, () -> selected = index, Input.Action.CONFIRM);
+            } else if (i <= 3) {
+                // The newest end of the arguments, as a field shows it: nothing hidden behind dots.
+                String args = (i == 2 ? current.jvmArgs() : current.gameArgs()).replace('\n', ' ');
+                boolean none = args.isBlank();
+                String shown = none ? "None" : r.fitEnd(args, 560 * s, 2.4f * s);
+                r.textMiddle(shown, right - r.width(shown, 2.4f * s), ry, rh, 2.4f * s, none ? DIM : ACCENT_HI);
+            }
         }
         // What the highlighted setting does, as Amethyst's profile editor explains its fields.
         String[] help = {
@@ -2318,13 +2422,42 @@ class LauncherScreen {
                 "Returns to the instance."};
         float px = 1160 * s, pw = 640 * s;
         r.roundRect(px, y, pw, 5 * rowH - 10 * s, 18 * s, PANEL);
-        String title = rows[Math.min(selected, rows.length - 1)][0];
+        String title = labels[Math.min(selected, labels.length - 1)];
         r.text(r.fit(title, pw - 70 * s, 3 * s), px + 35 * s, y + 30 * s, 3 * s, TEXT);
         float ty = y + 85 * s;
         for (String line : r.wrap(help[Math.min(selected, help.length - 1)], pw - 70 * s, 2.3f * s)) {
             r.text(line, px + 35 * s, ty, 2.3f * s, DIM);
             ty += 32 * s;
         }
+        if (selected == 2 || selected == 3) {
+            String args = selected == 2 ? current.jvmArgs() : current.gameArgs();
+            if (!args.isBlank()) {
+                ty += 16 * s;
+                for (String line : wrapLines(args, pw - 70 * s, 2.3f * s)) {
+                    if (ty > y + 5 * rowH - 50 * s) break;
+                    r.text(line, px + 35 * s, ty, 2.3f * s, ACCENT_HI);
+                    ty += 32 * s;
+                }
+            }
+        }
+    }
+
+    /** A small round button for a stepper: the accent under the mouse. */
+    private void stepButton(String label, float x, float y, float size, Runnable select, Input.Action action) {
+        boolean hover = hovered(x, y, size, size);
+        r.disc(x, y, size, hover ? ACCENT : CHIP);
+        r.textCentered(label, x, y, size, size, 3 * r.s, TEXT);
+        hit(x, y, size, size, select, action);
+    }
+
+    /** Text wrapped to a width, keeping its own line breaks. */
+    private List<String> wrapLines(String text, float width, float scale) {
+        List<String> out = new ArrayList<>();
+        for (String paragraph : text.split("\n", -1)) {
+            List<String> lines = r.wrap(paragraph, width, scale);
+            out.addAll(lines.isEmpty() ? List.of("") : lines);
+        }
+        return out;
     }
 
     /** New instance: a version of Minecraft to set up, or a modpack that brings its own. */
@@ -2336,7 +2469,7 @@ class LauncherScreen {
         float w = 820 * s, h = 520 * s, gap = 40 * s, x0 = (r.width - 2 * w - gap) / 2, y = 260 * s;
         for (int i = 0; i < 2; i++) {
             float x = x0 + i * (w + gap);
-            boolean on = selected == i;
+            boolean on = selected == i || hovered(x, y, w, h);
             if (on) r.roundRect(x - 5 * s, y - 5 * s, w + 10 * s, h + 10 * s, 26 * s, ACCENT);
             r.roundRect(x, y, w, h, 22 * s, on ? PANEL_HI : PANEL);
             if (i == 0 && r.artwork() > 0)
@@ -2365,7 +2498,7 @@ class LauncherScreen {
         if (selected >= count) selected = count - 1;
         float x = 120 * s, w = 880 * s, rowH = 66 * s;
         scrollList(scrollers[Page.MODS.ordinal()], count, selected, x, 270 * s, w, 9 * rowH, rowH, (i, y) -> {
-            boolean on2 = i == selected && !editor.active() && !systemKeyboardOpen;
+            boolean on2 = i == selected && !editor.active() && !systemKeyboardOpen || hovered(x, y, w, rowH - 6 * s);
             r.roundRect(x, y, w, rowH - 6 * s, 12 * s, on2 ? PANEL_HI : PANEL);
             if (on2) r.roundRect(x, y + 8 * s, 6 * s, rowH - 6 * s - 16 * s, 3 * s, ACCENT);
             hit(x, y, w, rowH - 6 * s, () -> selected = i, Input.Action.CONFIRM);
@@ -2432,10 +2565,12 @@ class LauncherScreen {
             ty += 32 * s;
         }
         float by = py + ph - 85 * s;
-        r.roundRect(px + 35 * s, by, 300 * s, 58 * s, 14 * s, enabledMod ? PANEL_HI : ACCENT);
+        boolean toggleHover = hovered(px + 35 * s, by, 300 * s, 58 * s);
+        r.roundRect(px + 35 * s, by, 300 * s, 58 * s, 14 * s, enabledMod ? (toggleHover ? LINE : PANEL_HI)
+                : (toggleHover ? ACCENT_HI : ACCENT));
         r.textCentered(enabledMod ? "Disable" : "Enable", px + 35 * s, by, 300 * s, 58 * s, 3 * s, TEXT);
         hit(px + 35 * s, by, 300 * s, 58 * s, null, Input.Action.CONFIRM);
-        r.roundRect(px + 365 * s, by, 300 * s, 58 * s, 14 * s, ERROR);
+        r.roundRect(px + 365 * s, by, 300 * s, 58 * s, 14 * s, hovered(px + 365 * s, by, 300 * s, 58 * s) ? 0xffe8716d : ERROR);
         r.textCentered("Remove", px + 365 * s, by, 300 * s, 58 * s, 3 * s, TEXT);
         hit(px + 365 * s, by, 300 * s, 58 * s, null, Input.Action.ALT2);
     }
@@ -2462,7 +2597,7 @@ class LauncherScreen {
         float tx = 120 * s, ty = 210 * s;
         for (ModrinthClient.Type type : ModrinthClient.Type.values()) {
             boolean current = type == browseType;
-            r.roundRect(tx, ty, 230 * s, 56 * s, 14 * s, current ? ACCENT : PANEL);
+            r.roundRect(tx, ty, 230 * s, 56 * s, 14 * s, current ? ACCENT : hovered(tx, ty, 230 * s, 56 * s) ? PANEL_HI : PANEL);
             r.textCentered(type.title, tx, ty, 230 * s, 56 * s, 3 * s, TEXT);
             ModrinthClient.Type target = type;
             clicks.add(tx, ty, 230 * s, 56 * s, () -> selected = 0, () -> {
@@ -2512,7 +2647,7 @@ class LauncherScreen {
             boolean on = selected == 3 + i && !editing;
             int index = 3 + i;
             if (i == hits.size()) {
-                r.roundRect(120 * s, y, cw, 60 * s, 14 * s, on ? ACCENT : PANEL);
+                r.roundRect(120 * s, y, cw, 60 * s, 14 * s, on ? ACCENT : hovered(120 * s, y, cw, 60 * s) ? PANEL_HI : PANEL);
                 String more = String.format("Load more  (%,d of %,d shown)", hits.size(), totalHits);
                 r.textCentered(more, 120 * s, y, cw, 60 * s, 3 * s, TEXT);
                 hit(120 * s, y, cw, 60 * s, () -> selected = index, Input.Action.CONFIRM);
@@ -2525,7 +2660,7 @@ class LauncherScreen {
 
     private void drawCard(ModrinthClient.Hit h, float x, float y, float w, float ch, boolean on) {
         float s = r.s;
-        r.roundRect(x, y, w, ch, 12 * s, on ? PANEL_HI : PANEL);
+        r.roundRect(x, y, w, ch, 12 * s, on || hovered(x, y, w, ch) ? PANEL_HI : PANEL);
         if (on) r.roundRect(x, y + 8 * s, 6 * s, ch - 16 * s, 3 * s, ACCENT);
         picture(h.iconUrl(), ImageCache.Size.ICON, x + 16 * s, y + 13 * s, 80 * s, 80 * s, false, h.title());
         float tx = x + 116 * s, right = x + w - 24 * s;
@@ -2638,10 +2773,12 @@ class LauncherScreen {
         if (banner == null) r.text(r.fit(h.description(), textW, 2.4f * s), textX, titleY + 78 * s, 2.4f * s, TEXT);
 
         boolean actions = zone == Zone.ACTIONS && galleryOpen < 0;
-        r.roundRect(bx, by, 340 * s, 58 * s, 14 * s, actions && actionSelected == 0 ? ACCENT : PANEL_HI);
+        r.roundRect(bx, by, 340 * s, 58 * s, 14 * s, actions && actionSelected == 0 || hovered(bx, by, 340 * s, 58 * s)
+                ? ACCENT : PANEL_HI);
         r.textCentered(installLabel, bx, by, 340 * s, 58 * s, 3 * s, actions && actionSelected == 0 ? TEXT : ACCENT_HI);
         hit(bx, by, 340 * s, 58 * s, () -> { zone = Zone.ACTIONS; actionSelected = 0; }, Input.Action.CONFIRM);
-        r.roundRect(bx + 360 * s, by, 200 * s, 58 * s, 14 * s, actions && actionSelected == 1 ? ACCENT : PANEL_HI);
+        r.roundRect(bx + 360 * s, by, 200 * s, 58 * s, 14 * s, actions && actionSelected == 1
+                || hovered(bx + 360 * s, by, 200 * s, 58 * s) ? ACCENT : PANEL_HI);
         r.textCentered("Back", bx + 360 * s, by, 200 * s, 58 * s, 3 * s, TEXT);
         hit(bx + 360 * s, by, 200 * s, 58 * s, () -> { zone = Zone.ACTIONS; actionSelected = 1; }, Input.Action.CONFIRM);
 
@@ -2653,10 +2790,11 @@ class LauncherScreen {
             String label = titles[t.ordinal()];
             float tw = r.width(label, 3 * s) + 50 * s;
             boolean current = t == tab;
-            r.roundRect(tx, tabsY, tw, 52 * s, 12 * s, current ? PANEL_HI : PANEL);
-            if (current) r.rect(tx, tabsY + 48 * s, tw, 4 * s, ACCENT);
+            r.roundRect(tx, tabsY, tw, 52 * s, 12 * s, current || hovered(tx, tabsY, tw, 52 * s) ? PANEL_HI : PANEL);
+            // The current tab's mark sits inside its rounded corners.
+            if (current) r.roundRect(tx + 18 * s, tabsY + 42 * s, tw - 36 * s, 4 * s, 2 * s, ACCENT);
             r.textMiddle(label, tx + 25 * s, tabsY, 52 * s, 3 * s, current ? TEXT : DIM);
-            if (zone == Zone.TABS && current && galleryOpen < 0) r.roundFrame(tx, tabsY, tw, 52 * s, 16 * s, WHITE);
+            if (zone == Zone.TABS && current && galleryOpen < 0) r.roundFrame(tx - 4 * s, tabsY - 4 * s, tw + 8 * s, 60 * s, 16 * s, WHITE);
             Tab target = t;
             clicks.add(tx, tabsY, tw, 52 * s, null, () -> {
                 if (busy && !cancellable) return;
@@ -2668,7 +2806,7 @@ class LauncherScreen {
 
         float cy = tabsY + 70 * s, cb = r.height - 175 * s, ch = cb - cy;
         r.roundRect(x, cy, w, ch, 12 * s, PANEL);
-        if (zone == Zone.CONTENT && galleryOpen < 0) r.rect(x, cy, 4 * s, ch, ACCENT);
+        if (zone == Zone.CONTENT && galleryOpen < 0) r.roundRect(x, cy + 14 * s, 5 * s, ch - 28 * s, 2.5f * s, ACCENT);
         if (p == null) {
             r.text(busy ? "Loading..." : "Could not load the project.", x + 30 * s, cy + 30 * s, 3 * s, DIM);
             return;
@@ -2841,7 +2979,8 @@ class LauncherScreen {
                 x, ly, w - 14 * s, y + h - ly - 10 * s, rowH, (i, ry) -> {
             ModrinthClient.VersionInfo v = list.get(i);
             boolean on = content && versionSelected == i + 1;
-            r.roundRect(x + 20 * s, ry, w - 40 * s, rowH - 6 * s, 12 * s, on ? PANEL_HI : PANEL);
+            r.roundRect(x + 20 * s, ry, w - 40 * s, rowH - 6 * s, 12 * s, on || hovered(x + 20 * s, ry, w - 40 * s, rowH - 6 * s)
+                    ? PANEL_HI : PANEL);
             if (on) r.roundRect(x + 20 * s, ry + 8 * s, 6 * s, rowH - 6 * s - 16 * s, 3 * s, ACCENT);
             int typeColor = "release".equals(v.type()) ? GOOD : "beta".equals(v.type()) ? WARN : ERROR;
             // Every column centred on the type chip's band.

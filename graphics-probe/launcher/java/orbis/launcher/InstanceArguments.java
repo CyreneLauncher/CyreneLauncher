@@ -35,7 +35,8 @@ final class InstanceArguments {
         boolean quoted = false, any = false;
         for (int i = 0; i < text.length(); i++) {
             char c = text.charAt(i);
-            if (c == '\n' || c == '\r' || c == 0) throw new IllegalArgumentException("Arguments must be on one line");
+            // Line breaks from the multi-line field separate arguments like spaces.
+            if (c == 0) throw new IllegalArgumentException("Arguments cannot contain NUL");
             if (c == '"') { quoted = !quoted; any = true; }
             else if (Character.isWhitespace(c) && !quoted) {
                 if (any) out.add(current.toString());
