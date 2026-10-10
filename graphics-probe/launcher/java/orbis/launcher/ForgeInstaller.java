@@ -84,4 +84,123 @@ final class ForgeInstaller {
         return p[0].replace('.', '/') + "/" + p[1] + "/" + p[2] + "/" + p[1] + "-" + p[2]
                 + (p.length == 4 ? "-" + p[3] : "") + "." + (ext.length == 2 ? ext[1] : "jar");
     }
+    static synchronized JsonObject prepare(VersionStore.Loader loader, String minecraft, String build,
+            java.nio.file.Path client, java.nio.file.Path libraries, java.nio.file.Path staging,
+            InstanceStore.Operation op) throws IOException {
+        if (!supported(loader,minecraft) || !build.matches("[0-9.]+(-beta)?")) throw new IOException("Unsupported loader release");
+        String coordinate = loader == VersionStore.Loader.FORGE ? "net.minecraftforge:forge:" + minecraft + "-" + build + ":installer"
+                : "net.neoforged:neoforge:" + build + ":installer";
+        String repo = loader == VersionStore.Loader.FORGE ? FORGE_MAVEN : NEO_MAVEN;
+        java.nio.file.Path installer = staging.resolve("installer.jar");
+        LauncherFiles.rejectSymlinks(staging);
+        java.nio.file.Files.createDirectories(staging);
+        op.progress("Downloading " + loader.title + " installer...");
+        String url = repo + mavenPath(coordinate);
+        String digest = new String(VersionStore.fetch(url + ".sha1",1024),StandardCharsets.UTF_8).trim().split("\\s+")[0];
+        if (!digest.matches("[a-fA-F0-9]{40}")) throw new IOException("Installer has no valid checksum");
+        DownloadCache.get(installer,url,"SHA-1",digest,-1,64L << 20,DownloadCache::http,(n,t) -> op.check());
+        try (java.util.zip.ZipFile zip = new java.util.zip.ZipFile(installer.toFile())) {
+            JsonObject install = resourceJson(zip,"install_profile.json");
+            if (!install.has("spec") || install.get("spec").getAsInt() != 1
+                    || !minecraft.equals(install.get("minecraft").getAsString())) throw new IOException("Installer does not match Minecraft " + minecraft);
+            JsonObject profile = resourceJson(zip,install.get("json").getAsString().replaceFirst("^/", ""));
+            if (!profile.get("mainClass").getAsString().equals("cpw.mods.bootstraplauncher.BootstrapLauncher")
+                    && !profile.get("mainClass").getAsString().equals("cpw.mods.modlauncher.Launcher"))
+                throw new IOException("Unsupported loader entry point");
+            int n = 0;
+            for (com.google.gson.JsonElement entry : install.getAsJsonArray("libraries")) {
+                op.progress("Downloading patch tools (" + ++n + "/" + install.getAsJsonArray("libraries").size() + ")");
+                download(entry.getAsJsonObject(),libraries,zip);
+            }
+            for (com.google.gson.JsonElement entry : profile.getAsJsonArray("libraries")) download(entry.getAsJsonObject(),libraries,zip);
+            Map<String,String> data = new LinkedHashMap<>();
+            data.put("SIDE","client"); data.put("ROOT",staging.toString());
+            data.put("INSTALLER",installer.toString()); data.put("MINECRAFT_JAR",client.toString());
+            data.put("MINECRAFT_VERSION",minecraft);
+            for (Map.Entry<String,com.google.gson.JsonElement> entry : install.getAsJsonObject("data").entrySet()) {
+                String value = entry.getValue().getAsJsonObject().get("client").getAsString();
+                if (value.startsWith("'") && value.endsWith("'")) value = value.substring(1,value.length()-1);
+                else if (value.startsWith("/")) {
+                    String resource = value.substring(1);
+                    java.nio.file.Path target = confined(staging,resource);
+                    java.nio.file.Files.createDirectories(target.getParent());
+                    LauncherFiles.write(target,resource(zip,resource,64L << 20),false);
+                    value = target.toString();
+                } else value = InstallerProcessors.resolve(value,data,libraries);
+                data.put(entry.getKey(),value);
+            }
+            // Processor tools are portable Java. Check all selected mains before touching client outputs.
+            for (com.google.gson.JsonElement element : install.getAsJsonArray("processors")) {
+                JsonObject processor = element.getAsJsonObject();
+                if (processor.has("sides") && !processor.getAsJsonArray("sides").toString().contains("client")) continue;
+                int needed = processorJava(libraries.resolve(mavenPath(processor.get("jar").getAsString())));
+                if (needed > Runtime.version().feature()) throw new IOException("Installation needs Java " + needed + "; restart the launcher on that runtime");
+            }
+            InstallerProcessors.run(install,libraries,data,op);
+            com.google.gson.JsonArray generated = new com.google.gson.JsonArray();
+            for (String key : List.of("MC_SLIM","MC_EXTRA","MC_SRG","PATCHED")) {
+                if (!data.containsKey(key)) continue;
+                java.nio.file.Path target = java.nio.file.Path.of(data.get(key)).toAbsolutePath().normalize();
+                if (!target.startsWith(libraries.toAbsolutePath().normalize())) throw new IOException("Generated client escapes library storage");
+                LauncherFiles.rejectSymlinks(target);
+                if (!java.nio.file.Files.isRegularFile(target)) throw new IOException("Missing patched client output: " + key);
+                JsonObject artifact = new JsonObject();
+                artifact.addProperty("path",libraries.relativize(target).toString());
+                artifact.addProperty("sha1",InstallerProcessors.hash(target));
+                artifact.addProperty("size",java.nio.file.Files.size(target));
+                generated.add(artifact);
+            }
+            if (!data.containsKey("PATCHED")) throw new IOException("Installer declares no patched client");
+            profile.add("orbisGenerated",generated);
+            return profile;
+        } catch (RuntimeException malformed) { throw new IOException("Invalid " + loader.title + " installer profile",malformed); }
+    }
+
+    static java.nio.file.Path confined(java.nio.file.Path root, String relative) throws IOException {
+        java.nio.file.Path part = java.nio.file.Path.of(relative);
+        if (part.isAbsolute() || relative.contains("\\") || !part.normalize().equals(part) || relative.contains(".."))
+            throw new IOException("Unsafe installer path");
+        java.nio.file.Path path = root.resolve(part).toAbsolutePath().normalize();
+        if (!path.startsWith(root.toAbsolutePath().normalize())) throw new IOException("Installer path escapes storage");
+        LauncherFiles.rejectSymlinks(path);
+        return path;
+    }
+
+    static byte[] resource(java.util.zip.ZipFile zip, String name, long max) throws IOException {
+        java.util.zip.ZipEntry entry = zip.getEntry(name);
+        if (entry == null || entry.isDirectory() || entry.getSize() > max) throw new IOException("Missing or oversized installer resource: " + name);
+        try (java.io.InputStream in = zip.getInputStream(entry)) {
+            byte[] bytes = in.readNBytes((int)max + 1);
+            if (bytes.length > max) throw new IOException("Oversized installer resource");
+            return bytes;
+        }
+    }
+    private static JsonObject resourceJson(java.util.zip.ZipFile zip, String name) throws IOException {
+        return JsonParser.parseString(new String(resource(zip,name,8L << 20),StandardCharsets.UTF_8)).getAsJsonObject();
+    }
+
+    private static void download(JsonObject library, java.nio.file.Path libraries, java.util.zip.ZipFile zip) throws IOException {
+        JsonObject artifact = library.getAsJsonObject("downloads").getAsJsonObject("artifact");
+        String relative = mavenPath(library.get("name").getAsString());
+        if (!relative.equals(artifact.get("path").getAsString())) throw new IOException("Installer artifact path does not match its coordinate");
+        java.nio.file.Path file = confined(libraries,relative);
+        String hash = artifact.get("sha1").getAsString(), url = artifact.get("url").getAsString();
+        if (!hash.matches("[a-fA-F0-9]{40}")) throw new IOException("Library has no valid checksum");
+        if (url.isEmpty()) {
+            byte[] content = resource(zip,"maven/" + relative,64L << 20);
+            if (!VersionStore.sha1(content).equalsIgnoreCase(hash)) throw new IOException("Embedded library checksum mismatch");
+            LauncherFiles.write(file,content,false);
+        } else DownloadCache.get(file,url,"SHA-1",hash,artifact.get("size").getAsLong(),64L << 20,DownloadCache::http,(n,t) -> { });
+    }
+
+    private static int processorJava(java.nio.file.Path jar) throws IOException {
+        try (java.util.jar.JarFile archive = new java.util.jar.JarFile(jar.toFile())) {
+            String main = archive.getManifest().getMainAttributes().getValue("Main-Class");
+            try (java.io.DataInputStream in = new java.io.DataInputStream(archive.getInputStream(archive.getEntry(main.replace('.','/') + ".class")))) {
+                if (in.readInt() != 0xcafebabe) throw new IOException("Invalid processor class");
+                in.readUnsignedShort(); return in.readUnsignedShort() - 44;
+            }
+        }
+    }
+
 }

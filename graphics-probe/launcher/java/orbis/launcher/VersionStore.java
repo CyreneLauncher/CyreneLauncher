@@ -60,6 +60,12 @@ final class VersionStore {
     record Installed(String id, String minecraft, Loader loader, String loaderVersion, Path gameProfile,
                      Path bootProfile, Path clientJar, String mainClass, String assetIndex, String versionType,
                      List<String> jvmOptions, Map<String, String> provides, int java) {
+        List<String> gameOptions() throws IOException {
+            JsonObject game = json(LauncherFiles.read(gameProfile, MAX_JSON));
+            List<String> args = new ArrayList<>();
+            if (game.has("orbisLoaderArguments")) for (JsonElement e : game.getAsJsonArray("orbisLoaderArguments")) args.add(e.getAsString());
+            return List.copyOf(args);
+        }
         String title() {
             return "Minecraft " + minecraft + (loader == Loader.VANILLA ? "" : "  " + loader.title + " " + loaderVersion);
         }
@@ -227,7 +233,24 @@ final class VersionStore {
                 o.get("versionType").getAsString(), List.copyOf(jvm), Map.copyOf(provides), java);
         for (Path file : List.of(value.gameProfile(), value.bootProfile(), value.clientJar()))
             if (!Files.isRegularFile(file, LinkOption.NOFOLLOW_LINKS)) throw new IOException("Incomplete install");
+        if (o.has("generated")) for (JsonElement artifact : o.getAsJsonArray("generated")) {
+            JsonObject a = artifact.getAsJsonObject();
+            Path file = libraries.resolve(confined(a.get("path").getAsString()));
+            LauncherFiles.rejectSymlinks(file);
+            if (!Files.isRegularFile(file) || Files.size(file) != a.get("size").getAsLong()) throw new IOException("Patched client is missing");
+        }
         return value;
+    }
+
+    void verifyLoader(Installed version) throws IOException {
+        if (!ForgeInstaller.family(version.loader())) return;
+        JsonObject record = json(LauncherFiles.read(version.gameProfile().resolveSibling("install.json"),MAX_JSON));
+        for (JsonElement artifact : record.getAsJsonArray("generated")) {
+            JsonObject a = artifact.getAsJsonObject();
+            Path file = libraries.resolve(confined(a.get("path").getAsString()));
+            LauncherFiles.rejectSymlinks(file);
+            if (!InstallerProcessors.hash(file).equals(a.get("sha1").getAsString())) throw new IOException("Patched client needs reinstallation");
+        }
     }
 
     // ------------------------------------------------------------------ install
@@ -239,10 +262,17 @@ final class VersionStore {
     /** Host checks skip the assets (hundreds of MiB); the console always downloads them. */
     Installed install(GameVersion version, Loader loader, InstanceStore.Operation op, boolean withAssets)
             throws IOException {
+        return install(version, loader, "", op, withAssets);
+    }
+
+    Installed install(GameVersion version, Loader loader, String requestedLoader, InstanceStore.Operation op, boolean withAssets)
+            throws IOException {
         ownership.require();
+        if (ForgeInstaller.family(loader) && !ForgeInstaller.supported(loader,version.id()))
+            throw new IOException("Unsupported " + loader.title + " Minecraft version");
         op.progress("Reading Minecraft " + version.id() + "...");
         JsonObject vanilla = json(verified(version.url(), version.sha1(), -1, MAX_JSON));
-        String loaderVersion = latestLoader(loader, version.id());
+        String loaderVersion = requestedLoader.isEmpty() ? latestLoader(loader, version.id()) : requestedLoader;
         String id = profileId(version.id(), loader, loaderVersion);
         if (!PROFILE_ID.matcher(id).matches()) throw new IOException("Unexpected version name " + id);
         Path dir = versionsRoot.resolve(id);
@@ -260,7 +290,19 @@ final class VersionStore {
         Path clientJar = dir.resolve("client.jar");
         ensure(clientJar, client.get("url").getAsString(), client.get("sha1").getAsString(), client.get("size").getAsLong());
 
+        if (ForgeInstaller.family(loader)) loaderProfile = ForgeInstaller.prepare(loader, version.id(), loaderVersion,
+                clientJar,libraries,dir.resolve("installer-work"),op);
         List<String> jvm = new ArrayList<>();
+        Map<String,String> loaderValues = Map.of("library_directory",libraries.toString(),"classpath_separator",":","version_name",id);
+        Set<Path> modulePaths = new LinkedHashSet<>();
+        if (ForgeInstaller.family(loader)) {
+            for (String option : LoaderLaunch.jvm(loaderProfile,loaderValues)) {
+                if (option.startsWith("-Djdk.module.path="))
+                    for (String path : option.substring("-Djdk.module.path=".length()).split(":")) modulePaths.add(Path.of(path));
+                // The unpatched vanilla client must not become another game module.
+                jvm.add(option.startsWith("-DignoreList=") ? option + ",client.jar" : option);
+            }
+        }
         if (loader == Loader.FABRIC) {
             jvm.add("-DFabricMcEmu=" + VANILLA_MAIN);
             jvm.add("-Dfabric.systemLibraries=" + SYSTEM_LIBRARIES);
@@ -291,7 +333,8 @@ final class VersionStore {
                 op.progress("Downloading " + loader.title + " libraries (" + ++index + "/" + loaderLibraries.size() + ")",
                         (double) index / loaderLibraries.size());
                 if (!seen.add(key(name))) continue;
-                JsonObject entry = mavenLibrary(library);
+                JsonObject entry = ForgeInstaller.family(loader) ? library.deepCopy() : mavenLibrary(library);
+                if (ForgeInstaller.family(loader) && modulePaths.contains(libraries.resolve(path(entry)))) continue;
                 merged.add(entry);
                 if (name.startsWith("net.fabricmc:fabric-loader:")) provides.put("fabricloader", loaderVersion);
                 if (name.startsWith("org.quiltmc:quilt-loader:")) {
@@ -302,6 +345,10 @@ final class VersionStore {
             }
         }
 
+        if (ForgeInstaller.family(loader)) {
+            provides.put(loader == Loader.FORGE ? "forge" : "neoforge",loaderVersion);
+            provides.put("java",String.valueOf(java));
+        }
         JsonObject builtIn = json(LauncherFiles.read(builtInProfile, MAX_JSON));
         List<JsonObject> lwjgl = new ArrayList<>();
         JsonObject builtInGson = null;
@@ -371,7 +418,8 @@ final class VersionStore {
         if (withAssets) downloadAssets(json(LauncherFiles.read(indexFile, MAX_JSON)), op);
 
         op.progress("Finishing Minecraft " + version.id() + "...");
-        String mainClass = loader == Loader.FABRIC ? FABRIC_MAIN : loader == Loader.QUILT ? QUILT_MAIN : VANILLA_MAIN;
+        String mainClass = ForgeInstaller.family(loader) ? loaderProfile.get("mainClass").getAsString()
+                : loader == Loader.FABRIC ? FABRIC_MAIN : loader == Loader.QUILT ? QUILT_MAIN : VANILLA_MAIN;
         if (loaderProfile != null && !loaderProfile.get("mainClass").getAsString().equals(mainClass))
             throw new IOException(loader.title + " now starts through " + loaderProfile.get("mainClass").getAsString());
         JsonObject game = vanilla.deepCopy();
@@ -379,6 +427,11 @@ final class VersionStore {
         game.addProperty("id", id);
         game.addProperty("mainClass", mainClass);
         game.add("libraries", merged);
+        if (ForgeInstaller.family(loader)) {
+            JsonArray loaderArgs = new JsonArray();
+            LoaderLaunch.game(loaderProfile,loaderValues).forEach(loaderArgs::add);
+            game.add("orbisLoaderArguments",loaderArgs);
+        }
         JsonObject boot = game.deepCopy();
         boot.addProperty("mainClass", LAUNCHER_MAIN);
         LauncherFiles.write(dir.resolve("game.json"), bytes(game), false);
@@ -400,6 +453,7 @@ final class VersionStore {
         JsonObject provided = new JsonObject();
         provides.forEach(provided::addProperty);
         record.add("provides", provided);
+        if (ForgeInstaller.family(loader)) record.add("generated",loaderProfile.getAsJsonArray("orbisGenerated"));
         LauncherFiles.write(dir.resolve("install.json"), bytes(record), false);
         return read(dir);
     }
