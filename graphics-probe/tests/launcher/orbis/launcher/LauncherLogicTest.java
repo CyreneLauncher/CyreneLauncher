@@ -221,32 +221,26 @@ public final class LauncherLogicTest {
                 "direct installed runtime homes discovered without release-desktop");
     }
 
-    /** The account widget's face: the skin's face with its hat over it, cached for offline starts. */
+    /** The account widget's face from a public avatar service, with a fallback, cached for offline starts. */
     private static void skinFaces() throws IOException {
-        java.awt.image.BufferedImage skin = new java.awt.image.BufferedImage(64, 64, java.awt.image.BufferedImage.TYPE_INT_ARGB);
-        for (int y = 8; y < 16; y++) for (int x = 8; x < 16; x++) skin.setRGB(x, y, 0xff336699);
-        skin.setRGB(40, 8, 0xffff0000);                       // one opaque hat pixel over the face's corner
+        java.awt.image.BufferedImage avatar = new java.awt.image.BufferedImage(16, 16, java.awt.image.BufferedImage.TYPE_INT_ARGB);
+        for (int y = 0; y < 16; y++) for (int x = 0; x < 16; x++) avatar.setRGB(x, y, x < 2 && y < 2 ? 0xffff0000 : 0xff336699);
         java.io.ByteArrayOutputStream png = new java.io.ByteArrayOutputStream();
-        javax.imageio.ImageIO.write(skin, "png", png);
-        String textures = java.util.Base64.getEncoder().encodeToString(
-                "{\"textures\":{\"SKIN\":{\"url\":\"http://textures.minecraft.net/texture/abc\"}}}".getBytes(StandardCharsets.UTF_8));
-        String profile = "{\"id\":\"0123456789abcdef0123456789abcdef\",\"properties\":[{\"name\":\"textures\",\"value\":\""
-                + textures + "\"}]}";
+        javax.imageio.ImageIO.write(avatar, "png", png);
         List<String> fetched = new ArrayList<>();
         Path cache = Files.createTempDirectory("skins");
         SkinFaces faces = new SkinFaces(cache, (url, max) -> {
             fetched.add(url);
-            if (url.startsWith("https://sessionserver.mojang.com/")) return profile.getBytes(StandardCharsets.UTF_8);
-            if (url.equals("https://textures.minecraft.net/texture/abc")) return png.toByteArray();
+            if (url.startsWith("https://mc-heads.net/")) throw new IOException("HTTP 503");
+            if (url.equals("https://crafatar.com/avatars/0123456789abcdef0123456789abcdef?size=8&overlay")) return png.toByteArray();
             throw new IOException("unexpected " + url);
         });
         int[] face = faces.face("01234567-89ab-cdef-0123-456789abcdef");
-        check(face != null && face.length == 64 && face[0] == 0xffff0000 && face[1] == 0xff336699, "face with its hat");
-        check(fetched.size() == 2 && fetched.get(1).startsWith("https://"), "skins are fetched over HTTPS: " + fetched);
+        check(face != null && face.length == 64 && face[0] == 0xffff0000 && face[1] == 0xff336699, "a 16px avatar keeps its pixels");
+        check(fetched.size() == 2 && fetched.get(0).startsWith("https://mc-heads.net/avatar/0123456789abcdef0123456789abcdef"),
+                "mc-heads.net first, then Crafatar: " + fetched);
         check(faces.face("0123456789abcdef0123456789abcdef")[1] == 0xff336699 && fetched.size() == 2, "the cached face is reused");
-        check(SkinFaces.skinUrl("{\"properties\":[{\"name\":\"textures\",\"value\":\"" + java.util.Base64.getEncoder()
-                .encodeToString("{\"textures\":{\"SKIN\":{\"url\":\"https://evil.example/x\"}}}".getBytes(StandardCharsets.UTF_8))
-                + "\"}]}") == null, "skins only from textures.minecraft.net");
+        check(faces.face("not a uuid") == null, "only account UUIDs are looked up");
     }
 
     /** An instance's own arguments: split like a shell, kept with the instance, never over what is managed. */
