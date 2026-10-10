@@ -41,6 +41,22 @@ public final class LoaderStartupTest {
         InstallContinuation.recover(home,runner);
         ForgeProfilesTest.fails(() -> InstallContinuation.consume(home,java.util.UUID.randomUUID().toString()));
         ForgeProfilesTest.check(InstallContinuation.consume(home,intent) == null,"stale intent discarded");
+        InstallContinuation.Request request = InstallContinuation.Request.instance("My NeoForge game");
+        intent = InstallContinuation.prepare(config,game,VersionStore.Loader.NEOFORGE,"21.1.172",new Runtimes.Runtime(root.resolve("jdk21"),21),request);
+        InstallContinuation.recover(home,runner);
+        ForgeProfilesTest.check(InstallContinuation.consume(home,intent).request().instanceName().equals("My NeoForge game"),"instance operation survives restart");
+        Path archive = home.resolve("cache/packs/test.mrpack"); Files.createDirectories(archive.getParent());
+        try (java.util.zip.ZipOutputStream zip = new java.util.zip.ZipOutputStream(Files.newOutputStream(archive))) {
+            zip.putNextEntry(new java.util.zip.ZipEntry("modrinth.index.json"));
+            zip.write("{\"formatVersion\":1,\"game\":\"minecraft\",\"name\":\"Pack\",\"versionId\":\"1\",\"dependencies\":{\"minecraft\":\"1.21.1\",\"neoforge\":\"21.1.172\"},\"files\":[]}".getBytes(java.nio.charset.StandardCharsets.UTF_8)); zip.closeEntry();
+        }
+        intent = InstallContinuation.prepare(config,game,VersionStore.Loader.NEOFORGE,"21.1.172",new Runtimes.Runtime(root.resolve("jdk21"),21),InstallContinuation.Request.pack("My pack",archive));
+        InstallContinuation.recover(home,runner);
+        InstallContinuation.Pending pending = InstallContinuation.consume(home,intent);
+        Path fakeProfile = metadata;
+        InstallContinuation.finish(config,pending,fakeProfile,new InstanceStore.Operation());
+        ForgeProfilesTest.check(config.selectedInstance().name().equals("My pack"),"pack operation resumes and selects instance");
+        ForgeProfilesTest.check(!Files.exists(archive),"resumed archive cleaned up");
         System.out.println("Loader startup tests passed");
     }
 }

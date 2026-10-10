@@ -52,7 +52,9 @@ public final class Launcher {
                 InstanceStore.Operation op = new InstanceStore.Operation();
                 VersionStore.Installed installed = config.versions.install(installation.game(),installation.loader(),installation.loaderVersion(),op,true);
                 config.ensureLoaderRuntime(installed.java(),op::progress);
-                notice = installed.title() + " installed. Choose it when creating your instance.";
+                InstallContinuation.finish(config,installation,installed.gameProfile(),op);
+                notice = installation.request().instanceName().isEmpty() ? installed.title() + " installed."
+                        : "Installed " + config.selectedInstance().name() + ". Ready to play.";
             }
             LaunchRequest request = new LaunchPreparation(config).consume(installation != null ? null : intent);
             if (request != null) {

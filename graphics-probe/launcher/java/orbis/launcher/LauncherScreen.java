@@ -50,6 +50,7 @@ class LauncherScreen {
     private boolean[][] shareQr;
     private final Renderer r;
     private final Input input = new Input();
+    private final ThreadLocal<InstallContinuation.Request> installationRequest = new ThreadLocal<>();
     private final ExecutorService worker = Executors.newSingleThreadExecutor(task -> {
         Thread t = new Thread(task, "launcher worker");
         t.setDaemon(true);
@@ -510,7 +511,11 @@ class LauncherScreen {
                     pendingVersion = null;
                     go(Page.INSTANCES, -1);
                     startInstanceOperation("Creating instance...", new InstanceStore.Operation(),
-                            op -> config.instances.create(value, profileFor(version, loader, op), op));
+                            op -> {
+                                installationRequest.set(InstallContinuation.Request.instance(value));
+                                try { return config.instances.create(value, profileFor(version, loader, op), op); }
+                                finally { installationRequest.remove(); }
+                            });
                 } else {
                     pendingCloneName = value;
                     cloneOptions = true;
@@ -1107,17 +1112,23 @@ class LauncherScreen {
         } catch (ForgeInstaller.NeedsRuntime needed) {
             config.ensureLoaderRuntime(needed.java,op::progress);
             op.check();
-            String intent = InstallContinuation.prepare(config,version,loader,needed.build,LoaderLaunch.runtime(config.runtimes,needed.java));
+            String intent = InstallContinuation.prepare(config,version,loader,needed.build,LoaderLaunch.runtime(config.runtimes,needed.java),
+                    installationRequest.get()==null ? InstallContinuation.Request.version() : installationRequest.get());
             results.add(() -> {
                 busy = false;
                 setStatus("Restarting to finish " + loader.title + " installation...",DIM);
                 presentNow();
+                if (op.cancelled()) {
+                    try { InstallContinuation.discard(config.home,config.runnerRoot); }
+                    catch (IOException failed) { setStatus("Cannot restore settings: " + failed.getMessage(),ERROR); return; }
+                    setStatus("Installation cancelled.",WARN); return;
+                }
                 int error = relaunch(intent);
-                try { InstallContinuation.recover(config.home,config.runnerRoot); InstallContinuation.consume(config.home,"discard"); }
-                catch (IOException recovery) { /* Recovery consumed the pending request. */ }
+                try { InstallContinuation.discard(config.home,config.runnerRoot); }
+                catch (IOException recovery) { setStatus("Installation restart failed; cannot restore settings: " + recovery.getMessage(),ERROR); return; }
                 setStatus(String.format("Installation restart failed (0x%08x)",error),ERROR);
             });
-            throw new IOException("Restart required to finish loader installation");
+            throw new InstallContinuation.RestartRequired();
         }
     }
 
@@ -1713,7 +1724,7 @@ class LauncherScreen {
             ModrinthClient.VersionInfo v = version;
             if (v == null) {
                 List<ModrinthClient.VersionInfo> compatible = client.projectVersions(hit.projectId(), ModrinthClient.Type.MODPACK, true);
-                if (compatible.isEmpty()) throw new IOException("no version of this pack runs Fabric or Quilt on Minecraft 1.14 to "
+                if (compatible.isEmpty()) throw new IOException("no compatible version of this pack runs on Minecraft 1.14 to "
                         + VersionStore.newest());
                 v = compatible.get(0);
             }
@@ -1767,9 +1778,13 @@ class LauncherScreen {
         worker.execute(() -> {
             PackInstaller.Installed done = null;
             Exception error = null;
-            try { done = packs.install(chosenPack, chosenPack.name(), operation); }
+            boolean restarting=false;
+            try {
+                installationRequest.set(InstallContinuation.Request.pack(chosenPack.name(),chosenPack.archive()));
+                done = packs.install(chosenPack, chosenPack.name(), operation);
+            } catch (InstallContinuation.RestartRequired needed) { restarting=true; error=needed; }
             catch (Exception failure) { error = failure; }
-            finally { deleteArchive(chosenPack); }
+            finally { installationRequest.remove(); if (!restarting) deleteArchive(chosenPack); }
             // The pack's own icon becomes the instance's; without it the instance shows the block.
             if (done != null && packIcon != null && !packIcon.isEmpty()) {
                 try { config.instances.setIcon(done.instance().id(), modrinth.fetchPublic(packIcon)); }

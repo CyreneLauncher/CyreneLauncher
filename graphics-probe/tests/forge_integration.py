@@ -10,6 +10,19 @@ REPO = ROOT.parent
 sys.path.insert(0, str(ROOT / 'tools'))
 import launcher_deps
 
+def bootstrap_reached(text, main_class):
+    # The probe requires successful discovery and entry into Minecraft, never a logger name.
+    failures = ('NoSuchMethodError', 'NoClassDefFoundError', 'ClassNotFoundException',
+                'UnsupportedClassVersionError', 'LayerInstantiationException', 'ResolutionException')
+    if any(failure in text for failure in failures):
+        return False
+    entered = 'BOOTSTRAP ENTRY '+main_class in text
+    target = "Launching target 'forgeclient'" in text or "Launching target 'forge_client'" in text
+    modern_neo = (main_class == 'net.neoforged.fml.startup.Client'
+                  and 'Built game content classloader in ' in text
+                  and 'Datafixer optimizations took ' in text)
+    return entered and (target or modern_neo)
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--install', action='store_true')
@@ -28,7 +41,9 @@ def main():
     cp = ':'.join(map(str,jars))
     sources = sorted((ROOT / 'launcher/java').rglob('*.java'))
     sources += [ROOT / 'tests/launcher/orbis/launcher/ForgeIntegration.java']
-    sources += [REPO / 'orbis-java-app/src/runner/RunnerSystemClassLoader.java']
+    sources += [REPO / 'orbis-java-app/src/runner/RunnerSystemClassLoader.java',
+                REPO / 'orbis-java-app/src/runner/lwjgl/JsonReader.java',
+                REPO / 'orbis-java-app/src/runner/lwjgl/LaunchPlanException.java']
     bootstrap = ROOT / 'tests/launcher/orbis/launcher/ForgeBootstrap.java'
     if bootstrap.exists(): sources += [bootstrap]
     subprocess.run([str(jdk17 / 'bin/javac'),'--release','17','-Xlint:all','-Werror','-cp',cp,
@@ -57,7 +72,7 @@ def main():
             native_options = [x.replace('--module-path=','-Dorbis.loader.modulePath=').replace('--add-modules=','-Dorbis.loader.addModules=') for x in installed['jvm']]
             options_file = opts.root / (label+'-jni-options.txt')
             options_file.write_text('\n'.join(native_options)+'\n')
-            command = [str(executable),str(options_file),str(classes)+':'+str(gson),str(profile_path.with_name('client.jar')),
+            command = [str(executable),str(options_file),str(classes),str(profile_path.with_name('client.jar')),
                        str(profile_path),str(opts.root/'libraries'),str(game_dir)]
             log_path = opts.root / (label+'-bootstrap.log')
             with log_path.open('w') as log:
@@ -67,9 +82,7 @@ def main():
                     deadline = time.monotonic()+90
                     while time.monotonic() < deadline:
                         text = log_path.read_text(errors='replace')
-                        reached = 'BOOTSTRAP ENTRY '+installed['mainClass'] in text and (
-                            "Launching target 'forgeclient'" in text or "Launching target 'forge_client'" in text
-                            or (installed['mainClass']=='net.neoforged.fml.startup.Client' and 'net.neoforged.fml.ModLoader' in text))
+                        reached = bootstrap_reached(text,installed['mainClass'])
                         if reached or process.poll() is not None: break
                         time.sleep(0.5)
                 finally:

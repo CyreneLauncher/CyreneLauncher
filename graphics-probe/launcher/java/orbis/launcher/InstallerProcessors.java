@@ -23,6 +23,12 @@ import com.google.gson.JsonObject;
 final class InstallerProcessors {
     private static final Pattern TOKEN = Pattern.compile("\\{([A-Z0-9_]+)}");
     private InstallerProcessors() { }
+    static final class RuntimeRequired extends IOException {
+        private static final long serialVersionUID = 1L;
+        final int java;
+        RuntimeRequired(int java, Throwable cause) { super("Patch tools require Java " + java,cause); this.java=java; }
+    }
+
 
     static String resolve(String text, Map<String,String> data, Path libraries) throws IOException {
         if (text.startsWith("[") && text.endsWith("]"))
@@ -81,6 +87,13 @@ final class InstallerProcessors {
                 Thread.currentThread().setContextClassLoader(loader);
                 Class.forName(main,true,loader).getMethod("main",String[].class).invoke(null,(Object)args.toArray(String[]::new));
             } catch (ReflectiveOperationException | LinkageError failure) {
+                // Reflection wraps failures from a dependency reached inside the processor main.
+                for (Throwable cause=failure; cause != null; cause=cause.getCause()) {
+                    if (cause instanceof UnsupportedClassVersionError) {
+                        Matcher version = Pattern.compile("class file version ([0-9]+)\\.[0-9]+").matcher(String.valueOf(cause.getMessage()));
+                        if (version.find()) throw new RuntimeRequired(Integer.parseInt(version.group(1))-44,failure);
+                    }
+                }
                 throw new IOException("Minecraft patching failed at step " + count, failure);
             } finally { Thread.currentThread().setContextClassLoader(previous); }
             op.check();

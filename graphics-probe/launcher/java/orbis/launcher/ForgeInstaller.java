@@ -147,7 +147,8 @@ final class ForgeInstaller {
                 int needed = processorJava(libraries.resolve(mavenPath(processor.get("jar").getAsString())));
                 if (needed > Runtime.version().feature()) throw new NeedsRuntime(needed,build);
             }
-            InstallerProcessors.run(install,libraries,data,op);
+            try { InstallerProcessors.run(install,libraries,data,op); }
+            catch (InstallerProcessors.RuntimeRequired newer) { throw new NeedsRuntime(newer.java,build); }
             // Recent profiles declare the processor-generated client as a runtime artifact with an empty URL.
             for (com.google.gson.JsonElement entry : profile.getAsJsonArray("libraries")) download(entry.getAsJsonObject(),libraries,zip);
             com.google.gson.JsonArray generated = new com.google.gson.JsonArray();

@@ -89,7 +89,7 @@ The current version browser offers releases from **1.14 through 26.3**, subject 
 
 The launcher chooses Java automatically. Games that need Java 21 or 25 download that runtime on first use, so their first installation or launch can take longer. Shared libraries and assets are reused across instances.
 
-Forge and NeoForge installation also patches Minecraft. This takes longer than installing Fabric or Quilt. Keep the console running until the progress finishes. If installation is interrupted, retry; the launcher reuses verified downloads. Some installer tools need a newer Java runtime themselves. The launcher may restart to finish that installation, then return to the menu so you can create your instance using the installed version.
+Forge and NeoForge installation also patches Minecraft. This takes longer than installing Fabric or Quilt. Keep the console running until the progress finishes. If installation is interrupted, retry; the launcher reuses verified downloads. Some installer tools need a newer Java runtime themselves. The launcher may restart to finish that installation, then finish creating your instance or installing your modpack and return to the menu.
 
 Use mods made for your chosen loader: a Forge mod is not automatically a NeoForge mod. Packs retain the exact Forge/NeoForge build they request. Their games use the matching Java major version, and the launcher disables the loader's separate early-loading window so Minecraft owns the console display.
 

@@ -8,6 +8,16 @@ ROOT = Path(__file__).resolve().parents[1]
 JDK = Path(os.environ.get('BOOT_JDK17', '/usr/lib/jvm/java-17-openjdk-amd64')) / 'bin'
 
 class ForgeNeoForge(unittest.TestCase):
+    def test_bootstrap_requires_successful_game_handoff(self):
+        import forge_integration
+        neo = 'net.neoforged.fml.startup.Client'
+        prefix = 'BOOTSTRAP ENTRY '+neo+'\n'
+        self.assertFalse(forge_integration.bootstrap_reached(prefix+'net.neoforged.fml.ModLoader\nNoSuchMethodError', neo))
+        self.assertFalse(forge_integration.bootstrap_reached(prefix+'net.neoforged.fml.ModLoader', neo))
+        milestone = prefix+'Built game content classloader in 90ms\n290 Datafixer optimizations took 100 milliseconds'
+        self.assertTrue(forge_integration.bootstrap_reached(milestone, neo))
+        self.assertFalse(forge_integration.bootstrap_reached(milestone+'\nNoSuchMethodError', neo))
+
     def test_profiles_and_processors(self):
         import sys
         sys.path.insert(0, str(ROOT / 'tools'))

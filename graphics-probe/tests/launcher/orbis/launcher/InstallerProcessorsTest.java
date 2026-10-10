@@ -50,6 +50,18 @@ public final class InstallerProcessorsTest {
             ForgeProfilesTest.fails(() -> ForgeInstaller.resource(zip,"absent",100));
         }
         ForgeProfilesTest.fails(() -> ForgeInstaller.confined(root,"../escape"));
+        // A Java-17 processor can encounter a Java-21 dependency only after entering main.
+        Files.writeString(src, "public class Processor { public static void main(String[] args) throws Exception { Class.forName(\"Helper\"); } }");
+        Path helper = root.resolve("Helper.java"); Files.writeString(helper,"public class Helper { }");
+        ForgeProfilesTest.check(ToolProvider.getSystemJavaCompiler().run(null,null,null,"--release","17","-d",root.toString(),src.toString(),helper.toString()) == 0,"dependency fixture compiles");
+        byte[] newer = Files.readAllBytes(root.resolve("Helper.class")); newer[6]=0; newer[7]=65;
+        try (JarOutputStream jar = new JarOutputStream(Files.newOutputStream(libs.resolve("test/processor/1/processor-1.jar")),mf)) {
+            jar.putNextEntry(new JarEntry("Processor.class")); jar.write(Files.readAllBytes(root.resolve("Processor.class"))); jar.closeEntry();
+            jar.putNextEntry(new JarEntry("Helper.class")); jar.write(newer); jar.closeEntry();
+        }
+        try { InstallerProcessors.run(failing,libs,Map.of(),new InstanceStore.Operation()); throw new AssertionError("dependency requires newer JVM"); }
+        catch (InstallerProcessors.RuntimeRequired required) { ForgeProfilesTest.check(required.java == 21,"dependency continuation Java 21"); }
+        ForgeProfilesTest.check(Thread.currentThread().getContextClassLoader() == before,"context restored on newer dependency");
         System.out.println("Installer processor tests passed");
     }
 }
