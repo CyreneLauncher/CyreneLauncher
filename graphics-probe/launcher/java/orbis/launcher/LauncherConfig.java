@@ -138,7 +138,7 @@ final class LauncherConfig {
      * Downloads, or updates from the runtime release, the runtime a version needing Java required starts
      * on. The packaged default needs nothing; an installed runtime is kept when the release is unreachable.
      */
-    void ensureRuntime(int required, java.util.function.Consumer<String> progress) throws IOException {
+    void ensureRuntime(int required, RuntimeInstaller.Progress progress) throws IOException {
         if (runtimes.fallback.feature() >= required) return;
         int feature = RuntimeInstaller.downloadable(required);
         if (feature < 0) throw new IOException("No Java runtime provides Java " + required);
@@ -176,7 +176,7 @@ final class LauncherConfig {
     /** What an instance runs, for display. */
     String describe(InstanceStore.Instance instance) {
         VersionStore.Installed version = installed(instance);
-        if (version == null && launcherOnly) return "No game installed";
+        if (version == null && launcherOnly) return "Latest Minecraft, installed when you press Play";
         return version != null ? version.title()
                 : "Minecraft " + builtInGameVersion() + (loaderVersion.isEmpty() ? "" : "  Fabric " + loaderVersion);
     }

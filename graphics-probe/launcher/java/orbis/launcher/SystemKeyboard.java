@@ -7,8 +7,14 @@ final class SystemKeyboard implements AutoCloseable {
     private boolean active, cancelling;
 
     boolean begin(String initial, String title, int maxLength) {
+        return begin(initial, title, maxLength, false);
+    }
+
+    /** multiline: the system's multi-line field, where Enter starts a new line. */
+    boolean begin(String initial, String title, int maxLength, boolean multiline) {
         if (active) throw new IllegalStateException("The previous text dialog is still closing");
-        int error = NativePlatform.nImeBegin(initial, title, maxLength);
+        int error = multiline ? NativePlatform.nImeBeginOptions(initial, title, maxLength, true, 0)
+                : NativePlatform.nImeBegin(initial, title, maxLength);
         if (error < 0) throw new IllegalStateException(NativePlatform.nLastError());
         active = true;
         cancelling = false;

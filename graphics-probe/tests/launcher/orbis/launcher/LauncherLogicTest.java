@@ -30,6 +30,7 @@ public final class LauncherLogicTest {
         ownershipAndAssets();
         runtimeDownload();
         instanceArguments();
+        skinFaces();
         check(LauncherScreen.consoleMode("pro")[0].contains("Pro mode")
                 && LauncherScreen.consoleMode("pro-base")[0].contains("Boost Mode")
                 && LauncherScreen.consoleMode("base")[0].startsWith("PS4 ")
@@ -220,6 +221,28 @@ public final class LauncherLogicTest {
                 "direct installed runtime homes discovered without release-desktop");
     }
 
+    /** The account widget's face from a public avatar service, with a fallback, cached for offline starts. */
+    private static void skinFaces() throws IOException {
+        java.awt.image.BufferedImage avatar = new java.awt.image.BufferedImage(16, 16, java.awt.image.BufferedImage.TYPE_INT_ARGB);
+        for (int y = 0; y < 16; y++) for (int x = 0; x < 16; x++) avatar.setRGB(x, y, x < 2 && y < 2 ? 0xffff0000 : 0xff336699);
+        java.io.ByteArrayOutputStream png = new java.io.ByteArrayOutputStream();
+        javax.imageio.ImageIO.write(avatar, "png", png);
+        List<String> fetched = new ArrayList<>();
+        Path cache = Files.createTempDirectory("skins");
+        SkinFaces faces = new SkinFaces(cache, (url, max) -> {
+            fetched.add(url);
+            if (url.startsWith("https://mc-heads.net/")) throw new IOException("HTTP 503");
+            if (url.equals("https://crafatar.com/avatars/0123456789abcdef0123456789abcdef?size=8&overlay")) return png.toByteArray();
+            throw new IOException("unexpected " + url);
+        });
+        int[] face = faces.face("01234567-89ab-cdef-0123-456789abcdef");
+        check(face != null && face.length == 64 && face[0] == 0xffff0000 && face[1] == 0xff336699, "a 16px avatar keeps its pixels");
+        check(fetched.size() == 2 && fetched.get(0).startsWith("https://mc-heads.net/avatar/0123456789abcdef0123456789abcdef"),
+                "mc-heads.net first, then Crafatar: " + fetched);
+        check(faces.face("0123456789abcdef0123456789abcdef")[1] == 0xff336699 && fetched.size() == 2, "the cached face is reused");
+        check(faces.face("not a uuid") == null, "only account UUIDs are looked up");
+    }
+
     /** An instance's own arguments: split like a shell, kept with the instance, never over what is managed. */
     private static void instanceArguments() throws IOException {
         check(InstanceArguments.split(" -XX:+UseG1GC  -Dname=\"a b\" \"\" ").equals(List.of("-XX:+UseG1GC", "-Dname=a b", "")),
@@ -271,30 +294,33 @@ public final class LauncherLogicTest {
         RuntimeInstaller installer = new RuntimeInstaller(root, url -> {
             byte[] data = release.get(url.substring(RuntimeInstaller.RELEASE.length()));
             if (data == null) throw new IOException("HTTP 404");
-            return new java.io.ByteArrayInputStream(data);
+            return new RuntimeInstaller.Opened(new java.io.ByteArrayInputStream(data), data.length);
         });
         List<String> progress = new ArrayList<>();
+        List<Double> fractions = new ArrayList<>();
+        RuntimeInstaller.Progress report = (text, done) -> { progress.add(text); fractions.add(done); };
         String asset = RuntimeInstaller.asset(21);
         byte[] first = runtimeArchive("jdk21", "21.0.11", false);
         try {
-            installer.ensure(21, progress::add);
+            installer.ensure(21, report);
             throw new AssertionError("no runtime without the release");
         } catch (IOException expected) {
             check(expected.getMessage().contains("must be downloaded"), expected.getMessage());
         }
         release.put(asset, first);
         release.put("SHA256SUMS", (sha256(first) + "  " + asset + "\n").getBytes(StandardCharsets.US_ASCII));
-        Path home = installer.ensure(21, progress::add);
+        Path home = installer.ensure(21, report);
         check(home.equals(root.resolve("jdk21")) && Runtimes.feature(home, -1) == 21, "Java 21 installed: " + home);
         check(Files.isRegularFile(home.resolve("legal/" + "x".repeat(120))), "PAX long names unpacked");
         check(progress.get(0).equals("Downloading Java 21..."), "progress shown: " + progress);
+        check(fractions.get(0) == 0 && fractions.stream().allMatch(f -> f <= 1.0001), "progress fractions: " + fractions);
         // The kernel refuses to load a PRX without execute access (EACCES 0xd on the console).
         check(Files.isExecutable(home.resolve("lib/server/libjvm.prx")), "unpacked modules are executable");
         home.resolve("lib/server/libjvm.prx").toFile().setExecutable(false, false);
-        installer.ensure(21, progress::add);
+        installer.ensure(21, report);
         check(Files.isExecutable(home.resolve("lib/server/libjvm.prx")), "an installed runtime's modules are repaired");
         progress.clear();
-        installer.ensure(21, progress::add);
+        installer.ensure(21, report);
         check(progress.isEmpty(), "an up-to-date runtime is not downloaded again: " + progress);
         Runtimes runtimes = Runtimes.discover(export(Files.createTempDirectory("packaged").resolve("jdk17"), "17.0.20"),
                 Path.of("/nonexistent"), root);
@@ -303,7 +329,7 @@ public final class LauncherLogicTest {
         byte[] second = runtimeArchive("jdk21", "21.0.12", false);
         release.put(asset, second);
         release.put("SHA256SUMS", (sha256(second) + "  " + asset + "\n").getBytes(StandardCharsets.US_ASCII));
-        installer.ensure(21, progress::add);
+        installer.ensure(21, report);
         check(Files.readString(home.resolve("release")).contains("21.0.12") && progress.get(0).startsWith("Updating"),
                 "a newer release replaces the runtime: " + progress);
         try (java.util.stream.Stream<Path> left = Files.list(root)) {
@@ -311,13 +337,13 @@ public final class LauncherLogicTest {
         }
 
         release.remove("SHA256SUMS");
-        check(installer.ensure(21, progress::add).equals(home), "offline keeps the installed runtime");
+        check(installer.ensure(21, report).equals(home), "offline keeps the installed runtime");
 
         byte[] corrupt = runtimeArchive("jdk21", "21.0.13", false);
         release.put(asset, corrupt);
         release.put("SHA256SUMS", ("0".repeat(64) + "  " + asset + "\n").getBytes(StandardCharsets.US_ASCII));
         try {
-            installer.ensure(21, progress::add);
+            installer.ensure(21, report);
             throw new AssertionError("a download that does not match its checksum must not install");
         } catch (IOException expected) {
             check(expected.getMessage().contains("checksum"), expected.getMessage());
@@ -328,7 +354,7 @@ public final class LauncherLogicTest {
         release.put(RuntimeInstaller.asset(25), escaping);
         release.put("SHA256SUMS", (sha256(escaping) + "  " + RuntimeInstaller.asset(25) + "\n").getBytes(StandardCharsets.US_ASCII));
         try {
-            installer.ensure(25, progress::add);
+            installer.ensure(25, report);
             throw new AssertionError("an archive writing outside its runtime must not install");
         } catch (IOException expected) {
             check(expected.getMessage().contains("Unsafe") || expected.getMessage().contains("Unexpected"), expected.getMessage());
@@ -390,7 +416,8 @@ public final class LauncherLogicTest {
         System.setProperty("orbis.launcher.gameMetadata", metadata.toString());
         System.setProperty("user.dir", game.toString());
         LauncherConfig config = LauncherConfig.load();
-        check(config.describe(config.selectedInstance()).equals("No game installed"), "fresh install has no built-in Minecraft");
+        check(config.describe(config.selectedInstance()).startsWith("Latest Minecraft")
+                && config.selectedInstance().name().equals("Latest"), "a fresh install's instance installs the latest game on Play");
         try {
             new LaunchPreparation(config).prepare(config.selectedInstance(), "offline-test");
             throw new AssertionError("launcher bootstrap must never be launched as a game");
@@ -699,7 +726,7 @@ public final class LauncherLogicTest {
                     "image crop stays inside the texture");
         }
         int textures;
-        @Override int upload(int w, int h, java.nio.ByteBuffer rgba) {
+        @Override int upload(int w, int h, java.nio.ByteBuffer rgba, boolean nearest) {
             check(rgba.remaining() == w * h * 4, "upload size matches");
             return ++textures;
         }
@@ -894,6 +921,10 @@ public final class LauncherLogicTest {
             this.packs = packs;
         }
 
+        @Override protected SkinFaces.Source skinSource() {
+            return (url, max) -> { throw new IOException("offline"); };
+        }
+
         @Override protected byte[] fetchPackFile(String url, long max) throws IOException {
             check(url.startsWith("https://cdn.modrinth.com/"), "pack files only from allowed hosts: " + url);
             packFetches++;
@@ -928,7 +959,7 @@ public final class LauncherLogicTest {
         @Override void presentNow() {}
         @Override void closeWindow() { closes++; }
         /** No system dialog on the host: editing stays inline. */
-        @Override protected boolean beginSystemKeyboard(String title, int maxLength) { return false; }
+        @Override protected boolean beginSystemKeyboard(String title, int maxLength, boolean multiline) { return false; }
 
         /** The next start consumes the request; only the imported instance's directory is the host's cwd. */
         @Override int relaunch(String intent) {

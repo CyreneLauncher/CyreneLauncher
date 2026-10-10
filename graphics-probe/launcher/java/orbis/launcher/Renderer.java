@@ -136,11 +136,16 @@ class Renderer {
 
     /** Uploads RGBA pixels as a linearly filtered texture; returns its id for {@link #image}. */
     int upload(int w, int h, ByteBuffer rgba) {
+        return upload(w, h, rgba, false);
+    }
+
+    /** nearest keeps pixel art's pixels sharp when it is drawn large (a skin's face). */
+    int upload(int w, int h, ByteBuffer rgba, boolean nearest) {
         flush();
         int id = glGenTextures();
         glBindTexture(GL_TEXTURE_2D, id);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, nearest ? GL_NEAREST : GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, nearest ? GL_NEAREST : GL_LINEAR);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
         glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
@@ -346,6 +351,13 @@ class Renderer {
         float w = 0;
         for (int i = 0; i < text.length(); i++) w += glyphWidth[glyph(text.charAt(i))] * scale;
         return w;
+    }
+
+    /** The end of text that fits maxWidth, for a field whose newest characters matter (no ellipsis). */
+    String fitEnd(String text, float maxWidth, float scale) {
+        int start = 0;
+        while (start < text.length() && width(text.substring(start), scale) > maxWidth) start++;
+        return text.substring(start);
     }
 
     /** Text cut with "..." to fit maxWidth. */
