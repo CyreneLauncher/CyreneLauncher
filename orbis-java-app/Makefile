@@ -85,10 +85,12 @@ $(STAGE)/runner/README.txt: $(PROJECT_DIR)/defaults/README.txt
 	mkdir -p $(dir $@)
 	cp $< $@
 runner: $(STAGE)/eboot.bin $(STAGE)/app.jar $(STAGE)/runner/README.txt
-$(STAGE)/sce_sys/param.sfo: $(BUILD)/settings
+# Cyrene Launcher's home-screen icon: 512x512 RGB PNG, the format of the SDK sample it replaces.
+$(STAGE)/sce_sys/icon0.png: $(PROJECT_DIR)/resources/sce_sys/icon0.png
+	mkdir -p $(dir $@)
+	cp $< $@
+$(STAGE)/sce_sys/param.sfo: $(BUILD)/settings $(STAGE)/sce_sys/icon0.png
 	mkdir -p $(STAGE)/sce_sys/about $(STAGE)/sce_module
-	cp $(TOOLCHAIN)/samples/hello_world/sce_sys/icon0.png \
-		$(STAGE)/sce_sys/icon0.png
 	cp $(TOOLCHAIN)/samples/hello_world/sce_sys/about/right.sprx \
 		$(STAGE)/sce_sys/about/right.sprx
 	cp $(TOOLCHAIN)/samples/hello_world/sce_module/libc.prx \
