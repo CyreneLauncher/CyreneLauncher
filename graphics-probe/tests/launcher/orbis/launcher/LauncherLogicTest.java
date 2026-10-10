@@ -945,6 +945,12 @@ public final class LauncherLogicTest {
             return (url, max) -> { throw new IOException("offline"); };
         }
 
+        @Override protected byte[] fetchVerifiedPackFile(String url, String sha1, long size, long max) throws IOException {
+            byte[] data = fetchPackFile(url, max);
+            if (data.length != size || !ModrinthClient.sha1(data).equals(sha1)) throw new IOException("Test pack hash/size mismatch");
+            return data;
+        }
+
         @Override protected byte[] fetchPackFile(String url, long max) throws IOException {
             check(url.startsWith("https://cdn.modrinth.com/"), "pack files only from allowed hosts: " + url);
             packFetches++;
@@ -1057,6 +1063,19 @@ public final class LauncherLogicTest {
             check(new AccountStore(config.home, config.runnerRoot).list().size() == 1, "account screen removes an offline profile");
             screen.apply("", List.of(Input.Action.BACK));
         }
+
+        java.io.ByteArrayOutputStream packBytes = new java.io.ByteArrayOutputStream();
+        try (java.util.zip.ZipOutputStream zip = new java.util.zip.ZipOutputStream(packBytes)) {
+            zip.putNextEntry(new java.util.zip.ZipEntry("modrinth.index.json"));
+            zip.write("{\"formatVersion\":1,\"game\":\"minecraft\",\"versionId\":\"test\",\"name\":\"test\",\"dependencies\":{\"minecraft\":\"1.18.2\",\"fabric-loader\":\"0.14.9.5\"},\"files\":[]}".getBytes(StandardCharsets.UTF_8));
+            zip.closeEntry();
+        }
+        byte[] archiveBytes = packBytes.toByteArray();
+        String packUrl = "https://cdn.modrinth.com/test-download-seam.mrpack";
+        packs.files.put(packUrl, archiveBytes);
+        screen.packInstaller().download(new ModrinthClient.ModFile(packUrl, "test.mrpack", ModrinthClient.sha1(archiveBytes), archiveBytes.length),
+                root.resolve("pack-test"), new InstanceStore.Operation());
+        check(screen.packFetches == 1, "verified modpack downloads retain the host network seam");
 
         Files.createDirectories(game.getParent().resolve("logs"));
         Files.writeString(game.getParent().resolve("logs/latest.log"), "Crash detail\n--accessToken ui-secret\n");

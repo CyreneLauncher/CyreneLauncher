@@ -1778,11 +1778,15 @@ class LauncherScreen {
         return VersionStore.fetch(url, max);
     }
 
+    protected byte[] fetchVerifiedPackFile(String url, String sha1, long size, long max) throws IOException {
+        return DownloadCache.bytes(config.home.resolve("cache/downloads"), url, "SHA-1", sha1, size, max);
+    }
+
     PackInstaller packInstaller() {
         return new PackInstaller(new PackInstaller.Source() {
             @Override public byte[] fetch(String url, long max) throws IOException { return fetchPackFile(url, max); }
             @Override public byte[] verified(String url, String sha1, long size, long max) throws IOException {
-                return DownloadCache.bytes(config.home.resolve("cache/downloads"), url, "SHA-1", sha1, size, max);
+                return fetchVerifiedPackFile(url, sha1, size, max);
             }
         }, this::packProfile, config.instances);
     }
