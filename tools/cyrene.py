@@ -166,6 +166,87 @@ def jdks(args, runner):
                '--sdk',args.sdk,'--toolchain',args.toolchain,'--jobs',str(args.jobs))
 
 
+RUNTIMES_LOCK = ROOT/'tools/runtimes.lock.json'
+RUNTIME_VERSIONS = ('17','21','25')
+
+
+def runtime_tag(revision):
+    return 'jdk-'+revision[:12]
+
+
+def runtime_release(require_pinned=True):
+    lock=json.loads(RUNTIMES_LOCK.read_text())
+    revision=json.loads((ROOT/'repositories.lock.json').read_text())['components']['orbis-openjdk']['revision']
+    if lock.get('schema')!=1 or set(lock.get('assets',{}))!=set(RUNTIME_VERSIONS):
+        raise ValueError('Unsupported runtime lock: '+str(RUNTIMES_LOCK))
+    if require_pinned:
+        import re
+        if lock.get('revision')!=revision or lock.get('tag')!=runtime_tag(revision):
+            raise ValueError('Runtime release is not pinned for orbis-openjdk '+revision+'; publish its runtimes and run ./orbis pin-jdks')
+        for version,item in lock['assets'].items():
+            if not re.fullmatch(r'[0-9a-f]{64}',item.get('sha256') or ''):
+                raise ValueError('Runtime release has no SHA-256 for JDK '+version+'; run ./orbis pin-jdks')
+    return lock
+
+
+def extract_runtime(archive, version, destination):
+    prefix='jdk'+version
+    with tarfile.open(archive,'r:xz') as source:
+        for member in source.getmembers():
+            path=Path(member.name)
+            if path.is_absolute() or '..' in path.parts or path.parts[:1]!=(prefix,) or not (member.isfile() or member.isdir()):
+                raise ValueError('Unsafe runtime archive member: '+member.name)
+        source.extractall(destination,filter='data')
+    return Path(destination)/prefix
+
+
+def fetch_jdks(args):
+    lock=runtime_release()
+    versions_lock=WORK/'orbis-openjdk/versions.lock.json'
+    expected=json.loads(versions_lock.read_text())['versions']
+    libc=digest(args.toolchain/'lib/libc.a')
+    output=WORK/'orbis-openjdk/output'
+    for version in (RUNTIME_VERSIONS if args.jdk=='all' else (args.jdk,)):
+        target=output/('jdk'+version)
+        if target.exists():
+            verify_jdk(target,expected[version],digest(versions_lock),libc)
+            print(f'JDK {version}: reusing completed export with matching lock and libc')
+            continue
+        item=lock['assets'][version]
+        if args.from_dir:
+            archive=args.from_dir/item['name']
+            if digest(archive)!=item['sha256']:raise ValueError('Runtime release hash mismatch: '+str(archive))
+        else:
+            archive=ROOT/'dist/runtime-downloads'/lock['tag']/item['name']
+            fetch(f"https://github.com/{lock['repository']}/releases/download/{lock['tag']}/{item['name']}",archive,'sha256',item['sha256'])
+        output.mkdir(parents=True,exist_ok=True)
+        with tempfile.TemporaryDirectory(prefix='.cyrene-runtime-',dir=output) as d:
+            staged=extract_runtime(archive,version,d)
+            verify_jdk(staged,expected[version],digest(versions_lock),libc)
+            shutil.move(staged,target)
+        print(f'JDK {version}: installed {lock["tag"]}/{item["name"]}')
+
+
+def pin_jdks(args):
+    if args.check:
+        runtime_release();print('Runtime release pin matches orbis-openjdk');return
+    lock=runtime_release(require_pinned=False)
+    revision=json.loads((ROOT/'repositories.lock.json').read_text())['components']['orbis-openjdk']['revision']
+    tag=runtime_tag(revision)
+    if args.from_dir:
+        sums=(args.from_dir/'SHA256SUMS').read_text()
+    else:
+        with urllib.request.urlopen(f"https://github.com/{lock['repository']}/releases/download/{tag}/SHA256SUMS") as response:
+            sums=response.read().decode()
+    recorded={name.lstrip('*'):sha for sha,name in (line.split() for line in sums.splitlines() if line.strip())}
+    for version,item in lock['assets'].items():
+        if item['name'] not in recorded:raise ValueError('Release '+tag+' has no '+item['name'])
+        item['sha256']=recorded[item['name']]
+    lock['revision'],lock['tag']=revision,tag
+    RUNTIMES_LOCK.write_text(json.dumps(lock,indent=2)+'\n')
+    print('Pinned runtime release '+tag)
+
+
 def native(args, runner):
     tools = GP/'tools'; build = GP/'build'
     if not (build/'deps/clean/bootstrap-manifest.json').exists():
@@ -341,8 +422,10 @@ def import_artifacts(args):
 
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('command',choices=['doctor','bootstrap','build','jdks','native','assets','launcher','seal','package','export','import'])
-    parser.add_argument('--jdk',choices=['all','17','21','25'],default='all',help='Select one runtime for the jdks command')
+    parser.add_argument('command',choices=['doctor','bootstrap','build','jdks','fetch-jdks','pin-jdks','native','assets','launcher','seal','package','export','import'])
+    parser.add_argument('--jdk',choices=['all','17','21','25'],default='all',help='Select one runtime for the jdks or fetch-jdks command')
+    parser.add_argument('--from',dest='from_dir',type=Path,help='Directory holding already downloaded runtime release assets')
+    parser.add_argument('--check',action='store_true',help='With pin-jdks: only verify the existing pin')
     parser.add_argument('--sdk',type=Path,default=Path(os.environ.get('ORBIS_SDK') or '/home/wonder/ps4-payload-sdk'))
     parser.add_argument('--toolchain',type=Path,default=Path(os.environ.get('PS4_TOOLCHAIN') or '/home/wonder/PS4Toolchain'))
     parser.add_argument('--pkgtool',type=Path,default=Path(os.environ.get('PKGTOOL') or '/home/wonder/pkgtool-net8/PkgTool.Core.dll'))
@@ -351,7 +434,7 @@ def main():
     parser.add_argument('--version',default='01.06')
     parser.add_argument('--archive',type=Path,default=ROOT/'dist/cyrene-components.tar.gz')
     args=parser.parse_args()
-    if args.jdk != 'all' and args.command != 'jdks':parser.error('--jdk is only supported by the jdks command')
+    if args.jdk != 'all' and args.command not in ('jdks','fetch-jdks'):parser.error('--jdk is only supported by the jdks and fetch-jdks commands')
     import re
     if args.jobs<1 or not re.fullmatch(r'\d{2}\.\d{2}',args.version):parser.error('Use positive jobs and a PS4 version such as 01.06')
     runner=Runner(ROOT/'build-logs')
@@ -361,10 +444,13 @@ def main():
         elif args.command=='export':artifacts(args)
         elif args.command=='import':bootstrap(runner);import_artifacts(args)
         elif args.command=='seal':bootstrap(runner);record_components(args)
+        elif args.command=='pin-jdks':pin_jdks(args)
+        elif args.command=='fetch-jdks':bootstrap(runner);fetch_jdks(args)
         else:
-            versions=((17,21,25) if args.jdk=='all' else (int(args.jdk),)) if args.command in ('build','jdks') else ((17,) if args.command=='native' else (17,25))
+            versions=((17,21,25) if args.jdk=='all' else (int(args.jdk),)) if args.command=='jdks' else ((17,) if args.command=='native' else (17,25))
             doctor(args,versions);bootstrap(runner);dependencies(runner)
-            if args.command in ('build','jdks'):jdks(args,runner)
+            if args.command=='jdks':jdks(args,runner)
+            if args.command=='build':fetch_jdks(args)
             if args.command in ('build','native','assets'):native(args,runner)
             if args.command in ('build','launcher','assets'):
                 launcher(args,runner)

@@ -16,6 +16,61 @@ spec = importlib.util.spec_from_file_location('cyrene', Path(__file__).parents[1
 cli = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(cli)
 
+class RuntimeReleaseTests(unittest.TestCase):
+    def layout(self, root, revision='a'*40):
+        launcher=root/'orbis-launcher';(launcher/'tools').mkdir(parents=True)
+        (launcher/'repositories.lock.json').write_text(json.dumps({'components':{'orbis-openjdk':{'revision':revision}}}))
+        lock=launcher/'tools/runtimes.lock.json'
+        lock.write_text(json.dumps({'schema':1,'repository':'o/r','revision':None,'tag':None,
+            'assets':{v:{'name':f'orbis-jdk{v}-x86_64.tar.xz','sha256':None} for v in ('17','21','25')}}))
+        jdk=root/'orbis-openjdk';jdk.mkdir()
+        (jdk/'versions.lock.json').write_text(json.dumps({'versions':{v:{'base':v} for v in ('17','21','25')}}))
+        toolchain=root/'tc';(toolchain/'lib').mkdir(parents=True);(toolchain/'lib/libc.a').write_bytes(b'libc')
+        return launcher,lock,toolchain
+
+    def runtime_archive(self, root, version, versions_lock, toolchain, member=None):
+        runtime=root/'build'/('jdk'+version);(runtime/'lib/server').mkdir(parents=True)
+        (runtime/'release').write_text('JAVA_VERSION="'+version+'"')
+        (runtime/'lib/server/libjvm.prx').write_bytes(b'prx')
+        files=cli.rp.inventory(runtime)
+        (runtime/'build-provenance.json').write_text(json.dumps({'source':{'base':version},
+            'lock_sha256':cli.digest(versions_lock),'libc_sha256':cli.digest(toolchain/'lib/libc.a'),'output_files':files}))
+        archive=root/'assets'/f'orbis-jdk{version}-x86_64.tar.xz';archive.parent.mkdir(exist_ok=True)
+        with tarfile.open(archive,'w:xz') as out:
+            out.add(runtime,arcname=member or 'jdk'+version)
+        return archive
+
+    def test_unpinned_release_is_rejected(self):
+        with tempfile.TemporaryDirectory() as d:
+            launcher,lock,_=self.layout(Path(d))
+            with patch.object(cli,'ROOT',launcher),patch.object(cli,'RUNTIMES_LOCK',lock):
+                with self.assertRaises(ValueError):cli.runtime_release()
+
+    def test_pin_and_fetch_installs_verified_runtime(self):
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d);launcher,lock,toolchain=self.layout(root)
+            archives=[self.runtime_archive(root,v,root/'orbis-openjdk/versions.lock.json',toolchain) for v in ('17','21','25')]
+            (root/'assets/SHA256SUMS').write_text(''.join(cli.digest(a)+'  '+a.name+'\n' for a in archives))
+            args=SimpleNamespace(check=False,from_dir=root/'assets',jdk='17',toolchain=toolchain)
+            with patch.object(cli,'ROOT',launcher),patch.object(cli,'RUNTIMES_LOCK',lock),patch.object(cli,'WORK',root):
+                cli.pin_jdks(args)
+                self.assertEqual(json.loads(lock.read_text())['tag'],'jdk-'+'a'*12)
+                cli.fetch_jdks(args)
+                self.assertEqual((root/'orbis-openjdk/output/jdk17/lib/server/libjvm.prx').read_bytes(),b'prx')
+                cli.fetch_jdks(args)
+                archives[1].write_bytes(b'corrupt')
+                with self.assertRaises(ValueError):
+                    cli.fetch_jdks(SimpleNamespace(**{**vars(args),'jdk':'21'}))
+                self.assertFalse((root/'orbis-openjdk/output/jdk21').exists())
+
+    def test_runtime_archive_outside_its_version_is_rejected(self):
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d);_,_,toolchain=self.layout(root)
+            archive=self.runtime_archive(root,'17',root/'orbis-openjdk/versions.lock.json',toolchain,member='jdk25')
+            with self.assertRaises(ValueError):
+                cli.extract_runtime(archive,'17',root/'out')
+
+
 class CliTests(unittest.TestCase):
     def test_single_jdk_build_selects_matching_boot_jdk(self):
         with tempfile.TemporaryDirectory() as directory:

@@ -24,14 +24,16 @@ export PKGTOOL=/path/to/PkgTool.Core.dll
 
 Linux x86_64 with Python 3.12, OpenJDK host build dependencies, LLVM/Clang, CMake, Ninja, .NET, and the exact compatible SDK/toolchain is required. Mesa verifies the SDK and dependency hashes in `graphics-probe/deps.lock.json`. The open-source SDK distributions are pinned in `tools/toolchain.lock.json`; `tools/provision_toolchain.py` downloads and verifies them and builds LibOrbisPkg from its pinned source revision.
 
-The build executes serial JDK builds, all LWJGL profiles, native Mesa, audio/SDL, launcher, desktop support, runner, and package checks. Logs live in `build-logs/`. The validated PKG appears in `dist/`. Installation is manual. Title ID and `/data/orbis-jdk` paths remain compatible with earlier packages.
+The build downloads the pinned JDK 17, 21 and 25 runtimes from the [orbis-openjdk releases](https://github.com/CyreneLauncher/orbis-openjdk/releases), then builds all LWJGL profiles, native Mesa, audio/SDL, launcher, desktop support, runner, and package checks. Logs live in `build-logs/`. The validated PKG appears in `dist/`. Installation is manual. Title ID and `/data/orbis-jdk` paths remain compatible with earlier packages.
 
 ## Individual steps and reuse
 
 ```bash
 ./orbis bootstrap       # Restore missing pinned repositories; never reset existing work
-./orbis jdks            # Build all three runtimes, reuse matching completed exports
-./orbis jdks --jdk 21   # Build only JDK 21 with BOOT_JDK21
+./orbis fetch-jdks      # Download, hash-check and install the pinned runtime release
+./orbis pin-jdks        # Record the release for the pinned orbis-openjdk revision
+./orbis jdks            # Maintainers: compile all three runtimes from source instead
+./orbis jdks --jdk 21   # Compile only JDK 21 with BOOT_JDK21
 ./orbis native          # Build graphics/audio/controller modules
 ./orbis launcher        # Build launcher, desktop export and graphics bundle
 ./orbis assets          # Build native/desktop assets without JDK exports
@@ -60,7 +62,7 @@ Both workflows run on **GitHub-hosted Ubuntu 24.04**. No self-hosted runner, loc
 
 `Build Cyrene Launcher` provisions LLVM 18, pinned Temurin host JDKs, .NET 8, OpenOrbis v0.5.4 and payload SDK v0.9. SDK archive SHA-256 values and the accepted OpenOrbis ABI files are checked before compilation. The PKG CLI is built from pinned OpenOrbis/LibOrbisPkg source. These upstream SDKs match the installed build inputs; no custom SDK fork is needed.
 
-Three matrix jobs build and audit JDK 17, 21 and 25. A parallel assets job builds native radeonsi/RADV, LWJGL, OpenAL, SDL, the launcher and desktop support. The package job downloads their compressed artifacts, verifies hashes, file inventories and source/SDK provenance, then assembles and validates the PKG. Tar archives preserve executable permissions across Actions artifact transfers. All jobs save their build logs, including nested compiler diagnostics. The CLI streams compiler output live when running in Actions.
+The JDKs are no longer compiled here. `orbis-openjdk` builds and publishes them as the release `jdk-<first 12 characters of its commit>`; `tools/runtimes.lock.json` records that tag and the SHA-256 of each `orbis-jdkNN-x86_64.tar.xz`. The checks job stops early when the pin does not match the `orbis-openjdk` revision in `repositories.lock.json`. While `orbis-openjdk` is private, add a `CYRENE_RELEASES_TOKEN` secret with read access to its releases. The assets job builds native radeonsi/RADV, LWJGL, OpenAL, SDL, the launcher and desktop support. The package job downloads the pinned runtimes and the assets artifact, verifies hashes, file inventories and source/SDK provenance, then assembles and validates the PKG. Tar archives preserve executable permissions across Actions artifact transfers. All jobs save their build logs, including nested compiler diagnostics. The CLI streams compiler output live when running in Actions.
 
 Run a complete build from the GitHub **Actions → Build Cyrene Launcher → Run workflow** page, or use:
 
@@ -78,6 +80,13 @@ gh run download RUN_ID -R CyreneLauncher/CyreneLauncher \
 ```
 
 `draft_release=true` additionally creates a draft GitHub release after every package check passes. Installation remains manual. Package validation does not establish console compatibility; record console testing before publishing the draft. Initial builds compile everything from source and can take several hours; no previous build on your computer is required.
+
+### Updating the JDKs
+
+1. Commit the change in `orbis-openjdk`, then run its **Build Orbis runtimes** workflow with `publish` checked.
+2. In the launcher, set `orbis-openjdk`'s `revision` in `repositories.lock.json` to that commit.
+3. Run `./orbis pin-jdks`. For a private repository, download the assets first with `gh release download jdk-XXXXXXXXXXXX -R CyreneLauncher/orbis-openjdk --dir /tmp/jdks` and run `./orbis pin-jdks --from /tmp/jdks`.
+4. Commit both lock files together.
 
 ## Source ownership
 
