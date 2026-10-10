@@ -16,20 +16,29 @@ import org.lwjgl.system.MemoryUtil;
 import static org.lwjgl.opengl.GL30C.*;
 
 /**
- * The launcher's drawing: solid rectangles, uploaded images and bundled Inter text,
+ * The launcher's drawing: solid rectangles, uploaded images and bundled Figtree text,
  * batched into one core-profile shader. Coordinates are screen pixels with the
  * origin at the top left; {@link #s} scales a 1080-line layout to the framebuffer.
  */
 class Renderer {
-    static final int BACKGROUND = 0xff16181d, PANEL = 0xff23262e, PANEL_HI = 0xff2e323c, ACCENT = 0xff5aa864,
-            TEXT = 0xffe8e8e8, DIM = 0xff9aa0a6, WARN = 0xffe0b050, ERROR = 0xffd9534f, DARK = 0xff101010,
-            WHITE = 0xffffffff, SHADE = 0xc0101216, CHIP = 0xff3a3f4b, BLUE = 0xff5b8fd6;
+    /** AngelAuraMC's Amethyst palette: near-black surfaces, lighter bars, amethyst purple for what is chosen. */
+    static final int BACKGROUND = 0xff181818, PANEL = 0xff232323, PANEL_HI = 0xff303030, ACCENT = 0xff9649b8,
+            ACCENT_HI = 0xffb36ad6, ACCENT_DARK = 0xff6a2f85, GOOD = 0xff5fbf6a, BAR = 0xff222222, LINE = 0xff464646,
+            TEXT = 0xffffffff, DIM = 0xffb2b2b2, WARN = 0xffe0b050, ERROR = 0xffd9534f, DARK = 0xff101010,
+            WHITE = 0xffffffff, SHADE = 0xc0101010, CHIP = 0xff3a3a3a, BLUE = 0xff5b8fd6;
+    /** Cells of the generated icon atlas: a disc for rounded corners and the four face buttons. */
+    private static final int DISC = 0, RING = 1, CROSS = 2, TRIANGLE = 3, SQUARE = 4, OUTLINE = 5, ICON_CELLS = 6,
+            ICON_SIZE = 64;
+    /** The outline cell's stroke as a share of its radius. */
+    private static final float OUTLINE_STROKE = 0.2f;
 
     int width, height;
     float s = 1f;
-    private int program, vao, vbo, white, font, screenUniform, textureUniform;
+    private int program, vao, vbo, white, font, icons, art, screenUniform, textureUniform;
     final float[] glyphWidth = new float[256];
     private float fontQuadSize = 8, fontOffsetX, fontOffsetY;
+    /** Where capitals start below a text's y, and how tall they are, in font units (times scale for pixels). */
+    private float capTop = 0, capHeight = 7;
     private final FloatBuffer vertices = MemoryUtil.memAllocFloat(6 * 8 * 4096);
     private int vertexCount, boundTexture = -1;
 
@@ -67,6 +76,31 @@ class Renderer {
         white = texture(1, 1, pixel);
         MemoryUtil.memFree(pixel);
         font = loadFont();
+        icons = iconAtlas();
+        art = loadArtwork();
+    }
+
+    /** The application's artwork (its PS4 icon), or 0 when it is not bundled. */
+    int artwork() {
+        return art;
+    }
+
+    private int loadArtwork() throws IOException {
+        try (InputStream in = Renderer.class.getResourceAsStream("art.png")) {
+            if (in == null) return 0;
+            BufferedImage image = ImageIO.read(in);
+            int w = image.getWidth(), h = image.getHeight();
+            ByteBuffer rgba = MemoryUtil.memAlloc(w * h * 4);
+            for (int y = 0; y < h; y++)
+                for (int x = 0; x < w; x++) {
+                    int argb = image.getRGB(x, y), i = (y * w + x) * 4;
+                    rgba.put(i, (byte) (argb >> 16)).put(i + 1, (byte) (argb >> 8)).put(i + 2, (byte) argb)
+                            .put(i + 3, (byte) (argb >>> 24));
+                }
+            int id = upload(w, h, rgba);
+            MemoryUtil.memFree(rgba);
+            return id;
+        }
     }
 
     void begin(int framebufferWidth, int framebufferHeight) {
@@ -135,6 +169,105 @@ class Renderer {
         glDisable(GL_SCISSOR_TEST);
     }
 
+    /** A filled rectangle with rounded corners; without the icon atlas (host tests), square corners. */
+    void roundRect(float x, float y, float w, float h, float radius, int color) {
+        radius = Math.min(radius, Math.min(w, h) / 2);
+        if (icons == 0 || radius < 1) { rect(x, y, w, h, color); return; }
+        rect(x + radius, y, w - 2 * radius, h, color);
+        rect(x, y + radius, radius, h - 2 * radius, color);
+        rect(x + w - radius, y + radius, radius, h - 2 * radius, color);
+        float u0 = (float) DISC / ICON_CELLS, um = (DISC + 0.5f) / ICON_CELLS, u1 = (DISC + 1f) / ICON_CELLS;
+        image(icons, x, y, radius, radius, u0, 0, um, 0.5f, color);
+        image(icons, x + w - radius, y, radius, radius, um, 0, u1, 0.5f, color);
+        image(icons, x, y + h - radius, radius, radius, u0, 0.5f, um, 1, color);
+        image(icons, x + w - radius, y + h - radius, radius, radius, um, 0.5f, u1, 1, color);
+    }
+
+    /** The outline of a rounded rectangle, its stroke a fifth of the corner radius: focus around rounded shapes. */
+    void roundFrame(float x, float y, float w, float h, float radius, int color) {
+        radius = Math.min(radius, Math.min(w, h) / 2);
+        float t = radius * OUTLINE_STROKE;
+        if (icons == 0 || radius < 1) { frame(x, y, w, h, Math.max(1, t), color); return; }
+        rect(x + radius, y, w - 2 * radius, t, color);
+        rect(x + radius, y + h - t, w - 2 * radius, t, color);
+        rect(x, y + radius, t, h - 2 * radius, color);
+        rect(x + w - t, y + radius, t, h - 2 * radius, color);
+        float u0 = (float) OUTLINE / ICON_CELLS, um = (OUTLINE + 0.5f) / ICON_CELLS, u1 = (OUTLINE + 1f) / ICON_CELLS;
+        image(icons, x, y, radius, radius, u0, 0, um, 0.5f, color);
+        image(icons, x + w - radius, y, radius, radius, um, 0, u1, 0.5f, color);
+        image(icons, x, y + h - radius, radius, radius, u0, 0.5f, um, 1, color);
+        image(icons, x + w - radius, y + h - radius, radius, radius, um, 0.5f, u1, 1, color);
+    }
+
+    /** A filled circle of the given diameter. */
+    void disc(float x, float y, float size, int color) {
+        roundRect(x, y, size, size, size / 2, color);
+    }
+
+    /**
+     * A controller button as the PS4 shows it: the face buttons as their symbols on a dark disc, anything else
+     * (L1, R1, OPTIONS, the d-pad) as a labelled chip. Returns the width drawn.
+     */
+    float button(String name, float x, float y, float size) {
+        int cell = switch (name) {
+            case "cross" -> CROSS;
+            case "circle" -> RING;
+            case "triangle" -> TRIANGLE;
+            case "square" -> SQUARE;
+            default -> -1;
+        };
+        if (cell < 0) {
+            float scale = size / 19f, w = width(name, scale) + size * 0.7f;
+            roundRect(x, y, w, size, size * 0.3f, CHIP);
+            textMiddle(name, x + size * 0.35f, y, size, scale, TEXT);
+            return w;
+        }
+        int color = switch (cell) {
+            case CROSS -> 0xff8ab4f0;
+            case RING -> 0xffef7a7a;
+            case TRIANGLE -> 0xff4fd1a5;
+            default -> 0xffe59ae5;
+        };
+        disc(x, y, size, CHIP);
+        if (icons == 0) textCentered(name.substring(0, 1).toUpperCase(), x, y, size, size, size / 17f, color);
+        else image(icons, x, y, size, size, (float) cell / ICON_CELLS, 0, (cell + 1f) / ICON_CELLS, 1, color);
+        return size;
+    }
+
+    /** White shapes, antialiased from distance functions: the corner disc and the face-button symbols. */
+    private int iconAtlas() {
+        int n = ICON_SIZE, w = n * ICON_CELLS;
+        ByteBuffer rgba = MemoryUtil.memAlloc(w * n * 4);
+        for (int cell = 0; cell < ICON_CELLS; cell++)
+            for (int py = 0; py < n; py++)
+                for (int px = 0; px < n; px++) {
+                    float x = px + 0.5f - n / 2f, y = py + 0.5f - n / 2f, d;
+                    float stroke = 3.2f;
+                    switch (cell) {
+                        case DISC -> d = (float) Math.hypot(x, y) - n / 2f + 0.5f;
+                        case OUTLINE -> d = Math.abs((float) Math.hypot(x, y) - n / 2f * (1 - OUTLINE_STROKE / 2) + 0.25f)
+                                - n / 2f * OUTLINE_STROKE / 2;
+                        case RING -> d = Math.abs((float) Math.hypot(x, y) - 14) - stroke;
+                        case CROSS -> d = Math.min(segment(x, y, -13, -13, 13, 13), segment(x, y, -13, 13, 13, -13)) - stroke;
+                        case TRIANGLE -> d = Math.min(segment(x, y, 0, -14, 15, 12), Math.min(segment(x, y, 15, 12, -15, 12),
+                                segment(x, y, -15, 12, 0, -14))) - stroke;
+                        default -> d = Math.abs(Math.max(Math.abs(x), Math.abs(y)) - 12) - stroke;
+                    }
+                    float alpha = Math.max(0, Math.min(1, 0.5f - d));
+                    int i = (py * w + cell * n + px) * 4;
+                    rgba.put(i, (byte) -1).put(i + 1, (byte) -1).put(i + 2, (byte) -1).put(i + 3, (byte) Math.round(alpha * 255));
+                }
+        int id = upload(w, n, rgba);
+        MemoryUtil.memFree(rgba);
+        return id;
+    }
+
+    private static float segment(float x, float y, float ax, float ay, float bx, float by) {
+        float dx = bx - ax, dy = by - ay;
+        float t = Math.max(0, Math.min(1, ((x - ax) * dx + (y - ay) * dy) / (dx * dx + dy * dy)));
+        return (float) Math.hypot(x - ax - t * dx, y - ay - t * dy);
+    }
+
     /** A rectangle outline of the given thickness. */
     void frame(float x, float y, float w, float h, float thickness, int color) {
         rect(x, y, w, thickness, color);
@@ -153,6 +286,34 @@ class Renderer {
                     fontQuadSize * scale, fontQuadSize * scale, u, v, u + 1 / 16f, v + 1 / 16f, color);
             x += glyphWidth[c] * scale;
         }
+    }
+
+    /**
+     * Text whose capitals are centred in the band from top to top + h: labels in buttons, chips and rows
+     * sit in the middle whatever the font's ascent.
+     */
+    void textMiddle(String text, float x, float top, float h, float scale, int color) {
+        text(text, x, middleY(top, h, scale), scale, color);
+    }
+
+    /** The y for {@link #text} that centres capitals in the band from top to top + h. */
+    float middleY(float top, float h, float scale) {
+        return top + (h - capHeight * scale) / 2 - capTop * scale;
+    }
+
+    /** How far below a text's y its baseline is. */
+    float capBottom(float scale) {
+        return (capTop + capHeight) * scale;
+    }
+
+    /** Text sitting on a baseline, so different sizes on one line line up. */
+    void textBaseline(String text, float x, float baseline, float scale, int color) {
+        text(text, x, baseline - (capTop + capHeight) * scale, scale, color);
+    }
+
+    /** Text centred both ways in a box. */
+    void textCentered(String text, float x, float y, float w, float h, float scale, int color) {
+        textMiddle(text, x + (w - width(text, scale)) / 2, y, h, scale, color);
     }
 
     float width(String text, float scale) {
@@ -227,23 +388,32 @@ class Renderer {
     }
 
     /**
-     * Bundled Inter with fractional advances and smooth filtering. Older development JARs without
+     * Bundled Figtree with fractional advances and smooth filtering. Older development JARs without
      * the atlas can still use Minecraft's ascii.png or the built-in console font.
      */
     private int loadFont() throws IOException {
-        try (InputStream in = Renderer.class.getResourceAsStream("fonts/inter-atlas.png")) {
+        try (InputStream in = Renderer.class.getResourceAsStream("fonts/atlas.png")) {
             if (in != null) {
                 BufferedImage image = ImageIO.read(in);
                 if (image == null || image.getWidth() != 640 || image.getHeight() != 640)
-                    throw new IOException("Invalid bundled Inter atlas");
-                try (InputStream metrics = Renderer.class.getResourceAsStream("fonts/inter-advances.bin")) {
-                    if (metrics == null) throw new IOException("Missing Inter glyph advances");
+                    throw new IOException("Invalid bundled font atlas");
+                try (InputStream metrics = Renderer.class.getResourceAsStream("fonts/advances.bin")) {
+                    if (metrics == null) throw new IOException("Missing font glyph advances");
                     DataInputStream data = new DataInputStream(metrics);
                     for (int c = 0; c < 256; c++) glyphWidth[c] = data.readFloat();
                 }
                 fontQuadSize = 10;
                 fontOffsetX = -0.5f;
                 fontOffsetY = -1.75f;
+                // The capital H's rows in its 40-pixel cell, four atlas pixels to a font unit.
+                int cell = 'H' % 16 * 40, row = 'H' / 16 * 40, top = 40, bottom = -1;
+                for (int y = 0; y < 40; y++)
+                    for (int x = 0; x < 40; x++)
+                        if ((image.getRGB(cell + x, row + y) >>> 24) > 100) { top = Math.min(top, y); bottom = Math.max(bottom, y); }
+                if (bottom >= top) {
+                    capTop = top / 4f + fontOffsetY;
+                    capHeight = (bottom + 1 - top) / 4f;
+                }
                 int[] pixels = image.getRGB(0, 0, 640, 640, null, 0, 640);
                 ByteBuffer rgba = MemoryUtil.memAlloc(640 * 640 * 4);
                 try {

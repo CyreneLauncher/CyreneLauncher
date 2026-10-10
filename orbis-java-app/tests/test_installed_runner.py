@@ -36,14 +36,25 @@ with tempfile.TemporaryDirectory() as directory:
     assert api.runner_config_seed_defaults(str(defaults).encode(), str(writable).encode(), error, len(error)) < 0
     assert not (writable / 'jvm-options.txt').exists(), 'failed copy left a partial settings file'
     for version in (17, 21, 25):
-        config = Config()
-        config.java_home = f'/data/orbis-jdk/jdk{version}/release-desktop/'.encode()
-        config.graphics_bundle = b'/data/orbis-jdk/graphics'
-        assert api.runner_config_installed(ctypes.byref(config), error, len(error)) == 0, error.value
-        home = f'/app0/runtimes/jdk{version}'.encode()
-        assert config.java_home == home
-        assert config.graphics_bundle == home + b'/lib/orbis/graphics'
-        assert config.desktop_bundle == home + b'/lib/orbis/desktop'
+        # JDK 17 is packaged; 21 and 25 are downloaded. Earlier packages' paths move onto these.
+        home = (b'/app0/runtimes/jdk17' if version == 17 else f'/data/orbis-jdk/runtimes/jdk{version}'.encode())
+        for configured in (f'/data/orbis-jdk/jdk{version}/release-desktop/', f'/app0/runtimes/jdk{version}',
+                           f'/data/orbis-jdk/runtimes/jdk{version}'):
+            config = Config()
+            config.java_home = configured.encode()
+            config.graphics_bundle = b'/data/orbis-jdk/graphics'
+            config.jar = f'/app0/runtimes/jdk{version}/lib/orbis/graphics/lib/orbis-launcher.jar'.encode()
+            assert api.runner_config_installed(ctypes.byref(config), error, len(error)) == 0, error.value
+            assert config.java_home == home, (configured, config.java_home)
+            assert config.graphics_bundle == b'/app0/orbis/graphics'
+            assert config.desktop_bundle == b'/app0/orbis/desktop'
+            assert config.jar == b'/app0/orbis/graphics/lib/orbis-launcher.jar'
+    config.jar = b'/data/orbis-jdk/launcher/versions/1.21.1/client.jar'
+    config.java_home = b'/data/orbis-jdk/runtimes/jdk21'
+    assert api.runner_config_installed(ctypes.byref(config), error, len(error)) == 0
+    assert config.jar == b'/data/orbis-jdk/launcher/versions/1.21.1/client.jar', 'a game JAR is kept'
+    config.java_home = b'/data/orbis-jdk/runtimes/jdk18'
+    assert api.runner_config_installed(ctypes.byref(config), error, len(error)) < 0
     config.java_home = b'/unknown/runtime'
     assert api.runner_config_installed(ctypes.byref(config), error, len(error)) < 0
 # The SDK libc's lstat (via fstatat) and link are ENOSYS stubs; first start then failed on the console.

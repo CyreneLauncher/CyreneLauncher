@@ -19,11 +19,11 @@ with tempfile.TemporaryDirectory() as td:
         rc = api.runner_config_load(str(path).encode(),ctypes.byref(cfg),error,len(error))
         return rc,cfg,error.value
     rc,cfg,error = load(path=td/'missing')
-    assert rc == 0 and cfg.java_home == b'/app0/runtimes/jdk17' and cfg.jar == b'/app0/runtimes/jdk17/lib/orbis/graphics/lib/orbis-launcher.jar'
+    assert rc == 0 and cfg.java_home == b'/app0/runtimes/jdk17' and cfg.jar == b'/app0/orbis/graphics/lib/orbis-launcher.jar'
     assert cfg.working_directory == b'/data/orbis-jdk/runner' and cfg.output_log == b'/data/orbis-jdk/runner/runner-output.log' and cfg.temporary_directory == b'/data/orbis-jdk/runner/tmp'
-    assert cfg.display == 2 and cfg.desktop_bundle == b'/app0/runtimes/jdk17/lib/orbis/desktop'
+    assert cfg.display == 2 and cfg.desktop_bundle == b'/app0/orbis/desktop'
     assert cfg.debug == 0 and cfg.input_diagnostics == 0
-    assert cfg.graphics_bundle == b'/app0/runtimes/jdk17/lib/orbis/graphics'
+    assert cfg.graphics_bundle == b'/app0/orbis/graphics'
     assert cfg.version_metadata == b'/app0/manifests/launcher.json' and cfg.libraries == b'/data/orbis-jdk/libraries'
     rc,cfg,error = load(b'version_metadata=/data/game/1.18.2.json\nlibraries=/data/game/libraries\n')
     assert rc == 0 and cfg.version_metadata == b'/data/game/1.18.2.json' and cfg.libraries == b'/data/game/libraries', error

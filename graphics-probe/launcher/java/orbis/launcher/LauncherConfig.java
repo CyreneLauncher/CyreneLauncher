@@ -31,7 +31,10 @@ final class LauncherConfig {
     /** Downloaded Minecraft versions; the built-in runtime (metadata) is the installed 1.18.2. */
     final VersionStore versions;
     /** runner.conf's java_home (the default runner) and the other Java runtimes on the console. */
-    final Runtimes runtimes;
+    volatile Runtimes runtimes;
+    private final Path defaultHome;
+    /** Where RuntimeInstaller puts the runtimes the package does not carry. */
+    final Path downloadedRuntimes;
     final String versionId;
     final String gameMainClass;
     final boolean launcherOnly;
@@ -80,8 +83,12 @@ final class LauncherConfig {
         }
         Path runningHome = Path.of(System.getProperty("java.home", DEFAULT_JAVA_HOME));
         if (runningHome.startsWith(Path.of("/app0/runtimes"))) javaHome = runningHome;
-        runtimes = Runtimes.discover(javaHome, javaHome.getParent());
-        VersionStore.offeredJava = runtimes.newest();
+        defaultHome = javaHome;
+        downloadedRuntimes = runnerRoot.getParent().resolve("runtimes");
+        runtimes = Runtimes.discover(javaHome, javaHome.getParent(), downloadedRuntimes);
+        // Newer Java comes from the runtime release when a version needs it.
+        VersionStore.offeredJava = Math.max(runtimes.newest(),
+                RuntimeInstaller.DOWNLOADABLE[RuntimeInstaller.DOWNLOADABLE.length - 1]);
         List<String> arguments = Files.exists(runnerRoot.resolve("app-args.txt"))
                 ? Files.readAllLines(runnerRoot.resolve("app-args.txt"), StandardCharsets.UTF_8) : List.of();
         for (int i = 0; i + 1 < arguments.size(); i++)
@@ -125,6 +132,18 @@ final class LauncherConfig {
     VersionStore.Installed installed(InstanceStore.Instance instance) {
         return instance.runtimeProfile().equals(metadata.toAbsolutePath().normalize()) ? null
                 : versions.installed(instance.runtimeProfile());
+    }
+
+    /**
+     * Downloads, or updates from the runtime release, the runtime a version needing Java required starts
+     * on. The packaged default needs nothing; an installed runtime is kept when the release is unreachable.
+     */
+    void ensureRuntime(int required, java.util.function.Consumer<String> progress) throws IOException {
+        if (runtimes.fallback.feature() >= required) return;
+        int feature = RuntimeInstaller.downloadable(required);
+        if (feature < 0) throw new IOException("No Java runtime provides Java " + required);
+        new RuntimeInstaller(downloadedRuntimes).ensure(feature, progress);
+        runtimes = Runtimes.discover(defaultHome, defaultHome.getParent(), downloadedRuntimes);
     }
 
     /** Versions of the ids no mod JAR provides, for checking the selected instance's mods. */

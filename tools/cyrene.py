@@ -168,7 +168,9 @@ def jdks(args, runner):
                '--sdk',args.sdk,'--toolchain',args.toolchain,'--jobs',str(args.jobs))
 
 
-RUNTIME_VERSIONS = ('17','21','25')
+# The runtimes the package carries. The launcher downloads the others from the same release.
+RUNTIME_VERSIONS = ('17',)
+PACKAGED_JDKS = tuple(map(int, RUNTIME_VERSIONS))
 # Which installed runtimes came from an orbis-openjdk release, and which release.
 JDK_RELEASE = WORK/'orbis-openjdk/output/release.json'
 
@@ -208,6 +210,10 @@ def github_request(url, accept='application/vnd.github+json'):
     return urllib.request.urlopen(request)
 
 
+def jdk_versions(args):
+    return RUNTIME_VERSIONS if args.jdk=='all' else (args.jdk,)
+
+
 def jdk_release(args):
     """The orbis-openjdk release to install (the rolling download release unless --jdk-tag), with its files."""
     repository=repository_name(json.loads((ROOT/'repositories.lock.json').read_text())['components']['orbis-openjdk']['url'])
@@ -221,7 +227,7 @@ def jdk_release(args):
         tag,commit=meta['tag_name'],meta['target_commitish']
         directory=ROOT/'dist/runtime-downloads'/tag;directory.mkdir(parents=True,exist_ok=True)
         assets={asset['name']:asset['url'] for asset in meta['assets']}
-        for name in ['SHA256SUMS',*map(runtime_asset,RUNTIME_VERSIONS)]:
+        for name in ['SHA256SUMS',*map(runtime_asset,jdk_versions(args))]:
             if name not in assets:raise ValueError(f'Release {tag} has no {name}')
             if not (directory/name).is_file():
                 with github_request(assets[name],'application/octet-stream') as response:
@@ -237,7 +243,7 @@ def fetch_jdks(args):
     libc=digest(args.toolchain/'lib/libc.a')
     output=WORK/'orbis-openjdk/output'
     installed=installed_jdk_release()
-    for version in (RUNTIME_VERSIONS if args.jdk=='all' else (args.jdk,)):
+    for version in jdk_versions(args):
         name=runtime_asset(version);target=output/('jdk'+version)
         if name not in release['sha256']:raise ValueError(f'Release {release["tag"]} lists no {name}')
         if target.exists():
@@ -391,7 +397,7 @@ def launcher(args, runner):
 
 
 def component_paths():
-    return [WORK/'orbis-openjdk/output'/f'jdk{v}' for v in (17,21,25)] + [GP/'build/graphics-bundle-native',APP/'build-cacio/export']
+    return [WORK/'orbis-openjdk/output'/f'jdk{v}' for v in PACKAGED_JDKS] + [GP/'build/graphics-bundle-native',APP/'build-cacio/export']
 
 
 def inventory(root):
@@ -415,7 +421,7 @@ def verify_inventories(root, recorded):
 
 def record_components(args):
     lock=WORK/'orbis-openjdk/versions.lock.json'
-    for v in (17,21,25):
+    for v in PACKAGED_JDKS:
         check_installed_jdk(WORK/'orbis-openjdk/output'/f'jdk{v}',v,digest(args.toolchain/'lib/libc.a'))
     info=json.loads((GP/'build/graphics-bundle-native/build-info.json').read_text())
     if info['mesa_lock']!=json.loads(MESA_LOCK.read_text())['sources']:
@@ -452,13 +458,19 @@ def verify_components(toolchain=None, root=WORK, seal=None):
 
 def package_inputs():
     data=json.loads((APP/'tools/runtime-package-inputs.json').read_text())
-    for v in (17,21,25):
+    for v in PACKAGED_JDKS:
         item=data['runtimes'][f'jdk{v}'];item['source']=f'../orbis-openjdk/output/jdk{v}'
         item['files']=runtime_files(ROOT/item['source'])
     data['desktop']['files']=rp.inventory(ROOT/data['desktop']['source'])
     if not data['desktop']['files']:raise ValueError('Missing desktop export')
     data['graphics']['source']='graphics-probe/build/graphics-bundle-native'
     data['graphics']['manifest_sha256']=digest(ROOT/data['graphics']['source']/'graphics-bundle.json')
+    # The revisions actually packaged: the repository pins, and for the runtimes the commit of the
+    # installed orbis-openjdk release when they came from one.
+    revisions={name:item['revision'] for name,item in json.loads((ROOT/'repositories.lock.json').read_text())['components'].items()}
+    jdk=installed_jdk_release()
+    if jdk['versions']:revisions['orbis-openjdk']=jdk['commit']
+    data['component_revisions']=revisions
     target=APP/'build-inputs/runtime-package-inputs.local.json';target.parent.mkdir(parents=True,exist_ok=True)
     target.write_text(json.dumps(data,indent=2)+'\n')
     return target
@@ -484,7 +496,7 @@ def package(args,runner):
 
 def artifacts(args):
     verify_components(args.toolchain)
-    paths = [WORK/'orbis-openjdk/output'/f'jdk{v}' for v in (17,21,25)]
+    paths = [WORK/'orbis-openjdk/output'/f'jdk{v}' for v in PACKAGED_JDKS]
     paths += [GP/'build/graphics-bundle-native',APP/'build-cacio/export']
     for path in paths:
         if not path.is_dir():raise ValueError('Missing component: '+str(path))
@@ -513,7 +525,7 @@ def import_artifacts(args):
             if digest(temporary/'metadata'/lock.name)!=digest(lock):raise ValueError('Component revision mismatch: '+lock.name)
         seal=json.loads((temporary/'metadata/component-inventory.json').read_text())
         verify_components(args.toolchain,temporary,seal)
-        sources=[temporary/'orbis-openjdk/output'/f'jdk{v}' for v in (17,21,25)]
+        sources=[temporary/'orbis-openjdk/output'/f'jdk{v}' for v in PACKAGED_JDKS]
         sources += [temporary/ROOT.name/'graphics-probe/build/graphics-bundle-native',temporary/ROOT.name/'orbis-java-app/build-cacio/export']
         for source in sources:
             if not source.is_dir():raise ValueError('Missing archived component: '+str(source))

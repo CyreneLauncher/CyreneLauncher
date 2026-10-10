@@ -74,6 +74,9 @@ int runner_config_seed_defaults(const char *defaults, const char *root, char *er
     return 0;
 }
 
+/* The package carries JDK 17 and, once, the bundles every runtime uses; the launcher downloads JDK 21
+ * and 25 into RUNNER_DOWNLOADED_RUNTIMES. Settings naming a runtime anywhere else, including the
+ * per-JDK paths of earlier packages, are moved onto these. */
 int runner_config_installed(RunnerConfig *config, char *error, size_t size) {
     const char *names[] = {"jdk17", "jdk21", "jdk25", "jdk"};
     const int features[] = {17, 21, 25, 17};
@@ -81,20 +84,26 @@ int runner_config_installed(RunnerConfig *config, char *error, size_t size) {
     while (length > 1 && config->java_home[length - 1] == '/') config->java_home[--length] = 0;
     int feature = 0;
     for (unsigned i = 0; i < sizeof(names)/sizeof(names[0]); ++i) {
-        char legacy[128], installed[128];
+        char legacy[128], packaged[128], downloaded[128];
         snprintf(legacy, sizeof(legacy), "/data/orbis-jdk/%s", names[i]);
-        snprintf(installed, sizeof(installed), "/app0/runtimes/jdk%d", features[i]);
+        snprintf(packaged, sizeof(packaged), "/app0/runtimes/jdk%d", features[i]);
+        snprintf(downloaded, sizeof(downloaded), RUNNER_DOWNLOADED_RUNTIMES "/jdk%d", features[i]);
         size_t n = strlen(legacy);
-        if (!strcmp(config->java_home, installed) ||
+        if (!strcmp(config->java_home, packaged) || !strcmp(config->java_home, downloaded) ||
             (!strncmp(config->java_home, legacy, n) &&
              (!config->java_home[n] || !strcmp(config->java_home + n, "/release-desktop")))) {
             feature = features[i]; break;
         }
     }
-    if (!feature) return fail(error, size, "select a packaged JDK 17, 21 or 25; unsupported java_home=%s", config->java_home);
-    snprintf(config->java_home, sizeof(config->java_home), "/app0/runtimes/jdk%d", feature);
-    snprintf(config->graphics_bundle, sizeof(config->graphics_bundle), "/app0/runtimes/jdk%d/lib/orbis/graphics", feature);
-    snprintf(config->desktop_bundle, sizeof(config->desktop_bundle), "/app0/runtimes/jdk%d/lib/orbis/desktop", feature);
+    if (!feature) return fail(error, size, "select JDK 17, 21 or 25; unsupported java_home=%s", config->java_home);
+    if (feature == 17) snprintf(config->java_home, sizeof(config->java_home), "/app0/runtimes/jdk17");
+    else snprintf(config->java_home, sizeof(config->java_home), RUNNER_DOWNLOADED_RUNTIMES "/jdk%d", feature);
+    snprintf(config->graphics_bundle, sizeof(config->graphics_bundle), "%s", RUNNER_GRAPHICS_BUNDLE);
+    snprintf(config->desktop_bundle, sizeof(config->desktop_bundle), "%s", RUNNER_DESKTOP_BUNDLE);
+    const char *old_jar = "/lib/orbis/graphics/lib/orbis-launcher.jar";
+    size_t jar = strlen(config->jar), suffix = strlen(old_jar);
+    if (!strncmp(config->jar, "/app0/runtimes/", 15) && jar > suffix && !strcmp(config->jar + jar - suffix, old_jar))
+        snprintf(config->jar, sizeof(config->jar), "%s", RUNNER_LAUNCHER_JAR);
     return 0;
 }
 static int config_space(unsigned char c) {
@@ -130,9 +139,9 @@ static int debug_log_collision(const char *path) {
            !strcmp(normalized, RUNNER_ROOT "/runner-debug.log.1");
 }
 int runner_config_load(const char *path, RunnerConfig *config, char *error, size_t size) {
-    RunnerConfig parsed = {"/app0/runtimes/jdk17", "/app0/runtimes/jdk17/lib/orbis/graphics/lib/orbis-launcher.jar",
+    RunnerConfig parsed = {"/app0/runtimes/jdk17", RUNNER_LAUNCHER_JAR,
         RUNNER_ROOT, RUNNER_ROOT "/runner-output.log", RUNNER_ROOT "/tmp",
-        "/app0/runtimes/jdk17/lib/orbis/desktop", "/app0/runtimes/jdk17/lib/orbis/graphics", "/app0/manifests/launcher.json",
+        RUNNER_DESKTOP_BUNDLE, RUNNER_GRAPHICS_BUNDLE, "/app0/manifests/launcher.json",
         "/data/orbis-jdk/libraries", 0, RUNNER_DISPLAY_GPU, 0};
     const char *keys[] = {"java_home", "jar", "working_directory", "output_log", "temporary_directory", "debug", "display", "desktop_bundle", "graphics_bundle", "version_metadata", "libraries", "input_diagnostics"};
     char *values[] = {parsed.java_home, parsed.jar, parsed.working_directory, parsed.output_log, parsed.temporary_directory, NULL, NULL, parsed.desktop_bundle, parsed.graphics_bundle, parsed.version_metadata, parsed.libraries, NULL};
@@ -212,7 +221,7 @@ done:
     return result;
 }
 int runner_option_reserved(const char *option) {
-    static const char *properties[] = {"java.home", "java.class.path", "java.library.path", "java.io.tmpdir", "user.dir", "java.system.class.loader", "runner.display", "runner.desktop.bundle", "runner.graphics.bundle", "runner.gpu.metadata", "runner.gpu.libraries", "runner.jar", "runner.output.log", "runner.debug.log", "orbis.runner.root", "orbis.runner.screen.enabled", "orbis.module.finder.imageFallback", "orbis.module.names.file", "orbis.module.names.list", "jdk.module.path", "jdk.module.upgrade.path", "jdk.module.main", "jdk.module.addmods", "sun.boot.library.path", "sun.boot.class.path"};
+    static const char *properties[] = {"java.home", "java.class.path", "java.library.path", "java.io.tmpdir", "user.dir", "java.system.class.loader", "runner.display", "runner.desktop.bundle", "runner.graphics.bundle", "runner.gpu.metadata", "runner.gpu.libraries", "runner.jar", "runner.output.log", "runner.debug.log", "orbis.runner.root", "orbis.runner.screen.enabled", "orbis.console.mode", "orbis.module.finder.imageFallback", "orbis.module.names.file", "orbis.module.names.list", "jdk.module.path", "jdk.module.upgrade.path", "jdk.module.main", "jdk.module.addmods", "sun.boot.library.path", "sun.boot.class.path"};
     if (!strncmp(option, "-D", 2)) {
         const char *key = option + 2;
         size_t n = strcspn(key, "=");

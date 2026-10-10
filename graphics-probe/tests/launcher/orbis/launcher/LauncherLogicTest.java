@@ -28,6 +28,12 @@ public final class LauncherLogicTest {
         runtimeSelection();
         installedBootstrap();
         ownershipAndAssets();
+        runtimeDownload();
+        instanceArguments();
+        check(LauncherScreen.consoleMode("pro")[0].contains("Pro mode")
+                && LauncherScreen.consoleMode("pro-base")[0].contains("Boost Mode")
+                && LauncherScreen.consoleMode("base")[0].startsWith("PS4 ")
+                && LauncherScreen.consoleMode("")[0].contains("not reported"), "the runner's console mode is named");
         consoleModSettings();
         scroller();
         packRules();
@@ -212,6 +218,158 @@ public final class LauncherLogicTest {
         Runtimes packaged = Runtimes.discover(installedRoot.resolve("jdk17"), installedRoot);
         check(packaged.all.size() == 3 && packaged.forJava(25).home().equals(installedRoot.resolve("jdk25")),
                 "direct installed runtime homes discovered without release-desktop");
+    }
+
+    /** An instance's own arguments: split like a shell, kept with the instance, never over what is managed. */
+    private static void instanceArguments() throws IOException {
+        check(InstanceArguments.split(" -XX:+UseG1GC  -Dname=\"a b\" \"\" ").equals(List.of("-XX:+UseG1GC", "-Dname=a b", "")),
+                "quotes group, spaces separate");
+        check(InstanceArguments.jvm("-XX:+UseG1GC -Dfabric.debug=true").size() == 2, "ordinary JVM options pass");
+        for (String bad : List.of("-Xmx4G", "-Djava.home=/x", "-cp /x", "--add-modules=ALL", "-Dorbis.module.names.file=/x",
+                "-Dorbis.graphics.arenaMib=9", "notAnOption", "\"unclosed"))
+            try {
+                InstanceArguments.jvm(bad);
+                throw new AssertionError("JVM arguments must refuse " + bad);
+            } catch (IllegalArgumentException expected) { }
+        check(InstanceArguments.game("--quickPlaySingleplayer \"My World\" --demo").size() == 3, "ordinary game arguments pass");
+        for (String bad : List.of("--username Herobrine", "--gameDir=/data", "--accessToken x"))
+            try {
+                InstanceArguments.game(bad);
+                throw new AssertionError("Minecraft arguments must refuse " + bad);
+            } catch (IllegalArgumentException expected) { }
+
+        Path root = Files.createTempDirectory("instance-arguments");
+        Path profile = Files.writeString(root.resolve("profile.json"), "{}");
+        InstanceStore store = new InstanceStore(root.resolve("home"), Files.createDirectories(root.resolve("game")), profile,
+                root.resolve("versions"), 1024, 1536);
+        store.load();
+        String id = store.selected().id();
+        store.saveArguments(id, " -XX:+UseG1GC ", "--demo");
+        try {
+            store.saveArguments(id, "-Xmx8G", "");
+            throw new AssertionError("saving must check the arguments");
+        } catch (IOException expected) {
+            check(expected.getMessage().contains("memory"), expected.getMessage());
+        }
+        InstanceStore reloaded = new InstanceStore(root.resolve("home"), root.resolve("game"), profile, root.resolve("versions"),
+                1024, 1536);
+        reloaded.load();
+        check(reloaded.selected().jvmArgs().equals("-XX:+UseG1GC") && reloaded.selected().gameArgs().equals("--demo"),
+                "arguments survive a restart: " + reloaded.selected());
+        store.saveSettings(id, 1152, 1536, "");
+        check(store.selected().jvmArgs().equals("-XX:+UseG1GC"), "memory changes keep the arguments");
+        AccountStore.Session session = new AccountStore.Session("Steve", "00000000-0000-0000-0000-000000000000", "token",
+                "msa", "", "");
+        String[] args = LaunchArguments.build(new String[0], store.selected(), session);
+        check(args[args.length - 1].equals("--demo"), "Minecraft arguments follow the managed ones: " + List.of(args));
+    }
+
+    /** Downloaded runtimes: verified, unpacked beside the packaged one, replaced when the release moves on. */
+    private static void runtimeDownload() throws IOException {
+        Path root = Files.createTempDirectory("launcher-downloaded-runtimes");
+        java.util.Map<String, byte[]> release = new java.util.HashMap<>();
+        RuntimeInstaller installer = new RuntimeInstaller(root, url -> {
+            byte[] data = release.get(url.substring(RuntimeInstaller.RELEASE.length()));
+            if (data == null) throw new IOException("HTTP 404");
+            return new java.io.ByteArrayInputStream(data);
+        });
+        List<String> progress = new ArrayList<>();
+        String asset = RuntimeInstaller.asset(21);
+        byte[] first = runtimeArchive("jdk21", "21.0.11", false);
+        try {
+            installer.ensure(21, progress::add);
+            throw new AssertionError("no runtime without the release");
+        } catch (IOException expected) {
+            check(expected.getMessage().contains("must be downloaded"), expected.getMessage());
+        }
+        release.put(asset, first);
+        release.put("SHA256SUMS", (sha256(first) + "  " + asset + "\n").getBytes(StandardCharsets.US_ASCII));
+        Path home = installer.ensure(21, progress::add);
+        check(home.equals(root.resolve("jdk21")) && Runtimes.feature(home, -1) == 21, "Java 21 installed: " + home);
+        check(Files.isRegularFile(home.resolve("legal/" + "x".repeat(120))), "PAX long names unpacked");
+        check(progress.get(0).equals("Downloading Java 21..."), "progress shown: " + progress);
+        progress.clear();
+        installer.ensure(21, progress::add);
+        check(progress.isEmpty(), "an up-to-date runtime is not downloaded again: " + progress);
+        Runtimes runtimes = Runtimes.discover(export(Files.createTempDirectory("packaged").resolve("jdk17"), "17.0.20"),
+                Path.of("/nonexistent"), root);
+        check(runtimes.forJava(21) != null && runtimes.forJava(21).home().equals(home), "downloaded runtime discovered");
+
+        byte[] second = runtimeArchive("jdk21", "21.0.12", false);
+        release.put(asset, second);
+        release.put("SHA256SUMS", (sha256(second) + "  " + asset + "\n").getBytes(StandardCharsets.US_ASCII));
+        installer.ensure(21, progress::add);
+        check(Files.readString(home.resolve("release")).contains("21.0.12") && progress.get(0).startsWith("Updating"),
+                "a newer release replaces the runtime: " + progress);
+        try (java.util.stream.Stream<Path> left = Files.list(root)) {
+            check(left.map(p -> p.getFileName().toString()).toList().equals(List.of("jdk21")), "no staging left behind");
+        }
+
+        release.remove("SHA256SUMS");
+        check(installer.ensure(21, progress::add).equals(home), "offline keeps the installed runtime");
+
+        byte[] corrupt = runtimeArchive("jdk21", "21.0.13", false);
+        release.put(asset, corrupt);
+        release.put("SHA256SUMS", ("0".repeat(64) + "  " + asset + "\n").getBytes(StandardCharsets.US_ASCII));
+        try {
+            installer.ensure(21, progress::add);
+            throw new AssertionError("a download that does not match its checksum must not install");
+        } catch (IOException expected) {
+            check(expected.getMessage().contains("checksum"), expected.getMessage());
+        }
+        check(Files.readString(home.resolve("release")).contains("21.0.12"), "a failed update keeps the runtime");
+
+        byte[] escaping = runtimeArchive("jdk25", "25.0.4", true);
+        release.put(RuntimeInstaller.asset(25), escaping);
+        release.put("SHA256SUMS", (sha256(escaping) + "  " + RuntimeInstaller.asset(25) + "\n").getBytes(StandardCharsets.US_ASCII));
+        try {
+            installer.ensure(25, progress::add);
+            throw new AssertionError("an archive writing outside its runtime must not install");
+        } catch (IOException expected) {
+            check(expected.getMessage().contains("Unsafe") || expected.getMessage().contains("Unexpected"), expected.getMessage());
+        }
+        check(!Files.exists(root.resolve("evil")) && !Files.exists(root.resolve("jdk25")), "nothing written outside");
+        check(RuntimeInstaller.downloadable(17) == 21 && RuntimeInstaller.downloadable(21) == 21
+                && RuntimeInstaller.downloadable(22) == 25 && RuntimeInstaller.downloadable(26) == -1, "release versions");
+    }
+
+    /** A .tar.xz shaped like orbis-openjdk's release asset (Python tarfile, PAX long names). */
+    private static byte[] runtimeArchive(String name, String version, boolean escaping) throws IOException {
+        java.io.ByteArrayOutputStream tar = new java.io.ByteArrayOutputStream();
+        tarEntry(tar, name, '5', new byte[0]);
+        tarEntry(tar, name + "/release", '0', ("JAVA_VERSION=\"" + version + "\"\n").getBytes(StandardCharsets.UTF_8));
+        tarEntry(tar, name + "/lib/server/libjvm.prx", '0', new byte[]{1, 2, 3});
+        String longName = name + "/legal/" + "x".repeat(120);
+        String record = " path=" + longName + "\n";
+        int length = record.length();
+        while (String.valueOf(length).length() + record.length() != length) length = String.valueOf(length).length() + record.length();
+        tarEntry(tar, "PaxHeader", 'x', (length + record).getBytes(StandardCharsets.UTF_8));
+        tarEntry(tar, "truncated", '0', new byte[]{4});
+        if (escaping) tarEntry(tar, name + "/../evil", '0', new byte[]{5});
+        tar.write(new byte[1024]);
+        java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+        try (org.tukaani.xz.XZOutputStream xz = new org.tukaani.xz.XZOutputStream(out, new org.tukaani.xz.LZMA2Options())) {
+            xz.write(tar.toByteArray());
+        }
+        return out.toByteArray();
+    }
+
+    private static void tarEntry(java.io.ByteArrayOutputStream tar, String name, char type, byte[] data) throws IOException {
+        byte[] header = new byte[512];
+        byte[] encoded = name.getBytes(StandardCharsets.UTF_8);
+        System.arraycopy(encoded, 0, header, 0, Math.min(100, encoded.length));
+        byte[] size = String.format("%011o", data.length).getBytes(StandardCharsets.US_ASCII);
+        System.arraycopy(size, 0, header, 124, size.length);
+        header[156] = (byte) type;
+        System.arraycopy("ustar\u000000".getBytes(StandardCharsets.US_ASCII), 0, header, 257, 8);
+        tar.write(header);
+        tar.write(data);
+        tar.write(new byte[(512 - data.length % 512) % 512]);
+    }
+
+    private static String sha256(byte[] data) {
+        try { return java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256").digest(data)); }
+        catch (java.security.NoSuchAlgorithmException impossible) { throw new IllegalStateException(impossible); }
     }
 
     private static void installedBootstrap() throws IOException {

@@ -43,13 +43,15 @@ if classes.exists():
     shutil.rmtree(classes)
 classes.mkdir(parents=True)
 
-# TwelveMonkeys (WebP for Modrinth images) is merged into the launcher JAR; see launcher/twelvemonkeys.lock.json.
-third_party = launcher_deps.jars()
+# TwelveMonkeys (WebP for Modrinth images) and XZ for Java (downloaded runtimes) are merged into the
+# launcher JAR; see launcher/twelvemonkeys.lock.json and launcher/xz.lock.json.
+merged_jars = launcher_deps.merged()
+third_party = [path for path, _ in merged_jars]
 classpath = ':'.join(str(lwjgl_sources.java_artifact(arguments.jars, name)) for name in
                      ('lwjgl-3.2.2.jar', 'lwjgl-opengl-3.2.2.jar', 'lwjgl-glfw-3.2.2.jar')) + ':' + arguments.gson
 classpath += ''.join(':' + str(path) for path in third_party)
 qr_lock = json.loads((ROOT / 'launcher/qr-sources.lock.json').read_text())
-font_lock = json.loads((ROOT / 'launcher/fonts/inter.lock.json').read_text())
+font_lock = json.loads((ROOT / 'launcher/fonts/font.lock.json').read_text())
 for name, expected in font_lock['generated_files'].items():
     resource = ROOT / 'launcher/resources/orbis/launcher/fonts' / name
     if hashlib.sha256(resource.read_bytes()).hexdigest() != expected:
@@ -99,21 +101,23 @@ with zipfile.ZipFile(jar, 'w', zipfile.ZIP_DEFLATED) as archive:
     archive.write(ROOT / 'launcher/qr-sources.lock.json', 'META-INF/qr-sources.lock.json')
     # Only their classes: no META-INF/services, so the game's ImageIO does not gain these plugins.
     merged = 0
-    for path in third_party:
+    for path, package in merged_jars:
         with zipfile.ZipFile(path) as source:
             for entry in source.infolist():
-                if entry.is_dir() or not entry.filename.endswith('.class'):
+                # XZ for Java is a multi-release JAR; its base classes run on every Java.
+                if entry.is_dir() or not entry.filename.endswith('.class') or entry.filename.startswith('META-INF/'):
                     continue
-                if not entry.filename.startswith('com/twelvemonkeys/'):
+                if not entry.filename.startswith(package):
                     raise SystemExit(f'unexpected class in {path.name}: {entry.filename}')
                 archive.writestr(entry.filename, source.read(entry))
                 merged += 1
-    archive.write(ROOT / 'launcher/legal/twelvemonkeys-LICENSE.txt', 'META-INF/licenses/twelvemonkeys-LICENSE.txt')
-    archive.write(ROOT / 'launcher/twelvemonkeys.lock.json', 'META-INF/twelvemonkeys.lock.json')
+    for lock_path, pinned in launcher_deps.locks():
+        archive.write(ROOT / 'launcher' / pinned['license_file'], 'META-INF/licenses/' + Path(pinned['license_file']).name)
+        archive.write(lock_path, 'META-INF/' + lock_path.name)
     # The Microsoft application ID: ORBIS_MSA_CLIENT_ID or the untracked secrets.env, never the sources.
     secret = launcher_secrets.resource()
     if secret:
         archive.writestr(*secret)
     else:
         print('launcher: no ORBIS_MSA_CLIENT_ID; sign-in reads microsoft-auth.properties (development build)')
-print(f'launcher: {jar.name}, {sum(1 for _ in classes.rglob("*.class"))} classes, {merged} TwelveMonkeys classes')
+print(f'launcher: {jar.name}, {sum(1 for _ in classes.rglob("*.class"))} classes, {merged} third-party classes')

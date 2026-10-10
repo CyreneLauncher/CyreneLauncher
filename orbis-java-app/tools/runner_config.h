@@ -3,6 +3,12 @@
 #include <stddef.h>
 #define RUNNER_CONFIG_PATH "/data/orbis-jdk/runner/runner.conf"
 #define RUNNER_ROOT "/data/orbis-jdk/runner"
+/* Where the launcher downloads the runtimes the package does not carry (RuntimeInstaller). */
+#define RUNNER_DOWNLOADED_RUNTIMES "/data/orbis-jdk/runtimes"
+/* One copy in the package for every runtime. */
+#define RUNNER_GRAPHICS_BUNDLE "/app0/orbis/graphics"
+#define RUNNER_DESKTOP_BUNDLE "/app0/orbis/desktop"
+#define RUNNER_LAUNCHER_JAR RUNNER_GRAPHICS_BUNDLE "/lib/orbis-launcher.jar"
 #define RUNNER_PATH_CAPACITY 512
 enum RunnerDisplay { RUNNER_DISPLAY_CONSOLE = 0, RUNNER_DISPLAY_DESKTOP = 1, RUNNER_DISPLAY_GPU = 2 };
 #ifdef __cplusplus
