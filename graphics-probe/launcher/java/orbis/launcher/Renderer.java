@@ -27,7 +27,7 @@ class Renderer {
             TEXT = 0xffffffff, DIM = 0xffb2b2b2, WARN = 0xffe0b050, ERROR = 0xffd9534f, DARK = 0xff101010,
             WHITE = 0xffffffff, SHADE = 0xc0101010, CHIP = 0xff3a3a3a, BLUE = 0xff5b8fd6;
     /** Cells of the generated icon atlas: a disc for rounded corners and the four face buttons. */
-    private static final int DISC = 0, RING = 1, CROSS = 2, TRIANGLE = 3, SQUARE = 4, OUTLINE = 5, ICON_CELLS = 6,
+    private static final int DISC = 0, RING = 1, CROSS = 2, TRIANGLE = 3, SQUARE = 4, OUTLINE = 5, CUTOUT = 6, ICON_CELLS = 7,
             ICON_SIZE = 64;
     /** The outline cell's stroke as a share of its radius. */
     private static final float OUTLINE_STROKE = 0.2f;
@@ -199,6 +199,30 @@ class Renderer {
         image(icons, x + w - radius, y + h - radius, radius, radius, um, 0.5f, u1, 1, color);
     }
 
+    /**
+     * Rounds the corners of whatever was drawn in the rectangle (a picture) by painting the area outside the
+     * curve in the colour behind it. top and bottom choose which corners.
+     */
+    void roundCorners(float x, float y, float w, float h, float radius, int behind, boolean top, boolean bottom) {
+        if (icons == 0 || radius < 1) return;
+        radius = Math.min(radius, Math.min(w, h) / 2);
+        float u0 = (float) CUTOUT / ICON_CELLS, um = (CUTOUT + 0.5f) / ICON_CELLS, u1 = (CUTOUT + 1f) / ICON_CELLS;
+        if (top) {
+            image(icons, x, y, radius, radius, u0, 0, um, 0.5f, behind);
+            image(icons, x + w - radius, y, radius, radius, um, 0, u1, 0.5f, behind);
+        }
+        if (bottom) {
+            image(icons, x, y + h - radius, radius, radius, u0, 0.5f, um, 1, behind);
+            image(icons, x + w - radius, y + h - radius, radius, radius, um, 0.5f, u1, 1, behind);
+        }
+    }
+
+    /** A picture with rounded corners, on a background of the given colour. */
+    void roundImage(int texture, float x, float y, float w, float h, float radius, int behind) {
+        image(texture, x, y, w, h, WHITE);
+        roundCorners(x, y, w, h, radius, behind, true, true);
+    }
+
     /** A filled circle of the given diameter. */
     void disc(float x, float y, float size, int color) {
         roundRect(x, y, size, size, size / 2, color);
@@ -245,6 +269,8 @@ class Renderer {
                     float stroke = 3.2f;
                     switch (cell) {
                         case DISC -> d = (float) Math.hypot(x, y) - n / 2f + 0.5f;
+                        // Everything outside the disc: painted over a picture's corners to round them.
+                        case CUTOUT -> d = n / 2f - 0.5f - (float) Math.hypot(x, y);
                         case OUTLINE -> d = Math.abs((float) Math.hypot(x, y) - n / 2f * (1 - OUTLINE_STROKE / 2) + 0.25f)
                                 - n / 2f * OUTLINE_STROKE / 2;
                         case RING -> d = Math.abs((float) Math.hypot(x, y) - 14) - stroke;
