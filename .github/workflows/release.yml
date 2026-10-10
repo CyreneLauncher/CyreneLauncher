@@ -11,6 +11,14 @@ on:
         description: Create a draft GitHub release after verification
         default: false
         type: boolean
+      jdk_release:
+        description: orbis-openjdk release to package
+        default: download
+        type: string
+      release_tag:
+        description: Tag for the draft release (empty for v<version>)
+        default: ''
+        type: string
 permissions:
   contents: read
 concurrency:
@@ -30,54 +38,9 @@ jobs:
         run: test -n "$ORBIS_MSA_CLIENT_ID"
       - name: Test orchestration
         run: python3 -m unittest discover -s orbis-launcher/tools/tests -v
-  jdks:
-    needs: checks
-    runs-on: ubuntu-24.04
-    timeout-minutes: 350
-    strategy:
-      fail-fast: false
-      matrix:
-        jdk: ['17', '21', '25']
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-        with:
-          path: orbis-launcher
-          persist-credentials: false
-      - uses: ./orbis-launcher/.github/actions/build-host
-        with:
-          jdks: ${{ matrix.jdk }}
-      - name: Bootstrap and check recorded link inputs
+      - name: Require pinned runtime and library releases
         run: |
-          orbis-launcher/orbis bootstrap
-          python3 -m unittest discover -s orbis-openjdk/tests -v
-      - name: Build and audit runtime
-        env:
-          JDK_VERSION: ${{ matrix.jdk }}
-        run: orbis-launcher/orbis jdks --jdk "$JDK_VERSION" --jobs 4
-      - name: Archive runtime with provenance and file modes
-        env:
-          JDK_VERSION: ${{ matrix.jdk }}
-        run: |
-          python3 orbis-launcher/tools/build_artifacts.py pack --root "$GITHUB_WORKSPACE" \
-            --archive "orbis-launcher/dist/jdk${JDK_VERSION}.tar.gz" \
-            "orbis-openjdk/output/jdk${JDK_VERSION}"
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: cyrene-runtime-${{ matrix.jdk }}
-          path: orbis-launcher/dist/jdk*.tar.gz*
-          if-no-files-found: error
-          retention-days: 14
-      - name: Save logs
-        if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: cyrene-jdk-${{ matrix.jdk }}-logs
-          path: |
-            orbis-launcher/build-logs/
-            orbis-openjdk/work/jdk${{ matrix.jdk }}u/config.log
-            orbis-openjdk/work/jdk${{ matrix.jdk }}u/build/**/configure.log
-            orbis-openjdk/work/jdk${{ matrix.jdk }}u/build/**/failure-summary*
-          retention-days: 14
+          orbis-launcher/orbis pin-libraries --check
   assets:
     needs: checks
     runs-on: ubuntu-24.04
@@ -89,11 +52,29 @@ jobs:
         with:
           path: orbis-launcher
           persist-credentials: false
+      - name: Allow cloning the private port repositories
+        env:
+          TOKEN: ${{ secrets.CYRENE_RELEASES_TOKEN }}
+        run: |
+          if [ -n "$TOKEN" ]; then
+            git config --global url."https://x-access-token:${TOKEN}@github.com/CyreneLauncher/".insteadOf "https://github.com/CyreneLauncher/"
+          fi
       - uses: ./orbis-launcher/.github/actions/build-host
         with:
           jdks: '17 25'
-      - name: Build native drivers, launcher and desktop support
-        run: orbis-launcher/orbis assets --jobs 4
+      - name: Download pinned library releases
+        env:
+          # As for the runtimes: needs read access to the private port repositories' releases.
+          GH_TOKEN: ${{ secrets.CYRENE_RELEASES_TOKEN || github.token }}
+        shell: bash
+        run: |
+          orbis-launcher/orbis bootstrap
+          orbis-launcher/orbis release-assets > library-releases.txt
+          while read -r component repository tag asset; do
+            gh release download "$tag" --repo "$repository" --pattern "$asset" --dir "incoming/libraries/$component"
+          done < library-releases.txt
+      - name: Install libraries, build launcher and desktop support
+        run: orbis-launcher/orbis assets --jobs 4 --from "$GITHUB_WORKSPACE/incoming/libraries"
       - name: Archive audited assets
         run: |
           python3 orbis-launcher/tools/build_artifacts.py pack --root "$GITHUB_WORKSPACE" \
@@ -117,7 +98,7 @@ jobs:
             orbis-launcher/graphics-probe/build/**/*.log
           retention-days: 14
   package:
-    needs: [jdks, assets]
+    needs: assets
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     permissions:
@@ -129,14 +110,31 @@ jobs:
         with:
           path: orbis-launcher
           persist-credentials: false
+      - name: Allow cloning the private port repositories
+        env:
+          TOKEN: ${{ secrets.CYRENE_RELEASES_TOKEN }}
+        run: |
+          if [ -n "$TOKEN" ]; then
+            git config --global url."https://x-access-token:${TOKEN}@github.com/CyreneLauncher/".insteadOf "https://github.com/CyreneLauncher/"
+          fi
       - uses: ./orbis-launcher/.github/actions/build-host
         with:
           jdks: '17 25'
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
-        with:
-          pattern: cyrene-runtime-*
-          path: incoming/jdks
-          merge-multiple: true
+      - name: Download the runtimes from orbis-openjdk
+        env:
+          # The default token cannot read another private repository; set this secret to a
+          # token with read access to the CyreneLauncher repositories' releases while they are private.
+          GH_TOKEN: ${{ secrets.CYRENE_RELEASES_TOKEN || github.token }}
+          JDK_RELEASE: ${{ inputs.jdk_release }}
+        shell: bash
+        run: |
+          repository=$(python3 -c "import json;u=json.load(open('orbis-launcher/repositories.lock.json'))['components']['orbis-openjdk']['url'];print(u.removeprefix('https://github.com/').removesuffix('.git'))")
+          mkdir -p incoming/jdks
+          # Record the commit the rolling release currently points at.
+          gh release view "$JDK_RELEASE" --repo "$repository" --json tagName,targetCommitish,url > incoming/jdks/release.json
+          tag=$(python3 -c "import json;print(json.load(open('incoming/jdks/release.json'))['tagName'])")
+          gh release download "$tag" --repo "$repository" --pattern 'jre*-orbis-x86_64.tar.xz' \
+            --pattern SHA256SUMS --dir incoming/jdks
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: cyrene-assets
@@ -144,11 +142,7 @@ jobs:
       - name: Verify and import components
         shell: bash
         run: |
-          orbis-launcher/orbis bootstrap
-          for version in 17 21 25; do
-            python3 orbis-launcher/tools/build_artifacts.py unpack --root "$GITHUB_WORKSPACE" \
-              --archive "incoming/jdks/jdk${version}.tar.gz"
-          done
+          orbis-launcher/orbis fetch-jdks --from "$GITHUB_WORKSPACE/incoming/jdks"
           python3 orbis-launcher/tools/build_artifacts.py unpack --root "$GITHUB_WORKSPACE" \
             --archive incoming/assets/assets.tar.gz
           orbis-launcher/orbis seal
@@ -161,6 +155,7 @@ jobs:
         run: |
           orbis-launcher/orbis export
           cp orbis-launcher/tools/toolchain.lock.json orbis-launcher/dist/toolchain.lock.json
+          cp incoming/jdks/release.json orbis-launcher/dist/jdk-release.json
           cd orbis-launcher/dist
           sha256sum ./*.pkg ./*.json ./*.tar.gz ./*.sha256 > SHA256SUMS
       - name: Save release outputs
@@ -182,9 +177,10 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           APP_VERSION: ${{ inputs.version }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
         shell: bash
         run: |
-          gh release create "v${APP_VERSION}" orbis-launcher/dist/* \
+          gh release create "${RELEASE_TAG:-v${APP_VERSION}}" orbis-launcher/dist/* \
             --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --draft \
             --title "Cyrene Launcher ${APP_VERSION}" \
-            --notes "Built on GitHub-hosted Ubuntu from pinned sources and SDKs. Includes the verified PKG, reusable components, checksums and runtime manifest. Console testing status must be recorded before publishing this draft."
+            --notes "Built on GitHub-hosted Ubuntu from pinned sources and SDKs, with the runtimes of orbis-openjdk $(python3 -c "import json;print(json.load(open('incoming/jdks/release.json'))['tagName'])"). Includes the verified PKG, reusable components, checksums and runtime manifest. Console testing status must be recorded before publishing this draft."

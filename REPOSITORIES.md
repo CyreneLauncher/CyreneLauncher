@@ -3,20 +3,32 @@
 The Orbis Java/game stack uses **10 pinned sibling repositories**, plus this
 launcher integration repository. Exact revisions and compatibility links live in
 `repositories.lock.json`; upstream archive hashes live in
-`graphics-probe/deps.lock.json` and `graphics-probe/lwjgl/lwjgl-sources.lock.json`.
+`mesa-orbis/orbis-port/build.lock.json` and `lwjgl-orbis/lwjgl-sources.lock.json`.
 
 | Sibling repository | Owns |
 | --- | --- |
-| `mesa-orbis` | Mesa upstream history, all 45 ordered local patches, Mesa build recipe |
-| `lwjgl-orbis` | Four LWJGL profiles, Java/JNI adapters, dyncall/libffi adaptations, LWJGL/FreeType/shader/VMA build recipes |
-| `openal-soft-orbis` | AudioOut backend, OpenAL adaptations and build recipe |
-| `sdl-orbis` | SDL threading adaptations, gamepad adapter and build recipe |
-| `orbis-runtime-support` | PRX runtime/TLS/environment/initializer support, linker preparation and common PRX build recipe |
+| `mesa-orbis` | Mesa upstream history, all 45 ordered local patches, Mesa build recipe, its source/host-tool pins and build-tree setup (`orbis-port/tools`) |
+| `lwjgl-orbis` | Four LWJGL profiles, Java/JNI adapters, dyncall/libffi adaptations, LWJGL/FreeType/shader/VMA/platform PRX build recipes and their source pins |
+| `openal-soft-orbis` | AudioOut backend, OpenAL adaptations, build recipe and upstream pin |
+| `sdl-orbis` | SDL threading adaptations, gamepad adapter, build recipe and upstream pin |
+| `orbis-runtime-support` | PRX runtime/TLS/environment/initializer support, linker preparation, the shared PRX build recipe, build stamps and pinned-archive downloads |
 | `jdk17u` | OpenJDK 17 Orbis port |
 | `jdk21u` | OpenJDK 21 Orbis port; `.git` points to its existing `.orbis-git` history |
 | `jdk25u` | OpenJDK 25 Orbis port |
 | `orbis-compat` | Pinned compatibility implementation used by native builds |
 | `orbis-porting-kit` | Pinned cross-build support |
+
+The ports do not depend on each other except where code is linked: every port
+uses `orbis-runtime-support`, ports that compile orbis-compat sources use
+`orbis-compat`, and lwjgl-orbis's platform PRX links the Mesa build. LWJGL loads
+OpenAL and SDL at run time only. Each port reads its own pins and files; set
+`ORBIS_BUILD_ROOT` to choose where downloads, prepared sources and outputs go. The
+launcher's wrappers set it to `graphics-probe/build`.
+
+Each port publishes its build as a GitHub release from its own Release workflow:
+`release.json` lists what the archive holds and `dependencies.lock.json` pins what
+the release build uses. The launcher installs those releases (see README.md);
+`./orbis native` still builds every port from source.
 
 RADV, radeonsi and Zink are drivers inside Mesa, not separate repositories.
 LWJGL's four releases are profiles inside one port repository. OpenAL and SDL
@@ -53,7 +65,7 @@ there. Then update that component's `revision` in `repositories.lock.json` to
 change in the launcher. Never silently reset dirty repositories to satisfy a pin.
 
 Mesa has two different pins: the component pin identifies the port repository
-and patch series; `deps.lock.json` identifies the upstream base used by the build
+and patch series; its `orbis-port/build.lock.json` identifies the upstream base used by the build
 checkout. Keep the base pin unchanged when only changing the patch series.
 The build recipe hashes the patches into its manifest and shader-cache identity.
 Do not apply the series permanently to the cached checkout, or apply it twice.

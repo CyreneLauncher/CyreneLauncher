@@ -16,6 +16,134 @@ spec = importlib.util.spec_from_file_location('cyrene', Path(__file__).parents[1
 cli = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(cli)
 
+class RuntimeReleaseTests(unittest.TestCase):
+    def layout(self, root):
+        launcher=root/'orbis-launcher';(launcher/'tools').mkdir(parents=True)
+        (launcher/'repositories.lock.json').write_text(json.dumps({'components':{'orbis-openjdk':{
+            'revision':'a'*40,'url':'https://github.com/CyreneLauncher/orbis-openjdk.git'}}}))
+        jdk=root/'orbis-openjdk';jdk.mkdir()
+        (jdk/'versions.lock.json').write_text(json.dumps({'versions':{v:{'base':v} for v in ('17','21','25')}}))
+        toolchain=root/'tc';(toolchain/'lib').mkdir(parents=True);(toolchain/'lib/libc.a').write_bytes(b'libc')
+        return launcher,toolchain
+
+    def release(self, root, tag, toolchain, libc=None, member=None):
+        """An orbis-openjdk release as the workflow downloads it: archives, SHA256SUMS, release.json."""
+        assets=root/tag;assets.mkdir()
+        for version in ('17','21','25'):
+            runtime=root/'build'/tag/('jdk'+version);(runtime/'lib/server').mkdir(parents=True)
+            (runtime/'release').write_text('JAVA_VERSION="'+version+'" '+tag)
+            (runtime/'lib/server/libjvm.prx').write_bytes(b'prx')
+            files=cli.rp.inventory(runtime)
+            # Built from another orbis-openjdk revision than the launcher pins: only libc must match.
+            (runtime/'build-provenance.json').write_text(json.dumps({'version':version,'source':{'base':'other'},
+                'lock_sha256':'0'*64,'libc_sha256':libc or cli.digest(toolchain/'lib/libc.a'),'output_files':files}))
+            with tarfile.open(assets/cli.runtime_asset(version),'w:xz') as out:
+                out.add(runtime,arcname=member or 'jdk'+version)
+        (assets/'SHA256SUMS').write_text(''.join(cli.digest(a)+'  '+a.name+'\n' for a in sorted(assets.glob('*.tar.xz'))))
+        (assets/'release.json').write_text(json.dumps({'tagName':tag,'targetCommitish':'b'*40}))
+        return assets
+
+    def patches(self, root, launcher):
+        return (patch.object(cli,'ROOT',launcher),patch.object(cli,'WORK',root),
+                patch.object(cli,'JDK_RELEASE',root/'orbis-openjdk/output/release.json'))
+
+    def test_installs_any_release_whose_libc_matches(self):
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d);launcher,toolchain=self.layout(root)
+            first=self.release(root,'jdk-111111111111',toolchain)
+            args=SimpleNamespace(from_dir=first,jdk='all',jdk_tag=None,toolchain=toolchain)
+            a,b,c=self.patches(root,launcher)
+            with a,b,c:
+                cli.fetch_jdks(args)
+                self.assertIn('jdk-111111111111',(root/'orbis-openjdk/output/jdk17/release').read_text())
+                self.assertEqual(cli.installed_jdk_release()['tag'],'jdk-111111111111')
+                cli.check_installed_jdk(root/'orbis-openjdk/output/jdk21',21,cli.digest(toolchain/'lib/libc.a'))
+                cli.fetch_jdks(args)  # the same release again is a no-op
+                newer=self.release(root,'jdk-222222222222',toolchain)
+                with self.assertRaises(ValueError):  # never replaces an installed release silently
+                    cli.fetch_jdks(SimpleNamespace(**{**vars(args),'from_dir':newer}))
+
+    def test_rejects_other_libc_corruption_and_misplaced_runtimes(self):
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d);launcher,toolchain=self.layout(root)
+            cases=[self.release(root,'jdk-libc',toolchain,libc='f'*64),self.release(root,'jdk-moved',toolchain,member='jdk25')]
+            corrupt=self.release(root,'jdk-corrupt',toolchain);(corrupt/cli.runtime_asset('17')).write_bytes(b'corrupt')
+            a,b,c=self.patches(root,launcher)
+            with a,b,c:
+                for assets in [*cases,corrupt]:
+                    with self.assertRaises(ValueError):
+                        cli.fetch_jdks(SimpleNamespace(from_dir=assets,jdk='17',jdk_tag=None,toolchain=toolchain))
+                    self.assertFalse((root/'orbis-openjdk/output/jdk17').exists())
+
+class LibraryReleaseTests(unittest.TestCase):
+    PORTS = {'mesa-orbis': ('orbis-port/release.json', 'mesa'), 'openal-soft-orbis': ('release.json', 'openal'),
+             'sdl-orbis': ('release.json', 'sdl'), 'lwjgl-orbis': ('release.json', 'lwjgl')}
+
+    def layout(self, root):
+        support = Path(__file__).parents[3] / 'orbis-runtime-support/release_archive.py'
+        if not support.is_file():
+            self.skipTest('orbis-runtime-support checkout is not beside the launcher')
+        (root / 'orbis-runtime-support').mkdir()
+        shutil.copyfile(support, root / 'orbis-runtime-support/release_archive.py')
+        launcher = root / 'orbis-launcher'; (launcher / 'tools').mkdir(parents=True)
+        components = {}
+        for index, (name, (spec, prefix)) in enumerate(self.PORTS.items()):
+            revision = str(index) * 40
+            components[name] = {'directory': name, 'revision': revision,
+                                'url': f'https://github.com/CyreneLauncher/{name}.git'}
+            (root / name / spec).parent.mkdir(parents=True, exist_ok=True)
+            (root / name / spec).write_text(json.dumps({'asset': f'{name}.tar.xz', 'tag_prefix': prefix,
+                                                        'outputs': [], 'files': [f'{prefix}-out']}))
+        (launcher / 'repositories.lock.json').write_text(json.dumps({'components': components}))
+        lock = launcher / 'tools/library-releases.lock.json'
+        lock.write_text(json.dumps({'schema': 1, 'components': {name: {'spec': spec, 'revision': None, 'sha256': None}
+                                                                for name, (spec, _) in self.PORTS.items()}}))
+        return launcher, lock, components
+
+    def releases(self, root, archive, mesa_sha=None):
+        assets = root / 'assets'
+        for name, (spec, prefix) in self.PORTS.items():
+            build = root / 'release-build' / name
+            (build / f'{prefix}-out').mkdir(parents=True)
+            (build / f'{prefix}-out/lib.prx').write_bytes(name.encode())
+            asset = archive.pack(build, {'asset': f'{name}.tar.xz', 'files': [f'{prefix}-out']}, assets / name / f'{name}.tar.xz')
+            (assets / name / 'SHA256SUMS').write_text(archive.digest(asset) + '  ' + asset.name + '\n')
+        mesa = (assets / 'mesa-orbis/SHA256SUMS').read_text().split()[0]
+        (root / 'lwjgl-orbis/dependencies.lock.json').write_text(json.dumps(
+            {'mesa-orbis': {'revision': '0' * 40, 'sha256': mesa_sha or mesa}}))
+        return assets
+
+    def test_unpinned_libraries_are_rejected(self):
+        with tempfile.TemporaryDirectory() as d:
+            launcher, lock, _ = self.layout(Path(d))
+            with patch.object(cli, 'ROOT', launcher), patch.object(cli, 'LIBRARY_LOCK', lock):
+                with self.assertRaises(ValueError):
+                    cli.check_library_pins()
+
+    def test_pin_and_fetch_install_every_port_release(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d); launcher, lock, _ = self.layout(root)
+            with patch.object(cli, 'ROOT', launcher), patch.object(cli, 'WORK', root), \
+                    patch.object(cli, 'GP', launcher / 'graphics-probe'), patch.object(cli, 'LIBRARY_LOCK', lock):
+                assets = self.releases(root, cli.release_archive())
+                args = SimpleNamespace(check=False, from_dir=assets)
+                cli.pin_libraries(args)
+                cli.check_library_pins()
+                tags = [item['tag'] for item in cli.library_releases(json.loads(lock.read_text()))]
+                self.assertEqual(tags, ['mesa-' + '0' * 12, 'openal-' + '1' * 12, 'sdl-' + '2' * 12, 'lwjgl-' + '3' * 12])
+                cli.fetch_libraries(args)
+                self.assertEqual((launcher / 'graphics-probe/build/lwjgl-out/lib.prx').read_bytes(), b'lwjgl-orbis')
+                cli.fetch_libraries(args)  # recorded installs are not unpacked twice
+
+    def test_platform_must_link_the_shipped_mesa_release(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d); launcher, lock, _ = self.layout(root)
+            with patch.object(cli, 'ROOT', launcher), patch.object(cli, 'WORK', root), patch.object(cli, 'LIBRARY_LOCK', lock):
+                assets = self.releases(root, cli.release_archive(), mesa_sha='f' * 64)
+                with self.assertRaises(ValueError):
+                    cli.pin_libraries(SimpleNamespace(check=False, from_dir=assets))
+
+
 class CliTests(unittest.TestCase):
     def test_single_jdk_build_selects_matching_boot_jdk(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -28,10 +156,12 @@ class CliTests(unittest.TestCase):
 
     def test_assets_build_does_not_require_runtime_exports(self):
         with tempfile.TemporaryDirectory() as directory:
-            with patch('sys.argv',['orbis','assets']), patch.object(cli,'Runner'), patch.object(cli,'doctor') as doctor, patch.object(cli,'bootstrap'), patch.object(cli,'dependencies'), patch.object(cli,'native') as native, patch.object(cli,'launcher') as launcher, patch.object(cli,'record_components') as record:
+            with patch('sys.argv',['orbis','assets']), patch.object(cli,'Runner'), patch.object(cli,'doctor') as doctor, patch.object(cli,'bootstrap'), patch.object(cli,'dependencies'), patch.object(cli,'native') as native, patch.object(cli,'fetch_libraries') as libraries, patch.object(cli,'facades') as facades, patch.object(cli,'launcher') as launcher, patch.object(cli,'record_components') as record:
                 self.assertEqual(cli.main(),0)
                 self.assertEqual(doctor.call_args.args[1],(17,25))
-                native.assert_called_once();launcher.assert_called_once();record.assert_not_called()
+                # Released libraries replace the native source build; the launcher builds the facades.
+                native.assert_not_called();libraries.assert_called_once();facades.assert_called_once()
+                launcher.assert_called_once();record.assert_not_called()
 
     def test_wrapper_loads_local_configuration(self):
         with tempfile.TemporaryDirectory() as d:
