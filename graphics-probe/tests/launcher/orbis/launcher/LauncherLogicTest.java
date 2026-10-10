@@ -42,6 +42,7 @@ public final class LauncherLogicTest {
         markdown();
         pictures();
         textEntry();
+        OfflineAccountsTest.run(Files.createTempDirectory("offline-accounts-"));
         long seeds = args.length > 0 ? Long.parseLong(args[0]) : 8;
         int steps = args.length > 1 ? Integer.parseInt(args[1]) : 6000;
         for (long seed = 1; seed <= seeds; seed++) screen(seed, steps);
@@ -285,6 +286,17 @@ public final class LauncherLogicTest {
                 "msa", "", "");
         String[] args = LaunchArguments.build(new String[0], store.selected(), session);
         check(args[args.length - 1].equals("--demo"), "Minecraft arguments follow the managed ones: " + List.of(args));
+        AccountStore accounts = new AccountStore(root.resolve("offline-home"), root.resolve("runner"));
+        accounts.putMicrosoft("0123456789abcdef0123456789abcdef", "Owner", "client", "refresh");
+        AccountStore.Account offline = accounts.putOffline("LocalPlayer");
+        AccountStore.Session offlineSession = new MicrosoftAuthClient(accounts, root.resolve("offline-home")).refresh(offline.id());
+        List<String> offlineArgs = List.of(LaunchArguments.build(new String[]{"--accessToken", "premium-secret",
+                "--xuid", "premium-xuid", "--clientId=premium-client", "--username", "Owner"}, store.selected(), offlineSession));
+        check(!offlineArgs.contains("premium-secret") && !offlineArgs.contains("premium-xuid")
+                && !offlineArgs.contains("--clientId=premium-client") && !offlineArgs.contains("Owner")
+                && !offlineArgs.contains("--xuid") && !offlineArgs.contains("--clientId"), "offline arguments strip previous premium identity");
+        check(offlineArgs.get(offlineArgs.indexOf("--accessToken") + 1).equals("0")
+                && offlineArgs.get(offlineArgs.indexOf("--username") + 1).equals("LocalPlayer"), "offline arguments use the offline session");
     }
 
     /** Downloaded runtimes: verified, unpacked beside the packaged one, replaced when the release moves on. */
@@ -1020,6 +1032,18 @@ public final class LauncherLogicTest {
         FakeModrinth modrinth = new FakeModrinth(random, packs);
         TestScreen screen = new TestScreen(config, new HeadlessRenderer(), modrinth,
                 new FakeInstaller(modrinth, game, random), random, packs);
+
+        if (seed % 2 == 0) {
+            screen.apply("", List.of(Input.Action.NEXT_SECTION, Input.Action.DOWN, Input.Action.DOWN, Input.Action.CONFIRM));
+            screen.apply("LocalPlayer", List.of(Input.Action.CONFIRM));
+            AccountStore saved = new AccountStore(config.home, config.runnerRoot);
+            check(saved.defaultAccount() != null && saved.defaultAccount().kind().equals("offline")
+                    && saved.defaultAccount().username().equals("LocalPlayer"), "account screen creates and selects an offline profile");
+            screen.apply("", List.of(Input.Action.ALT2));
+            screen.apply("", List.of(Input.Action.RIGHT, Input.Action.CONFIRM));
+            check(new AccountStore(config.home, config.runnerRoot).list().size() == 1, "account screen removes an offline profile");
+            screen.apply("", List.of(Input.Action.BACK));
+        }
 
         // Play directly once: focus the actions, Play is the first.
         String conf = Files.readString(runner.resolve("runner.conf")), options = Files.readString(runner.resolve("jvm-options.txt"));

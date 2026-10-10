@@ -196,6 +196,8 @@ final class MicrosoftAuthClient {
 
     AccountStore.Session refresh(String accountId, Cancellation cancellation) throws IOException {
         cancellation.check();
+        AccountStore.Account selected = accounts.get(accountId);
+        if (selected != null && "offline".equals(selected.kind())) return accounts.offlineSession(accountId);
         String configured = clientId();
         AccountStore.Credential credential;
         try { credential = accounts.credential(accountId); }

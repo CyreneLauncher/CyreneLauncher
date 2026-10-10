@@ -38,7 +38,7 @@ class LauncherScreen {
     private enum Tab { DESCRIPTION, GALLERY, VERSIONS }
     private enum Zone { ACTIONS, TABS, CONTENT }
     private enum Focus { LIST, DETAIL }
-    private enum Field { SEARCH, INSTANCE_NAME, JVM_ARGS, GAME_ARGS }
+    private enum Field { SEARCH, INSTANCE_NAME, JVM_ARGS, GAME_ARGS, OFFLINE_NAME }
     private enum NameMode { CREATE, CLONE, RENAME }
 
     private final LauncherConfig config;
@@ -380,7 +380,7 @@ class LauncherScreen {
     private void beginEdit(Field field, Input.Source source) {
         editingField = field;
         InstanceStore.Instance current = config.selectedInstance();
-        String initial = field == Field.SEARCH ? query.toString()
+        String initial = field == Field.OFFLINE_NAME ? "" : field == Field.SEARCH ? query.toString()
                 : field == Field.JVM_ARGS ? current.jvmArgs()
                 : field == Field.GAME_ARGS ? current.gameArgs()
                 : nameMode == NameMode.RENAME ? config.instances.get(nameTargetId).name()
@@ -393,6 +393,7 @@ class LauncherScreen {
             systemKeyboardOpen = field == Field.SEARCH ? beginSystemKeyboard("Search mods", 100)
                     : field == Field.JVM_ARGS ? beginSystemKeyboard("JVM arguments", InstanceArguments.MAX_LENGTH, true)
                     : field == Field.GAME_ARGS ? beginSystemKeyboard("Minecraft arguments", InstanceArguments.MAX_LENGTH, true)
+                    : field == Field.OFFLINE_NAME ? beginSystemKeyboard("Offline player name", 16)
                     : beginSystemKeyboard("Instance name", 80);
             if (!systemKeyboardOpen) setStatus("System keyboard unavailable. Use a physical keyboard to edit.", WARN);
         }
@@ -477,6 +478,17 @@ class LauncherScreen {
                     setStatus((jvm ? "JVM" : "Minecraft") + " arguments saved for " + current.name() + ".", GOOD);
                 } catch (IOException failure) {
                     setStatus(failure.getMessage(), ERROR);
+                }
+            }
+        } else if (editingField == Field.OFFLINE_NAME) {
+            if (accepted) {
+                try {
+                    AccountStore.Account account = accounts().putOffline(value);
+                    accounts().selectDefault(account.id());
+                    selected = accountList().indexOf(account);
+                    setStatus("Playing offline as " + account.username() + ". Authenticated servers require your Microsoft account.", GOOD);
+                } catch (IOException | IllegalArgumentException failure) {
+                    setStatus("Cannot add offline account: " + failure.getMessage(), ERROR);
                 }
             }
         } else if (accepted) {
@@ -694,7 +706,7 @@ class LauncherScreen {
             case VERSIONS -> 1 + catalog.size();
             case SETTINGS -> SETTINGS_ROWS;
             case CREATE -> 2;
-            case ACCOUNTS -> accountList().size() + 1;
+            case ACCOUNTS -> accountList().size() + (offlineAvailable() ? 2 : 1);
             case MODS -> 1 + mods.size();
             case BROWSE -> browseRows();
             case PROJECT -> 1;
@@ -722,7 +734,8 @@ class LauncherScreen {
             case ACCOUNTS -> {
                 List<AccountStore.Account> list = accountList();
                 if (selected < list.size()) makeDefault(list.get(selected));
-                else startMicrosoftLogin();
+                else if (selected == list.size()) startMicrosoftLogin();
+                else if (offlineAvailable()) beginEdit(Field.OFFLINE_NAME, source);
             }
             case SETTINGS -> {
                 switch (selected) {
@@ -1125,12 +1138,21 @@ class LauncherScreen {
         return VersionStore::fetch;
     }
 
-    /** The selected account's skin face, fetched in the background the first time; 0 until it is there. */
+    private boolean offlineAvailable() {
+        try { return accounts().hasOwnedMinecraft(); }
+        catch (IOException unavailable) { return false; }
+    }
+
+    private boolean isOfflineAccount(String id) {
+        return accountList().stream().anyMatch(a -> a.id().equals(id) && "offline".equals(a.kind()));
+    }
+
+    /** The selected Microsoft account's skin face, fetched in the background; 0 until available. */
     private int faceTexture() {
         String uuid;
         try {
             String id = accounts().defaultAccountId();
-            uuid = accountList().stream().filter(a -> a.id().equals(id)).map(AccountStore.Account::uuid).findFirst().orElse(null);
+            uuid = accountList().stream().filter(a -> a.id().equals(id) && "microsoft".equals(a.kind())).map(AccountStore.Account::uuid).findFirst().orElse(null);
         } catch (IOException failure) { return 0; }
         if (uuid == null) return 0;
         Integer known = faces.get(uuid);
@@ -1192,10 +1214,12 @@ class LauncherScreen {
                 accountRemovePending = null;
                 if (removeConfirmed) {
                     String name = accountName(id);
+                    boolean offline = isOfflineAccount(id);
                     try {
                         accounts().remove(id);
-                        setStatus("Signed out " + name + "; its saved sign-in was deleted.", GOOD);
-                    } catch (IOException failure) { setStatus("Sign-out failed: " + failure.getMessage(), ERROR); }
+                        setStatus(offline ? "Removed offline account " + name + "."
+                                : "Signed out " + name + "." + (offlineAvailable() ? "" : " Offline accounts are removed until you sign in again."), GOOD);
+                    } catch (IOException failure) { setStatus("Cannot remove account: " + failure.getMessage(), ERROR); }
                     selected = Math.min(selected, items() - 1);
                 }
                 input.releaseBarrier();
@@ -1985,7 +2009,7 @@ class LauncherScreen {
             case CREATE -> "Left/Right: choose   Cross/Enter: open   Circle/Escape: back";
             case SETTINGS -> "Left/Right: change   Cross/Enter: edit or select   Circle/Escape: back";
             case INSTANCES -> "Cross/Enter: select   Left/Right or Tab: focus   L1/R1: section";
-            case ACCOUNTS -> "Cross: use this account   Triangle: sign out   Circle: back   L1/R1: section";
+            case ACCOUNTS -> "Cross: use this account   Triangle: remove account   Circle: back   L1/R1: section";
             default -> "Cross/Enter: select   Circle/Escape: back   L1/R1: section";
         };
     }
@@ -2218,6 +2242,7 @@ class LauncherScreen {
         float x = 350 * s, w = 1220 * s, fieldH = args ? 260 * s : 60 * s, h = 260 * s + fieldH, y = (r.height - h) / 2;
         dialog(x, y, w, h);
         r.text(editingField == Field.JVM_ARGS ? "JVM ARGUMENTS" : editingField == Field.GAME_ARGS ? "MINECRAFT ARGUMENTS"
+                : editingField == Field.OFFLINE_NAME ? "ADD OFFLINE ACCOUNT"
                 : nameMode == NameMode.CREATE ? "CREATE INSTANCE" : nameMode == NameMode.CLONE
                 ? "CLONE INSTANCE" : "RENAME INSTANCE", x + 40 * s, y + 35 * s, 3.5f * s, TEXT);
         String value = editor.value();
@@ -2298,11 +2323,15 @@ class LauncherScreen {
         List<Integer> colors = new ArrayList<>();
         for (AccountStore.Account account : accountList()) {
             boolean isDefault = account.id().equals(defaultId);
-            rows.add(account.username() + "   Microsoft account" + (isDefault ? "   (in use)" : ""));
+            rows.add(account.username() + ("offline".equals(account.kind()) ? "   Offline account" : "   Microsoft account") + (isDefault ? "   (in use)" : ""));
             colors.add(TEXT);
         }
         rows.add("Add Microsoft account");
         colors.add(ACCENT_HI);
+        if (offlineAvailable()) {
+            rows.add("Add offline account");
+            colors.add(ACCENT_HI);
+        }
         list(rows, colors, 120 * s, 280 * s, 1680 * s, 12);
     }
 
@@ -2329,11 +2358,13 @@ class LauncherScreen {
     private void drawAccountRemoveDialog(float s) {
         float x = 380 * s, y = 340 * s;
         dialog(x, y, 1160 * s, 350 * s);
-        r.text(r.fit("Sign out " + accountName(accountRemovePending) + "?", 1080 * s, 3.5f * s),
+        boolean offline = isOfflineAccount(accountRemovePending);
+        r.text(r.fit((offline ? "Remove " : "Sign out ") + accountName(accountRemovePending) + "?", 1080 * s, 3.5f * s),
                 x + 35 * s, y + 35 * s, 3.5f * s, TEXT);
-        r.text("The saved sign-in is deleted. Instances set to it will ask for another.", x + 35 * s, y + 115 * s,
+        r.text(offline ? "This offline profile is removed. Your worlds and instances are kept."
+                : "Signing out your last premium account also removes offline accounts.", x + 35 * s, y + 115 * s,
                 2.5f * s, WARN);
-        choice(x + 35 * s, y + 235 * s, "Cancel", "Sign out", removeConfirmed, ERROR,
+        choice(x + 35 * s, y + 235 * s, "Cancel", offline ? "Remove" : "Sign out", removeConfirmed, ERROR,
                 () -> removeConfirmed = false, () -> removeConfirmed = true);
     }
 

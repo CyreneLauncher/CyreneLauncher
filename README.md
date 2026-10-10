@@ -57,6 +57,14 @@ If the code expires, cancel and start again. **Circle / Escape** cancels sign-in
 
 You use your own account; Cyrene does not supply a Minecraft account or license. Keep saved account credentials private when copying files from the console.
 
+### Play without an internet connection
+
+After signing in with a Microsoft account that owns Minecraft: Java Edition, **Add offline account** appears in **Accounts**. Select it, enter a player name (1–16 letters, numbers, or underscores), and accept. The new profile is selected automatically. Choose an already installed instance and press **Play**.
+
+Keep at least one verified Microsoft account saved in the launcher. Signing out your last premium account removes offline profiles; sign in again to create them. Offline profiles have separate player identities, so worlds can give them different inventories and progress from your Microsoft profile.
+
+Offline play supports installed games and single-player worlds. Downloads and first-time setup still need internet access. Servers that verify Minecraft accounts require you to select your Microsoft account instead. To switch profiles, select one in **Accounts**; to remove an offline profile, highlight it, press **Triangle**, and confirm.
+
 ## Create your first Minecraft instance
 
 An **instance** is a separate game setup with its own name, mods, settings, and worlds. Use separate instances to try different versions or modpacks without mixing their files.
