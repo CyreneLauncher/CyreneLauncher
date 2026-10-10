@@ -3,23 +3,23 @@
   "components": {
     "mesa-orbis": {
       "spec": "orbis-port/release.json",
-      "revision": null,
-      "sha256": null
+      "revision": "4c1edb141f5e0a6ad4b7603c0e49bda1dcfe7a1e",
+      "sha256": "a43c1882c3acdfc05bed7b3a0174ec5f452dc8fd95061522936a9b9eede77b13"
     },
     "openal-soft-orbis": {
       "spec": "release.json",
-      "revision": null,
-      "sha256": null
+      "revision": "6a05be6566494610b047ff9c115d2b30e9f4d7c2",
+      "sha256": "60c3a42076d3af10928ac096331454114a98922475c14c61db64d9da3496eb4a"
     },
     "sdl-orbis": {
       "spec": "release.json",
-      "revision": null,
-      "sha256": null
+      "revision": "36b56a86f6da935786842228d38b575406339c46",
+      "sha256": "1a150e87618c8799b49662d85493043c4e39417a721c2dc6b69b8d827ab24b49"
     },
     "lwjgl-orbis": {
       "spec": "release.json",
-      "revision": null,
-      "sha256": null
+      "revision": "9d8327cb1239d08bad595bbb86488dcb6c73e00b",
+      "sha256": "5d4a275b3b768ef619f228166997cc09a54558586d85683d0e4cf7e539582133"
     }
   }
 }
