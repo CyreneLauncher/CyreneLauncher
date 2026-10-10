@@ -1811,8 +1811,9 @@ class LauncherScreen {
         r.rect(0, 130 * s, r.width, 2 * s, LINE);
         float logo = 78 * s;
         if (r.artwork() > 0) {
-            r.roundRect(60 * s - 3 * s, 26 * s - 3 * s, logo + 6 * s, logo + 6 * s, 16 * s, LINE);
-            r.image(r.artwork(), 60 * s, 26 * s, logo, logo, WHITE);
+            // The art with rounded corners inside a thin rounded rim, as the PS4 shows application icons.
+            r.roundImage(r.artwork(), 60 * s, 26 * s, logo, logo, 16 * s, BAR);
+            r.roundFrame(60 * s, 26 * s, logo, logo, 16 * s, LINE);
         } else r.roundRect(60 * s, 26 * s, logo, logo, 14 * s, ACCENT);
         r.textMiddle("Cyrene Launcher", 160 * s, 26 * s, 46 * s, 3.6f * s, TEXT);
         // The console and the mode it runs the launcher in, as the runner detected them.
@@ -1925,6 +1926,7 @@ class LauncherScreen {
         r.roundRect(x, top, w, cardH, 18 * s, PANEL);
         if (r.artwork() > 0) {
             r.image(r.artwork(), x, top, w, banner, 0, 0.30f, 1, 0.30f + (banner / w), WHITE);
+            r.roundCorners(x, top, w, banner, 18 * s, BACKGROUND, true, false);
             // Fade the art into the card: whole-pixel bands, so none overlap into darker lines.
             int bands = 32;
             for (int band = 0; band < bands; band++) {
@@ -2305,7 +2307,8 @@ class LauncherScreen {
             boolean on = selected == i;
             if (on) r.roundRect(x - 5 * s, y - 5 * s, w + 10 * s, h + 10 * s, 26 * s, ACCENT);
             r.roundRect(x, y, w, h, 22 * s, on ? PANEL_HI : PANEL);
-            if (i == 0 && r.artwork() > 0) r.image(r.artwork(), x + 40 * s, y + 40 * s, 160 * s, 160 * s, WHITE);
+            if (i == 0 && r.artwork() > 0)
+                r.roundImage(r.artwork(), x + 40 * s, y + 40 * s, 160 * s, 160 * s, 24 * s, on ? PANEL_HI : PANEL);
             else {
                 r.roundRect(x + 40 * s, y + 40 * s, 160 * s, 160 * s, 24 * s, ACCENT_DARK);
                 r.textCentered(cards[i][2], x + 40 * s, y + 40 * s, 160 * s, 160 * s, 8 * s, TEXT);
