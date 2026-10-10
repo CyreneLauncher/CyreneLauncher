@@ -460,7 +460,7 @@ class LauncherScreen {
             try {
                 if (nameMode == NameMode.RENAME) {
                     config.instances.rename(nameTargetId, value);
-                    setStatus("Instance renamed.", ACCENT);
+                    setStatus("Instance renamed.", GOOD);
                 } else if (nameMode == NameMode.CREATE) {
                     VersionStore.GameVersion version = pendingVersion;
                     VersionStore.Loader loader = pendingLoader;
@@ -805,7 +805,7 @@ class LauncherScreen {
         config.selectInstance(id);
         dirty = false;
         resyncSelected();
-        setStatus("Selected " + config.selectedInstance().name(), ACCENT);
+        setStatus("Selected " + config.selectedInstance().name(), GOOD);
     }
 
     /** Refreshes every cached instance-scoped screen object after a store transition. */
@@ -916,7 +916,7 @@ class LauncherScreen {
                             else if (!config.instances.recoveryWarning().isEmpty())
                                 setStatus(config.instances.recoveryWarning(), WARN);
                             else setStatus(managed ? "Instance and its files deleted."
-                                    : "Imported registration removed; game files kept.", ACCENT);
+                                    : "Imported registration removed; game files kept.", GOOD);
                         });
                     });
                 }
@@ -952,7 +952,7 @@ class LauncherScreen {
         try {
             config.save();
             dirty = false;
-            setStatus("Saved. Applies when you press Play.", ACCENT);
+            setStatus("Saved. Applies when you press Play.", GOOD);
         } catch (IOException failure) {
             setStatus("Saving failed: " + failure.getMessage(), ERROR);
         }
@@ -969,7 +969,7 @@ class LauncherScreen {
             if (version != null) prepareRuntime(version.java());
             return new LaunchPreparation(config).prepare(current, account.id());
         }, request -> {
-            setStatus("Starting Minecraft...", ACCENT);
+            setStatus("Starting Minecraft...", GOOD);
             presentNow();
             int error = relaunch(request.preparationId());
             try { new LaunchPreparation(config).rollback(); }
@@ -1066,7 +1066,7 @@ class LauncherScreen {
     private void makeDefault(AccountStore.Account account) {
         try {
             accounts().selectDefault(account.id());
-            setStatus(account.username() + " is now the default account.", ACCENT);
+            setStatus(account.username() + " is now the default account.", GOOD);
         } catch (IOException failure) { setStatus("Cannot change the default: " + failure.getMessage(), ERROR); }
     }
 
@@ -1087,7 +1087,7 @@ class LauncherScreen {
         String next = choices.get((at + direction + choices.size()) % choices.size());
         try {
             config.setInstanceAccount(next);
-            setStatus(config.selectedInstance().name() + " uses " + effectiveAccount(config.selectedInstance()) + ".", ACCENT);
+            setStatus(config.selectedInstance().name() + " uses " + effectiveAccount(config.selectedInstance()) + ".", GOOD);
         } catch (IOException failure) { setStatus("Cannot save the instance account: " + failure.getMessage(), ERROR); }
     }
 
@@ -1103,7 +1103,7 @@ class LauncherScreen {
                     String name = accountName(id);
                     try {
                         accounts().remove(id);
-                        setStatus("Signed out " + name + "; its saved sign-in was deleted.", ACCENT);
+                        setStatus("Signed out " + name + "; its saved sign-in was deleted.", GOOD);
                     } catch (IOException failure) { setStatus("Sign-out failed: " + failure.getMessage(), ERROR); }
                     selected = Math.min(selected, items() - 1);
                 }
@@ -1155,7 +1155,7 @@ class LauncherScreen {
                         : failed.getClass().getSimpleName()));
                 login = null;
                 loginQr = null;
-                if (failed == null) setStatus("Signed in as " + result.username() + ".", ACCENT);
+                if (failed == null) setStatus("Signed in as " + result.username() + ".", GOOD);
                 else if (!(failed instanceof CancellationException))
                     setStatus("Sign-in failed: " + failed.getMessage(), ERROR);
                 input.releaseBarrier();
@@ -1214,7 +1214,7 @@ class LauncherScreen {
         try {
             Files.move(mod, target);
             setStatus((enabled(target) ? "Enabled " : "Disabled ") + target.getFileName()
-                    + " - applies when you press Play.", ACCENT);
+                    + " - applies when you press Play.", GOOD);
         } catch (IOException failure) {
             setStatus("Could not rename " + n + ": " + failure.getMessage(), ERROR);
         }
@@ -1238,7 +1238,7 @@ class LauncherScreen {
                 if (removeConfirmed) {
                     try {
                         Files.delete(target);
-                        setStatus("Removed " + target.getFileName(), ACCENT);
+                        setStatus("Removed " + target.getFileName(), GOOD);
                     } catch (IOException failure) {
                         setStatus("Could not remove " + target.getFileName() + ": " + failure.getMessage(), ERROR);
                     }
@@ -1516,7 +1516,7 @@ class LauncherScreen {
                     planTitle = title + (version != null ? " " + version.number() : "");
                     dialogChoice = result.installable() ? 0 : 1;
                     setStatus(result.installable() ? "Ready to install." : "This cannot be installed.",
-                            result.installable() ? ACCENT : ERROR);
+                            result.installable() ? GOOD : ERROR);
                     input.releaseBarrier();
                 });
     }
@@ -1546,7 +1546,7 @@ class LauncherScreen {
         }, count -> {
             refreshMods();
             setStatus("Installed " + title + (count > 1 ? " and " + (count - 1) + " dependenc"
-                    + (count == 2 ? "y" : "ies") : "") + " into " + into + ". Applies when you press Play.", ACCENT);
+                    + (count == 2 ? "y" : "ies") : "") + " into " + into + ". Applies when you press Play.", GOOD);
         });
     }
 
@@ -1572,7 +1572,7 @@ class LauncherScreen {
             pack = read;
             dialogChoice = read.installable() ? 0 : 1;
             setStatus(read.installable() ? "Ready to create the instance." : "This pack cannot be installed.",
-                    read.installable() ? ACCENT : ERROR);
+                    read.installable() ? GOOD : ERROR);
             input.releaseBarrier();
         });
     }
@@ -1636,7 +1636,7 @@ class LauncherScreen {
                 }
                 setStatus("Installed " + chosenPack.name() + " as a new instance." + (result.disabled().isEmpty() ? ""
                         : " Disabled (native code): " + String.join(", ", result.disabled()) + "."),
-                        result.disabled().isEmpty() ? ACCENT : WARN);
+                        result.disabled().isEmpty() ? GOOD : WARN);
             });
         });
     }
@@ -1682,12 +1682,7 @@ class LauncherScreen {
 
     private void draw() {
         float s = r.s;
-        r.text("CYRENE LAUNCHER", 120 * s, 70 * s, 6 * s, TEXT);
-        r.text("Minecraft for PlayStation 4", 124 * s, 130 * s, 2.5f * s, DIM);
-        drawSections(s);
-        InstanceStore.Instance active = config.selectedInstance();
-        r.text(r.fit("Selected: " + active.name() + "  |  Account: " + effectiveAccount(active), 750 * s, 2.2f * s),
-                1050 * s, 130 * s, 2.2f * s, DIM);
+        drawHeader(s);
         switch (page) {
             case INSTANCES -> drawHome(s);
             case ACCOUNTS -> drawAccounts(s);
@@ -1710,19 +1705,87 @@ class LauncherScreen {
         String shownStatus = instanceOperation == null ? status : instanceOperation.progress();
         if (instanceOperation != null && instanceOperation.destination() != null)
             r.text(r.fit("Destination: " + instanceOperation.destination(), r.width - 240 * s, 2.2f * s),
-                    120 * s, r.height - 188 * s, 2.2f * s, DIM);
+                    120 * s, r.height - 178 * s, 2.2f * s, DIM);
         if (!shownStatus.isEmpty())
-            r.text(r.fit(shownStatus, r.width - 240 * s, 3 * s), 120 * s, r.height - 150 * s, 3 * s, statusColor);
-        String hint = hint();
-        r.text(r.fit(hint, r.width - 240 * s, 2.5f * s), 120 * s, r.height - 90 * s, 2.5f * s, DIM);
+            r.text(r.fit(shownStatus, r.width - 240 * s, 2.8f * s), 120 * s, r.height - 140 * s, 2.8f * s, statusColor);
+        // The bottom bar: the controls of this page, as the PS4 shows its buttons.
+        r.rect(0, r.height - 86 * s, r.width, 86 * s, BAR);
+        r.rect(0, r.height - 86 * s, r.width, 2 * s, LINE);
+        float hintWidth = drawHint(hint(), 120 * s, r.height - 62 * s, 38 * s);
         // Clicking the hint line while something can be cancelled cancels it.
         if (busy && (cancellable || instanceOperation != null))
-            hit(120 * s, r.height - 100 * s, r.width(hint, 2.5f * s), 40 * s, null, Input.Action.BACK);
+            hit(120 * s, r.height - 70 * s, hintWidth, 54 * s, null, Input.Action.BACK);
         reveal = false;
     }
 
+    /**
+     * A hint line ("Cross/Enter: select   Circle: back") with each key drawn as its controller button.
+     * Returns its width.
+     */
+    private float drawHint(String hint, float x, float y, float size) {
+        float s = r.s, start = x, scale = 2.4f * s;
+        for (String part : hint.split(" {2,}")) {
+            int colon = part.indexOf(": ");
+            if (colon < 0) {
+                r.text(part, x, y + 4 * s, scale, DIM);
+                x += r.width(part, scale) + 34 * s;
+                continue;
+            }
+            for (String key : buttons(part.substring(0, colon))) x += r.button(key, x, y, size) + 6 * s;
+            x += 6 * s;
+            String label = part.substring(colon + 2);
+            r.text(label, x, y + 4 * s, scale, DIM);
+            x += r.width(label, scale) + 34 * s;
+        }
+        return x - start;
+    }
+
+    /** The controller buttons a hint's keys name: "Cross/Enter" is the cross, "L1/R1" both shoulder buttons. */
+    private static List<String> buttons(String keys) {
+        String first = keys.split(" or ")[0];
+        String lead = first.split("/")[0];
+        return switch (lead) {
+            case "Cross" -> List.of("cross");
+            case "Circle" -> List.of("circle");
+            case "Triangle" -> List.of("triangle");
+            case "Square" -> List.of("square");
+            case "L1" -> List.of("L1", "R1");
+            case "Start" -> List.of("OPTIONS");
+            case "Left" -> List.of("LEFT / RIGHT");
+            case "Up" -> List.of("UP / DOWN");
+            default -> List.of(first.toUpperCase(java.util.Locale.ROOT));
+        };
+    }
+
+    /** The top bar: the application, the sections between L1 and R1, and who plays what. */
+    private void drawHeader(float s) {
+        r.rect(0, 0, r.width, 130 * s, BAR);
+        r.rect(0, 130 * s, r.width, 2 * s, LINE);
+        float logo = 78 * s;
+        if (r.artwork() > 0) {
+            r.roundRect(60 * s - 3 * s, 26 * s - 3 * s, logo + 6 * s, logo + 6 * s, 16 * s, LINE);
+            r.image(r.artwork(), 60 * s, 26 * s, logo, logo, WHITE);
+        } else r.roundRect(60 * s, 26 * s, logo, logo, 14 * s, ACCENT);
+        r.text("Cyrene Launcher", 160 * s, 30 * s, 3.6f * s, TEXT);
+        r.text("Minecraft: Java Edition for PlayStation 4", 162 * s, 82 * s, 2.1f * s, DIM);
+        drawSections(s);
+        InstanceStore.Instance active = config.selectedInstance();
+        String account = effectiveAccount(active);
+        float right = r.width - 60 * s, avatar = 62 * s;
+        float textW = Math.max(r.width(r.fit(account, 420 * s, 2.7f * s), 2.7f * s),
+                r.width(r.fit(active.name(), 420 * s, 2.1f * s), 2.1f * s));
+        float chipX = right - textW - avatar - 50 * s;
+        r.roundRect(chipX, 26 * s, right - chipX, 80 * s, 40 * s, PANEL_HI);
+        r.disc(chipX + 9 * s, 35 * s, avatar, ACCENT);
+        String initial = account.isEmpty() ? "?" : account.substring(account.lastIndexOf(' ') + 1, account.lastIndexOf(' ') + 2)
+                .toUpperCase(java.util.Locale.ROOT);
+        r.text(initial, chipX + 9 * s + (avatar - r.width(initial, 3.4f * s)) / 2, 41 * s, 3.4f * s, TEXT);
+        r.text(r.fit(account, 420 * s, 2.7f * s), chipX + avatar + 26 * s, 35 * s, 2.7f * s, TEXT);
+        r.text(r.fit(active.name(), 420 * s, 2.1f * s), chipX + avatar + 26 * s, 73 * s, 2.1f * s, DIM);
+    }
+
     private static final Page[] SECTIONS = {Page.INSTANCES, Page.MODS, Page.ACCOUNTS, Page.SETTINGS};
-    private static final String[] SECTION_TITLES = {"INSTANCES", "MODS", "ACCOUNTS", "SETTINGS"};
+    private static final String[] SECTION_TITLES = {"Instances", "Mods", "Accounts", "Settings"};
 
     private int section() {
         return switch (page) {
@@ -1733,23 +1796,28 @@ class LauncherScreen {
         };
     }
 
-    /** The section names under the title; clicking one opens it. */
+    /** The sections as tabs between the shoulder buttons that switch them; clicking one opens it. */
     private void drawSections(float s) {
-        float x = 120 * s, scale = 2.5f * s;
+        float scale = 2.6f * s, pad = 30 * s, gap = 8 * s, h = 58 * s, y = 36 * s;
+        float total = 0;
+        for (String title : SECTION_TITLES) total += r.width(title, scale) + 2 * pad + gap;
+        float x = (r.width - total) / 2 - 20 * s;
+        x += r.button("L1", x - 70 * s, y + 10 * s, 38 * s) - 70 * s + 20 * s;
         int current = section();
         for (int i = 0; i < SECTIONS.length; i++) {
-            float w = r.width(SECTION_TITLES[i], scale);
-            r.text(SECTION_TITLES[i], x, 168 * s, scale, i == current ? TEXT : DIM);
-            if (i == current) r.rect(x, 192 * s, w, 3 * s, ACCENT);
+            float w = r.width(SECTION_TITLES[i], scale) + 2 * pad;
+            if (i == current) r.roundRect(x, y, w, h, h / 2, ACCENT);
+            r.text(SECTION_TITLES[i], x + pad, y + 13 * s, scale, i == current ? TEXT : DIM);
             int index = i;
-            clicks.add(x - 10 * s, 160 * s, w + 20 * s, 40 * s, null, () -> {
+            clicks.add(x, y, w, h, null, () -> {
                 if (!idle()) return;
                 go(SECTIONS[index], -1);
                 if (SECTIONS[index] == Page.MODS) refreshMods();
                 setStatus("", DIM);
             });
-            x += w + 60 * s;
+            x += w + gap;
         }
+        r.button("R1", x + 12 * s, y + 10 * s, 38 * s);
     }
 
     private String hint() {
@@ -1786,7 +1854,7 @@ class LauncherScreen {
             boolean highlighted = focus == Focus.LIST && selected == i && !editor.active();
             if (highlighted) r.rect(120 * s, y, 750 * s, 53 * s, ACCENT);
             String label = (value.id().equals(config.selectedInstance().id()) ? "* " : "  ") + value.name();
-            r.text(r.fit(label, 710 * s, 3 * s), 140 * s, y + 8 * s, 3 * s, highlighted ? DARK : TEXT);
+            r.text(r.fit(label, 710 * s, 3 * s), 140 * s, y + 8 * s, 3 * s, highlighted ? TEXT : TEXT);
             hit(120 * s, y, 750 * s, 53 * s, () -> { focus = Focus.LIST; selected = i; }, Input.Action.CONFIRM);
         });
         InstanceStore.Instance active = config.selectedInstance();
@@ -1805,7 +1873,7 @@ class LauncherScreen {
             float y = (475 + i * 47) * s;
             boolean highlighted = focus == Focus.DETAIL && detailSelected == i && !editor.active();
             if (highlighted) r.rect(x, y - 7 * s, 870 * s, 44 * s, ACCENT);
-            r.text(HOME_ACTIONS.get(i), x + 30 * s, y, 3 * s, highlighted ? DARK : i == 0 ? ACCENT : TEXT);
+            r.text(HOME_ACTIONS.get(i), x + 30 * s, y, 3 * s, highlighted ? TEXT : i == 0 ? ACCENT : TEXT);
             int index = i;
             hit(x, y - 7 * s, 870 * s, 44 * s, () -> { focus = Focus.DETAIL; detailSelected = index; }, Input.Action.CONFIRM);
         }
@@ -1816,7 +1884,7 @@ class LauncherScreen {
         List<String> rows = new ArrayList<>();
         List<Integer> colors = new ArrayList<>();
         rows.add("Loader:  < " + versionLoader.title + " >");
-        colors.add(ACCENT);
+        colors.add(ACCENT_HI);
         java.util.Set<String> present = new java.util.HashSet<>();
         for (VersionStore.Installed installed : config.versions.list())
             if (installed.loader() == versionLoader) present.add(installed.minecraft());
@@ -1845,10 +1913,10 @@ class LauncherScreen {
                         Runnable chooseNo, Runnable chooseYes) {
         float s = r.s;
         r.rect(x, y, 360 * s, 60 * s, yesChosen ? PANEL : ACCENT);
-        r.text(no, x + 25 * s, y + 12 * s, 3 * s, yesChosen ? TEXT : DARK);
+        r.text(no, x + 25 * s, y + 12 * s, 3 * s, TEXT);
         hit(x, y, 360 * s, 60 * s, chooseNo, Input.Action.CONFIRM);
         r.rect(x + 410 * s, y, 360 * s, 60 * s, yesChosen ? yesColor : PANEL);
-        r.text(yes, x + 435 * s, y + 12 * s, 3 * s, yesChosen ? (yesColor == ACCENT ? DARK : TEXT) : DIM);
+        r.text(yes, x + 435 * s, y + 12 * s, 3 * s, yesChosen ? (yesColor == ACCENT ? TEXT : TEXT) : DIM);
         hit(x + 410 * s, y, 360 * s, 60 * s, chooseYes, Input.Action.CONFIRM);
     }
 
@@ -1860,9 +1928,9 @@ class LauncherScreen {
         String value = editor.value();
         String caret = value.substring(0, editor.caret()) + "|" + value.substring(editor.caret());
         r.rect(x + 30 * s, y + 100 * s, 1160 * s, 60 * s, PANEL);
-        r.text(r.fit(caret, 1120 * s, 3.5f * s), x + 40 * s, y + 113 * s, 3.5f * s, ACCENT);
+        r.text(r.fit(caret, 1120 * s, 3.5f * s), x + 40 * s, y + 113 * s, 3.5f * s, ACCENT_HI);
         r.rect(x + 40 * s, y + 220 * s, 260 * s, 60 * s, ACCENT);
-        r.text("Accept", x + 70 * s, y + 232 * s, 3 * s, DARK);
+        r.text("Accept", x + 70 * s, y + 232 * s, 3 * s, TEXT);
         hit(x + 40 * s, y + 220 * s, 260 * s, 60 * s, null, Input.Action.CONFIRM);
         r.rect(x + 340 * s, y + 220 * s, 260 * s, 60 * s, PANEL);
         r.text("Cancel", x + 370 * s, y + 232 * s, 3 * s, TEXT);
@@ -1878,7 +1946,7 @@ class LauncherScreen {
         for (int i = 0; i < rows.size(); i++) {
             float rowY = y + (100 + i * 70) * s;
             if (i == cloneOptionSelected) r.rect(x + 30 * s, rowY - 8 * s, 900 * s, 55 * s, ACCENT);
-            r.text(rows.get(i), x + 55 * s, rowY, 3 * s, i == cloneOptionSelected ? DARK : TEXT);
+            r.text(rows.get(i), x + 55 * s, rowY, 3 * s, i == cloneOptionSelected ? TEXT : TEXT);
             int index = i;
             hit(x + 30 * s, rowY - 8 * s, 900 * s, 55 * s, () -> cloneOptionSelected = index, Input.Action.CONFIRM);
         }
@@ -1918,7 +1986,7 @@ class LauncherScreen {
             colors.add(TEXT);
         }
         rows.add("Add Microsoft account");
-        colors.add(ACCENT);
+        colors.add(ACCENT_HI);
         InstanceStore.Instance active = config.selectedInstance();
         rows.add("Account for " + active.name() + ":  < "
                 + (active.accountId().isEmpty() ? "Follow default" : accountName(active.accountId())) + " >");
@@ -1934,7 +2002,7 @@ class LauncherScreen {
         if (loginQr != null) LoginQr.draw(r, loginQr, x + 40 * s, y + 100 * s, 480 * s);
         float tx = x + 580 * s;
         r.text("1. Scan the code or open:", tx, y + 110 * s, 2.6f * s, DIM);
-        r.text(r.fit(session.verificationUri(), w - 620 * s, 3.2f * s), tx, y + 150 * s, 3.2f * s, ACCENT);
+        r.text(r.fit(session.verificationUri(), w - 620 * s, 3.2f * s), tx, y + 150 * s, 3.2f * s, ACCENT_HI);
         r.text("2. Enter this code:", tx, y + 230 * s, 2.6f * s, DIM);
         r.text(session.userCode(), tx, y + 275 * s, 6 * s, TEXT);
         long left = Math.max(0, Duration.between(Instant.now(), session.expiresAt()).getSeconds());
@@ -1999,7 +2067,7 @@ class LauncherScreen {
                 () -> dialogChoice = 0, () -> dialogChoice = 1);
         else {
             r.rect(x + 40 * s, y + h - 90 * s, 360 * s, 60 * s, ACCENT);
-            r.text("Close", x + 65 * s, y + h - 78 * s, 3 * s, DARK);
+            r.text("Close", x + 65 * s, y + h - 78 * s, 3 * s, TEXT);
             hit(x + 40 * s, y + h - 90 * s, 360 * s, 60 * s, () -> dialogChoice = 1, Input.Action.CONFIRM);
         }
     }
@@ -2039,7 +2107,7 @@ class LauncherScreen {
                 () -> dialogChoice = 0, () -> dialogChoice = 1);
         else {
             r.rect(x + 40 * s, y + h - 90 * s, 360 * s, 60 * s, ACCENT);
-            r.text("Close", x + 65 * s, y + h - 78 * s, 3 * s, DARK);
+            r.text("Close", x + 65 * s, y + h - 78 * s, 3 * s, TEXT);
             hit(x + 40 * s, y + h - 90 * s, 360 * s, 60 * s, () -> dialogChoice = 1, Input.Action.CONFIRM);
         }
     }
@@ -2067,7 +2135,7 @@ class LauncherScreen {
             if (on2) r.rect(x, y, 6 * s, rowH - 6 * s, ACCENT);
             hit(x, y, w, rowH - 6 * s, () -> selected = i, Input.Action.CONFIRM);
             if (i == 0) {
-                r.text("+ Browse Modrinth for mods and modpacks", x + 30 * s, y + 18 * s, 3 * s, ACCENT);
+                r.text("+ Browse Modrinth for mods and modpacks", x + 30 * s, y + 18 * s, 3 * s, ACCENT_HI);
                 return;
             }
             Path mod = mods.get(i - 1);
@@ -2081,7 +2149,7 @@ class LauncherScreen {
             String version = info != null ? info.version() : "";
             r.text(r.fit(version, w - 330 * s, 2.1f * s), x + 76 * s, y + 38 * s, 2.1f * s, DIM);
             String state = enabledMod ? "enabled" : "disabled";
-            r.text(state, x + w - r.width(state, 2.3f * s) - 24 * s, y + 20 * s, 2.3f * s, enabledMod ? ACCENT : WARN);
+            r.text(state, x + w - r.width(state, 2.3f * s) - 24 * s, y + 20 * s, 2.3f * s, enabledMod ? GOOD : WARN);
         });
 
         // The selected mod's details, with Enable/Disable and Remove.
@@ -2125,7 +2193,7 @@ class LauncherScreen {
         }
         float by = py + ph - 85 * s;
         r.rect(px + 35 * s, by, 300 * s, 58 * s, enabledMod ? PANEL_HI : ACCENT);
-        r.text(enabledMod ? "Disable" : "Enable", px + 60 * s, by + 12 * s, 3 * s, enabledMod ? TEXT : DARK);
+        r.text(enabledMod ? "Disable" : "Enable", px + 60 * s, by + 12 * s, 3 * s, TEXT);
         hit(px + 35 * s, by, 300 * s, 58 * s, null, Input.Action.CONFIRM);
         r.rect(px + 365 * s, by, 300 * s, 58 * s, ERROR);
         r.text("Remove", px + 390 * s, by + 12 * s, 3 * s, TEXT);
@@ -2156,7 +2224,7 @@ class LauncherScreen {
         for (ModrinthClient.Type type : ModrinthClient.Type.values()) {
             boolean current = type == browseType;
             r.rect(tx, ty, 230 * s, 56 * s, current ? ACCENT : PANEL);
-            r.text(type.title, tx + (230 * s - r.width(type.title, 3 * s)) / 2, ty + 14 * s, 3 * s, current ? DARK : TEXT);
+            r.text(type.title, tx + (230 * s - r.width(type.title, 3 * s)) / 2, ty + 14 * s, 3 * s, current ? TEXT : TEXT);
             ModrinthClient.Type target = type;
             clicks.add(tx, ty, 230 * s, 56 * s, () -> selected = 0, () -> {
                 selected = 0;
@@ -2207,7 +2275,7 @@ class LauncherScreen {
             if (i == hits.size()) {
                 r.rect(120 * s, y, cw, 60 * s, on ? ACCENT : PANEL);
                 String more = String.format("Load more  (%,d of %,d shown)", hits.size(), totalHits);
-                r.text(more, 120 * s + (cw - r.width(more, 3 * s)) / 2, y + 15 * s, 3 * s, on ? DARK : TEXT);
+                r.text(more, 120 * s + (cw - r.width(more, 3 * s)) / 2, y + 15 * s, 3 * s, on ? TEXT : TEXT);
                 hit(120 * s, y, cw, 60 * s, () -> selected = index, Input.Action.CONFIRM);
                 return;
             }
@@ -2332,11 +2400,11 @@ class LauncherScreen {
         boolean actions = zone == Zone.ACTIONS && galleryOpen < 0;
         r.rect(bx, by, 340 * s, 58 * s, actions && actionSelected == 0 ? ACCENT : PANEL_HI);
         r.text(installLabel, bx + (340 * s - r.width(installLabel, 3 * s)) / 2, by + 14 * s, 3 * s,
-                actions && actionSelected == 0 ? DARK : ACCENT);
+                actions && actionSelected == 0 ? TEXT : ACCENT_HI);
         hit(bx, by, 340 * s, 58 * s, () -> { zone = Zone.ACTIONS; actionSelected = 0; }, Input.Action.CONFIRM);
         r.rect(bx + 360 * s, by, 200 * s, 58 * s, actions && actionSelected == 1 ? ACCENT : PANEL_HI);
         r.text("Back", bx + 360 * s + (200 * s - r.width("Back", 3 * s)) / 2, by + 14 * s, 3 * s,
-                actions && actionSelected == 1 ? DARK : TEXT);
+                actions && actionSelected == 1 ? TEXT : TEXT);
         hit(bx + 360 * s, by, 200 * s, 58 * s, () -> { zone = Zone.ACTIONS; actionSelected = 1; }, Input.Action.CONFIRM);
 
         // Tabs.
@@ -2416,7 +2484,7 @@ class LauncherScreen {
                     boolean first = true;
                     for (String line : lines(b, width - indent, scale)) {
                         if (visible(cy, 32 * s, y, h)) {
-                            if (first && b.level() >= 0) r.text("*", x + pad + indent - 22 * s, cy, scale, ACCENT);
+                            if (first && b.level() >= 0) r.text("*", x + pad + indent - 22 * s, cy, scale, ACCENT_HI);
                             r.text(line, x + pad + indent, cy, scale, TEXT);
                         }
                         first = false;
@@ -2522,7 +2590,7 @@ class LauncherScreen {
                 : "Showing versions for " + target(projectType()) + "   < All versions >";
         boolean filterOn = content && versionSelected == 0;
         r.rect(x + 20 * s, y + 16 * s, w - 40 * s, rowH - 8 * s, filterOn ? ACCENT : PANEL_HI);
-        r.text(r.fit(filter, w - 80 * s, 2.6f * s), x + 40 * s, y + 27 * s, 2.6f * s, filterOn ? DARK : TEXT);
+        r.text(r.fit(filter, w - 80 * s, 2.6f * s), x + 40 * s, y + 27 * s, 2.6f * s, filterOn ? TEXT : TEXT);
         hit(x + 20 * s, y + 16 * s, w - 40 * s, rowH - 8 * s, () -> { zone = Zone.CONTENT; versionSelected = 0; },
                 Input.Action.CONFIRM);
         List<ModrinthClient.VersionInfo> list = projectVersions;
@@ -2537,7 +2605,7 @@ class LauncherScreen {
             boolean on = content && versionSelected == i + 1;
             r.rect(x + 20 * s, ry, w - 40 * s, rowH - 6 * s, on ? PANEL_HI : PANEL);
             if (on) r.rect(x + 20 * s, ry, 6 * s, rowH - 6 * s, ACCENT);
-            int typeColor = "release".equals(v.type()) ? ACCENT : "beta".equals(v.type()) ? WARN : ERROR;
+            int typeColor = "release".equals(v.type()) ? GOOD : "beta".equals(v.type()) ? WARN : ERROR;
             r.rect(x + 40 * s, ry + 11 * s, 110 * s, 28 * s, typeColor);
             r.text(v.type(), x + 50 * s, ry + 16 * s, 2.1f * s, DARK);
             r.text(r.fit(v.number(), 470 * s, 2.7f * s), x + 170 * s, ry + 12 * s, 2.7f * s, TEXT);
@@ -2575,7 +2643,7 @@ class LauncherScreen {
         for (int i = 0; i < items.size(); i++) {
             boolean on = i == selected && !editor.active() && !systemKeyboardOpen;
             if (on) r.rect(x, y - 10 * s, w, 60 * s, ACCENT);
-            r.text(items.get(i), x + 30 * s, y, 4 * s, on ? DARK : TEXT);
+            r.text(items.get(i), x + 30 * s, y, 4 * s, on ? TEXT : TEXT);
             int index = i;
             hit(x, y - 10 * s, w, 60 * s, () -> selected = index, Input.Action.CONFIRM);
             y += 70 * s;
@@ -2588,7 +2656,7 @@ class LauncherScreen {
         scrollList(scrollers[page.ordinal()], rows.size(), selected, x, y - 8 * s, w, visible * rowH, rowH, (i, ry) -> {
             boolean on = i == selected && !editor.active() && !systemKeyboardOpen;
             if (on) r.rect(x, ry, w, 46 * s, ACCENT);
-            r.text(r.fit(rows.get(i), w - 40 * s, scale), x + 20 * s, ry + 8 * s, scale, on ? DARK : colors.get(i));
+            r.text(r.fit(rows.get(i), w - 40 * s, scale), x + 20 * s, ry + 8 * s, scale, on ? TEXT : colors.get(i));
             hit(x, ry, w, 46 * s, () -> selected = i, Input.Action.CONFIRM);
         });
     }

@@ -21,13 +21,17 @@ import static org.lwjgl.opengl.GL30C.*;
  * origin at the top left; {@link #s} scales a 1080-line layout to the framebuffer.
  */
 class Renderer {
-    static final int BACKGROUND = 0xff16181d, PANEL = 0xff23262e, PANEL_HI = 0xff2e323c, ACCENT = 0xff5aa864,
-            TEXT = 0xffe8e8e8, DIM = 0xff9aa0a6, WARN = 0xffe0b050, ERROR = 0xffd9534f, DARK = 0xff101010,
-            WHITE = 0xffffffff, SHADE = 0xc0101216, CHIP = 0xff3a3f4b, BLUE = 0xff5b8fd6;
+    /** AngelAuraMC's Amethyst palette: near-black surfaces, lighter bars, amethyst purple for what is chosen. */
+    static final int BACKGROUND = 0xff181818, PANEL = 0xff232323, PANEL_HI = 0xff303030, ACCENT = 0xff9649b8,
+            ACCENT_HI = 0xffb36ad6, ACCENT_DARK = 0xff6a2f85, GOOD = 0xff5fbf6a, BAR = 0xff222222, LINE = 0xff464646,
+            TEXT = 0xffffffff, DIM = 0xffb2b2b2, WARN = 0xffe0b050, ERROR = 0xffd9534f, DARK = 0xff101010,
+            WHITE = 0xffffffff, SHADE = 0xc0101010, CHIP = 0xff3a3a3a, BLUE = 0xff5b8fd6;
+    /** Cells of the generated icon atlas: a disc for rounded corners and the four face buttons. */
+    private static final int DISC = 0, RING = 1, CROSS = 2, TRIANGLE = 3, SQUARE = 4, ICON_CELLS = 5, ICON_SIZE = 64;
 
     int width, height;
     float s = 1f;
-    private int program, vao, vbo, white, font, screenUniform, textureUniform;
+    private int program, vao, vbo, white, font, icons, art, screenUniform, textureUniform;
     final float[] glyphWidth = new float[256];
     private float fontQuadSize = 8, fontOffsetX, fontOffsetY;
     private final FloatBuffer vertices = MemoryUtil.memAllocFloat(6 * 8 * 4096);
@@ -67,6 +71,31 @@ class Renderer {
         white = texture(1, 1, pixel);
         MemoryUtil.memFree(pixel);
         font = loadFont();
+        icons = iconAtlas();
+        art = loadArtwork();
+    }
+
+    /** The application's artwork (its PS4 icon), or 0 when it is not bundled. */
+    int artwork() {
+        return art;
+    }
+
+    private int loadArtwork() throws IOException {
+        try (InputStream in = Renderer.class.getResourceAsStream("art.png")) {
+            if (in == null) return 0;
+            BufferedImage image = ImageIO.read(in);
+            int w = image.getWidth(), h = image.getHeight();
+            ByteBuffer rgba = MemoryUtil.memAlloc(w * h * 4);
+            for (int y = 0; y < h; y++)
+                for (int x = 0; x < w; x++) {
+                    int argb = image.getRGB(x, y), i = (y * w + x) * 4;
+                    rgba.put(i, (byte) (argb >> 16)).put(i + 1, (byte) (argb >> 8)).put(i + 2, (byte) argb)
+                            .put(i + 3, (byte) (argb >>> 24));
+                }
+            int id = upload(w, h, rgba);
+            MemoryUtil.memFree(rgba);
+            return id;
+        }
     }
 
     void begin(int framebufferWidth, int framebufferHeight) {
@@ -133,6 +162,87 @@ class Renderer {
     void unclip() {
         flush();
         glDisable(GL_SCISSOR_TEST);
+    }
+
+    /** A filled rectangle with rounded corners; without the icon atlas (host tests), square corners. */
+    void roundRect(float x, float y, float w, float h, float radius, int color) {
+        radius = Math.min(radius, Math.min(w, h) / 2);
+        if (icons == 0 || radius < 1) { rect(x, y, w, h, color); return; }
+        rect(x + radius, y, w - 2 * radius, h, color);
+        rect(x, y + radius, radius, h - 2 * radius, color);
+        rect(x + w - radius, y + radius, radius, h - 2 * radius, color);
+        float u0 = (float) DISC / ICON_CELLS, um = (DISC + 0.5f) / ICON_CELLS, u1 = (DISC + 1f) / ICON_CELLS;
+        image(icons, x, y, radius, radius, u0, 0, um, 0.5f, color);
+        image(icons, x + w - radius, y, radius, radius, um, 0, u1, 0.5f, color);
+        image(icons, x, y + h - radius, radius, radius, u0, 0.5f, um, 1, color);
+        image(icons, x + w - radius, y + h - radius, radius, radius, um, 0.5f, u1, 1, color);
+    }
+
+    /** A filled circle of the given diameter. */
+    void disc(float x, float y, float size, int color) {
+        roundRect(x, y, size, size, size / 2, color);
+    }
+
+    /**
+     * A controller button as the PS4 shows it: the face buttons as their symbols on a dark disc, anything else
+     * (L1, R1, OPTIONS, the d-pad) as a labelled chip. Returns the width drawn.
+     */
+    float button(String name, float x, float y, float size) {
+        int cell = switch (name) {
+            case "cross" -> CROSS;
+            case "circle" -> RING;
+            case "triangle" -> TRIANGLE;
+            case "square" -> SQUARE;
+            default -> -1;
+        };
+        if (cell < 0) {
+            float scale = size / 34f, w = width(name, scale) + size * 0.7f;
+            roundRect(x, y, w, size, size * 0.3f, CHIP);
+            text(name, x + size * 0.35f, y + size * 0.12f, scale, TEXT);
+            return w;
+        }
+        int color = switch (cell) {
+            case CROSS -> 0xff8ab4f0;
+            case RING -> 0xffef7a7a;
+            case TRIANGLE -> 0xff4fd1a5;
+            default -> 0xffe59ae5;
+        };
+        disc(x, y, size, CHIP);
+        if (icons == 0) text(name.substring(0, 1).toUpperCase(), x + size * 0.3f, y + size * 0.1f, size / 34f, color);
+        else image(icons, x, y, size, size, (float) cell / ICON_CELLS, 0, (cell + 1f) / ICON_CELLS, 1, color);
+        return size;
+    }
+
+    /** White shapes, antialiased from distance functions: the corner disc and the face-button symbols. */
+    private int iconAtlas() {
+        int n = ICON_SIZE, w = n * ICON_CELLS;
+        ByteBuffer rgba = MemoryUtil.memAlloc(w * n * 4);
+        for (int cell = 0; cell < ICON_CELLS; cell++)
+            for (int py = 0; py < n; py++)
+                for (int px = 0; px < n; px++) {
+                    float x = px + 0.5f - n / 2f, y = py + 0.5f - n / 2f, d;
+                    float stroke = 3.2f;
+                    switch (cell) {
+                        case DISC -> d = (float) Math.hypot(x, y) - n / 2f + 0.5f;
+                        case RING -> d = Math.abs((float) Math.hypot(x, y) - 14) - stroke;
+                        case CROSS -> d = Math.min(segment(x, y, -13, -13, 13, 13), segment(x, y, -13, 13, 13, -13)) - stroke;
+                        case TRIANGLE -> d = Math.min(segment(x, y, 0, -14, 15, 12), Math.min(segment(x, y, 15, 12, -15, 12),
+                                segment(x, y, -15, 12, 0, -14))) - stroke;
+                        default -> d = Math.abs(Math.max(Math.abs(x), Math.abs(y)) - 12) - stroke;
+                    }
+                    float alpha = Math.max(0, Math.min(1, 0.5f - d));
+                    int i = (py * w + cell * n + px) * 4;
+                    rgba.put(i, (byte) -1).put(i + 1, (byte) -1).put(i + 2, (byte) -1).put(i + 3, (byte) Math.round(alpha * 255));
+                }
+        int id = upload(w, n, rgba);
+        MemoryUtil.memFree(rgba);
+        return id;
+    }
+
+    private static float segment(float x, float y, float ax, float ay, float bx, float by) {
+        float dx = bx - ax, dy = by - ay;
+        float t = Math.max(0, Math.min(1, ((x - ax) * dx + (y - ay) * dy) / (dx * dx + dy * dy)));
+        return (float) Math.hypot(x - ax - t * dx, y - ay - t * dy);
     }
 
     /** A rectangle outline of the given thickness. */
