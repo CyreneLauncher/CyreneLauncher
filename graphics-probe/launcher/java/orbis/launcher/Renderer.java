@@ -16,7 +16,7 @@ import org.lwjgl.system.MemoryUtil;
 import static org.lwjgl.opengl.GL30C.*;
 
 /**
- * The launcher's drawing: solid rectangles, uploaded images and bundled Inter text,
+ * The launcher's drawing: solid rectangles, uploaded images and bundled Figtree text,
  * batched into one core-profile shader. Coordinates are screen pixels with the
  * origin at the top left; {@link #s} scales a 1080-line layout to the framebuffer.
  */
@@ -337,17 +337,17 @@ class Renderer {
     }
 
     /**
-     * Bundled Inter with fractional advances and smooth filtering. Older development JARs without
+     * Bundled Figtree with fractional advances and smooth filtering. Older development JARs without
      * the atlas can still use Minecraft's ascii.png or the built-in console font.
      */
     private int loadFont() throws IOException {
-        try (InputStream in = Renderer.class.getResourceAsStream("fonts/inter-atlas.png")) {
+        try (InputStream in = Renderer.class.getResourceAsStream("fonts/atlas.png")) {
             if (in != null) {
                 BufferedImage image = ImageIO.read(in);
                 if (image == null || image.getWidth() != 640 || image.getHeight() != 640)
-                    throw new IOException("Invalid bundled Inter atlas");
-                try (InputStream metrics = Renderer.class.getResourceAsStream("fonts/inter-advances.bin")) {
-                    if (metrics == null) throw new IOException("Missing Inter glyph advances");
+                    throw new IOException("Invalid bundled font atlas");
+                try (InputStream metrics = Renderer.class.getResourceAsStream("fonts/advances.bin")) {
+                    if (metrics == null) throw new IOException("Missing font glyph advances");
                     DataInputStream data = new DataInputStream(metrics);
                     for (int c = 0; c < 256; c++) glyphWidth[c] = data.readFloat();
                 }

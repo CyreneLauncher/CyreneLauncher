@@ -24,15 +24,15 @@ public final class GenerateFontAtlas {
         graphics.setColor(Color.WHITE);
         graphics.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
         FontMetrics metrics = graphics.getFontMetrics();
-        try (var advances = new DataOutputStream(Files.newOutputStream(output.resolve("inter-advances.bin")))) {
+        try (var advances = new DataOutputStream(Files.newOutputStream(output.resolve("advances.bin")))) {
             for (int c = 0; c < 256; c++) {
                 char glyph = font.canDisplay((char) c) ? (char) c : '?';
                 if (c >= 32 && (c < 127 || c >= 160))
                     graphics.drawString(String.valueOf(glyph), c % 16 * 40 + 2, c / 16 * 40 + 31);
-                advances.writeFloat((metrics.charWidth(glyph) + 2) / 4f);
+                advances.writeFloat((metrics.charWidth(glyph) + 0.5f) / 4f);
             }
         }
         graphics.dispose();
-        ImageIO.write(atlas, "png", output.resolve("inter-atlas.png").toFile());
+        ImageIO.write(atlas, "png", output.resolve("atlas.png").toFile());
     }
 }

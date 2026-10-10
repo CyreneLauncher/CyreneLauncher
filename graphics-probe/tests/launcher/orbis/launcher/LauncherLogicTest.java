@@ -29,6 +29,7 @@ public final class LauncherLogicTest {
         installedBootstrap();
         ownershipAndAssets();
         runtimeDownload();
+        instanceArguments();
         consoleModSettings();
         scroller();
         packRules();
@@ -213,6 +214,50 @@ public final class LauncherLogicTest {
         Runtimes packaged = Runtimes.discover(installedRoot.resolve("jdk17"), installedRoot);
         check(packaged.all.size() == 3 && packaged.forJava(25).home().equals(installedRoot.resolve("jdk25")),
                 "direct installed runtime homes discovered without release-desktop");
+    }
+
+    /** An instance's own arguments: split like a shell, kept with the instance, never over what is managed. */
+    private static void instanceArguments() throws IOException {
+        check(InstanceArguments.split(" -XX:+UseG1GC  -Dname=\"a b\" \"\" ").equals(List.of("-XX:+UseG1GC", "-Dname=a b", "")),
+                "quotes group, spaces separate");
+        check(InstanceArguments.jvm("-XX:+UseG1GC -Dfabric.debug=true").size() == 2, "ordinary JVM options pass");
+        for (String bad : List.of("-Xmx4G", "-Djava.home=/x", "-cp /x", "--add-modules=ALL", "-Dorbis.module.names.file=/x",
+                "-Dorbis.graphics.arenaMib=9", "notAnOption", "\"unclosed"))
+            try {
+                InstanceArguments.jvm(bad);
+                throw new AssertionError("JVM arguments must refuse " + bad);
+            } catch (IllegalArgumentException expected) { }
+        check(InstanceArguments.game("--quickPlaySingleplayer \"My World\" --demo").size() == 3, "ordinary game arguments pass");
+        for (String bad : List.of("--username Herobrine", "--gameDir=/data", "--accessToken x"))
+            try {
+                InstanceArguments.game(bad);
+                throw new AssertionError("Minecraft arguments must refuse " + bad);
+            } catch (IllegalArgumentException expected) { }
+
+        Path root = Files.createTempDirectory("instance-arguments");
+        Path profile = Files.writeString(root.resolve("profile.json"), "{}");
+        InstanceStore store = new InstanceStore(root.resolve("home"), Files.createDirectories(root.resolve("game")), profile,
+                root.resolve("versions"), 1024, 1536);
+        store.load();
+        String id = store.selected().id();
+        store.saveArguments(id, " -XX:+UseG1GC ", "--demo");
+        try {
+            store.saveArguments(id, "-Xmx8G", "");
+            throw new AssertionError("saving must check the arguments");
+        } catch (IOException expected) {
+            check(expected.getMessage().contains("memory"), expected.getMessage());
+        }
+        InstanceStore reloaded = new InstanceStore(root.resolve("home"), root.resolve("game"), profile, root.resolve("versions"),
+                1024, 1536);
+        reloaded.load();
+        check(reloaded.selected().jvmArgs().equals("-XX:+UseG1GC") && reloaded.selected().gameArgs().equals("--demo"),
+                "arguments survive a restart: " + reloaded.selected());
+        store.saveSettings(id, 1152, 1536, "");
+        check(store.selected().jvmArgs().equals("-XX:+UseG1GC"), "memory changes keep the arguments");
+        AccountStore.Session session = new AccountStore.Session("Steve", "00000000-0000-0000-0000-000000000000", "token",
+                "msa", "", "");
+        String[] args = LaunchArguments.build(new String[0], store.selected(), session);
+        check(args[args.length - 1].equals("--demo"), "Minecraft arguments follow the managed ones: " + List.of(args));
     }
 
     /** Downloaded runtimes: verified, unpacked beside the packaged one, replaced when the release moves on. */

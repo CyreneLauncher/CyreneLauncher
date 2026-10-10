@@ -23,8 +23,14 @@ import com.google.gson.JsonParser;
 /** Versioned instance records. All managed files stay under launcher/instances/<opaque id>. */
 final class InstanceStore {
     static final int SCHEMA = 1;
+    /** jvmArgs and gameArgs are the instance's own arguments (InstanceArguments), as typed. */
     record Instance(String id, String name, Path gameDir, Path runtimeProfile, String accountId,
-                    int heapMib, int arenaMib, boolean imported) { }
+                    int heapMib, int arenaMib, boolean imported, String jvmArgs, String gameArgs) {
+        Instance(String id, String name, Path gameDir, Path runtimeProfile, String accountId,
+                 int heapMib, int arenaMib, boolean imported) {
+            this(id, name, gameDir, runtimeProfile, accountId, heapMib, arenaMib, imported, "", "");
+        }
+    }
 
     /** A worker owns its context. The screen can cancel it without changing another operation. */
     static final class Operation {
@@ -206,7 +212,7 @@ final class InstanceStore {
             if (!copyWorlds) Files.createDirectory(game.resolve("saves"));
             operation.check();
             Instance value = new Instance(id, clean, finalDir.resolve("game"), source.runtimeProfile(),
-                    source.accountId(), source.heapMib(), source.arenaMib(), false);
+                    source.accountId(), source.heapMib(), source.arenaMib(), false, source.jvmArgs(), source.gameArgs());
             writeRecord(stage, value);
             operation.check();
             moveDirectory(stage, finalDir);
@@ -220,7 +226,7 @@ final class InstanceStore {
         String clean = validName(name);
         uniqueName(clean, id);
         Instance changed = new Instance(id, clean, old.gameDir(), old.runtimeProfile(), old.accountId(),
-                old.heapMib(), old.arenaMib(), old.imported());
+                old.heapMib(), old.arenaMib(), old.imported(), old.jvmArgs(), old.gameArgs());
         writeRecord(changed);
         replace(old, changed);
         return changed;
@@ -234,7 +240,23 @@ final class InstanceStore {
                 || heapMib % LauncherConfig.STEP_MIB != 0 || arenaMib % LauncherConfig.STEP_MIB != 0)
             throw new IOException("Invalid memory settings");
         Instance changed = new Instance(id, old.name(), old.gameDir(), old.runtimeProfile(),
-                accountId == null ? "" : accountId, heapMib, arenaMib, old.imported());
+                accountId == null ? "" : accountId, heapMib, arenaMib, old.imported(), old.jvmArgs(), old.gameArgs());
+        writeRecord(changed);
+        replace(old, changed);
+        return changed;
+    }
+
+    /** Saves an instance's own JVM and Minecraft arguments after checking them (InstanceArguments). */
+    synchronized Instance saveArguments(String id, String jvmArgs, String gameArgs) throws IOException {
+        Instance old = require(id);
+        try {
+            InstanceArguments.jvm(jvmArgs);
+            InstanceArguments.game(gameArgs);
+        } catch (IllegalArgumentException invalid) {
+            throw new IOException(invalid.getMessage());
+        }
+        Instance changed = new Instance(id, old.name(), old.gameDir(), old.runtimeProfile(), old.accountId(),
+                old.heapMib(), old.arenaMib(), old.imported(), jvmArgs.strip(), gameArgs.strip());
         writeRecord(changed);
         replace(old, changed);
         return changed;
@@ -336,7 +358,17 @@ final class InstanceStore {
                 || heap + arena > LauncherConfig.MAX_TOTAL_MIB
                 || heap % LauncherConfig.STEP_MIB != 0 || arena % LauncherConfig.STEP_MIB != 0)
             throw new IOException("Invalid memory settings");
-        return new Instance(id, name, game, profile, o.get("accountId").getAsString(), heap, arena, imported);
+        // Records written before instances had their own arguments have none.
+        String jvmArgs = o.has("jvmArgs") ? o.get("jvmArgs").getAsString() : "";
+        String gameArgs = o.has("gameArgs") ? o.get("gameArgs").getAsString() : "";
+        try {
+            InstanceArguments.jvm(jvmArgs);
+            InstanceArguments.game(gameArgs);
+        } catch (IllegalArgumentException invalid) {
+            throw new IOException("Invalid instance arguments: " + invalid.getMessage());
+        }
+        return new Instance(id, name, game, profile, o.get("accountId").getAsString(), heap, arena, imported,
+                jvmArgs, gameArgs);
     }
 
     /** The built-in runtime, or a downloaded version's game profile under launcher/versions/<id>/. */
@@ -361,6 +393,8 @@ final class InstanceStore {
         o.addProperty("heapMib", value.heapMib());
         o.addProperty("arenaMib", value.arenaMib());
         o.addProperty("imported", value.imported());
+        o.addProperty("jvmArgs", value.jvmArgs());
+        o.addProperty("gameArgs", value.gameArgs());
         writeJson(dir.resolve("instance.json"), o);
     }
 

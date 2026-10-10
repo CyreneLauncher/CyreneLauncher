@@ -34,11 +34,11 @@ import static org.lwjgl.glfw.GLFW.*;
  * results are applied on this, the GL thread.
  */
 class LauncherScreen {
-    private enum Page { INSTANCES, MODS, ACCOUNTS, SETTINGS, BROWSE, PROJECT, VERSIONS }
+    private enum Page { INSTANCES, MODS, ACCOUNTS, SETTINGS, BROWSE, PROJECT, VERSIONS, CREATE }
     private enum Tab { DESCRIPTION, GALLERY, VERSIONS }
     private enum Zone { ACTIONS, TABS, CONTENT }
     private enum Focus { LIST, DETAIL }
-    private enum Field { SEARCH, INSTANCE_NAME }
+    private enum Field { SEARCH, INSTANCE_NAME, JVM_ARGS, GAME_ARGS }
     private enum NameMode { CREATE, CLONE, RENAME }
 
     private final LauncherConfig config;
@@ -311,6 +311,7 @@ class LauncherScreen {
                 continue;
             }
             Input.Action action = event.action();
+            lastInput = event.source();
             if (systemKeyboardOpen) {
                 if (action == Input.Action.BACK) { cancelSystemKeyboard(); break; }
                 continue;
@@ -376,7 +377,10 @@ class LauncherScreen {
 
     private void beginEdit(Field field, Input.Source source) {
         editingField = field;
+        InstanceStore.Instance current = config.selectedInstance();
         String initial = field == Field.SEARCH ? query.toString()
+                : field == Field.JVM_ARGS ? current.jvmArgs()
+                : field == Field.GAME_ARGS ? current.gameArgs()
                 : nameMode == NameMode.RENAME ? config.instances.get(nameTargetId).name()
                 : nameMode == NameMode.CLONE ? config.instances.get(nameTargetId).name() + " Copy"
                 : pendingVersion != null ? pendingLoader.title + " " + pendingVersion.id()
@@ -385,6 +389,8 @@ class LauncherScreen {
         input.releaseBarrier();
         if (source == Input.Source.CONTROLLER) {
             systemKeyboardOpen = field == Field.SEARCH ? beginSystemKeyboard("Search mods", 100)
+                    : field == Field.JVM_ARGS ? beginSystemKeyboard("JVM arguments", InstanceArguments.MAX_LENGTH)
+                    : field == Field.GAME_ARGS ? beginSystemKeyboard("Minecraft arguments", InstanceArguments.MAX_LENGTH)
                     : beginSystemKeyboard("Instance name", 80);
             if (!systemKeyboardOpen) setStatus("System keyboard unavailable. Use a physical keyboard to edit.", WARN);
         }
@@ -456,6 +462,17 @@ class LauncherScreen {
             query.setLength(0);
             query.append(value);
             if (accepted) search(true);
+        } else if (editingField == Field.JVM_ARGS || editingField == Field.GAME_ARGS) {
+            if (accepted) {
+                InstanceStore.Instance current = config.selectedInstance();
+                boolean jvm = editingField == Field.JVM_ARGS;
+                try {
+                    config.instances.saveArguments(current.id(), jvm ? value : current.jvmArgs(), jvm ? current.gameArgs() : value);
+                    setStatus((jvm ? "JVM" : "Minecraft") + " arguments saved for " + current.name() + ".", GOOD);
+                } catch (IOException failure) {
+                    setStatus(failure.getMessage(), ERROR);
+                }
+            }
         } else if (accepted) {
             try {
                 if (nameMode == NameMode.RENAME) {
@@ -514,6 +531,8 @@ class LauncherScreen {
      */
     void applyMouse(List<Input.Mouse> events) {
         for (Input.Mouse m : events) {
+            // Pointing alone does not switch the hints; a click or the wheel does.
+            if (m.kind() != Input.MouseKind.MOVE) lastInput = Input.Source.MOUSE;
             switch (m.kind()) {
                 case MOVE -> { if (!busy && !systemKeyboardOpen) clicks.hover(m.x(), m.y()); }
                 case PRESS -> {
@@ -666,7 +685,8 @@ class LauncherScreen {
         return switch (page) {
             case INSTANCES -> config.instances.list().size();
             case VERSIONS -> 1 + catalog.size();
-            case SETTINGS -> 5;
+            case SETTINGS -> SETTINGS_ROWS;
+            case CREATE -> 2;
             case ACCOUNTS -> accountList().size() + 2;
             case MODS -> 1 + mods.size();
             case BROWSE -> browseRows();
@@ -684,16 +704,8 @@ class LauncherScreen {
     }
 
     private void switchSection(int direction) {
-        Page[] sections = {Page.INSTANCES, Page.MODS, Page.ACCOUNTS, Page.SETTINGS};
-        int current = switch (page) {
-            case INSTANCES, VERSIONS -> 0;
-            case MODS, BROWSE, PROJECT -> 1;
-            case ACCOUNTS -> 2;
-            case SETTINGS -> 3;
-        };
-        Page next = sections[(current + direction + sections.length) % sections.length];
+        Page next = SECTIONS[(section() + direction + SECTIONS.length) % SECTIONS.length];
         go(next, -1);
-        if (next == Page.MODS) refreshMods();
         setStatus("", DIM);
     }
 
@@ -707,9 +719,17 @@ class LauncherScreen {
                 else cycleInstanceAccount(+1);
             }
             case SETTINGS -> {
-                if (selected == 3) save();
-                else if (selected == 4) back();
-                else adjust(+1);
+                switch (selected) {
+                    case 2 -> beginEdit(Field.JVM_ARGS, source);
+                    case 3 -> beginEdit(Field.GAME_ARGS, source);
+                    case 5 -> save();
+                    case 6 -> back();
+                    default -> adjust(+1);
+                }
+            }
+            case CREATE -> {
+                if (selected == 0) openVersions();
+                else openBrowse(ModrinthClient.Type.MODPACK);
             }
             case MODS -> {
                 if (selected == 0) openBrowse(config.loader() == VersionStore.Loader.VANILLA
@@ -737,12 +757,15 @@ class LauncherScreen {
             case INSTANCES -> focus = Focus.LIST;
             case SETTINGS -> {
                 go(Page.INSTANCES, -1);
-                if (dirty) setStatus("Unsaved changes - open Settings and choose Save", WARN);
+                if (dirty) setStatus("Unsaved changes - open Instance settings and choose Save", WARN);
             }
             case ACCOUNTS -> go(Page.INSTANCES, -1);
             case MODS -> go(Page.INSTANCES, -1);
-            case BROWSE -> { go(Page.MODS, -1); refreshMods(); }
-            case VERSIONS -> { go(Page.INSTANCES, -1); setStatus("", DIM); }
+            case BROWSE -> {
+                go(browseFrom, -1);
+                if (browseFrom == Page.MODS) refreshMods();
+            }
+            case VERSIONS, CREATE -> { go(Page.INSTANCES, -1); setStatus("", DIM); }
             case PROJECT -> {
                 if (galleryOpen >= 0) galleryOpen = -1;
                 else { go(Page.BROWSE, -1); setStatus("", DIM); }
@@ -779,16 +802,15 @@ class LauncherScreen {
                 InstanceStore.Instance current = config.selectedInstance();
                 switch (detailSelected) {
                     case 0 -> play();
-                    case 1 -> openVersions();
-                    case 2 -> openBrowse(ModrinthClient.Type.MODPACK);
-                    case 3 -> { nameMode = NameMode.CLONE; nameTargetId = current.id(); beginEdit(Field.INSTANCE_NAME, source); }
-                    case 4 -> { nameMode = NameMode.RENAME; nameTargetId = current.id(); beginEdit(Field.INSTANCE_NAME, source); }
-                    case 5 -> {
+                    case 1 -> { go(Page.MODS, -1); refreshMods(); setStatus("", DIM); }
+                    case 2 -> { go(Page.SETTINGS, 0); setStatus("", DIM); }
+                    case 3 -> { go(Page.CREATE, 0); setStatus("", DIM); }
+                    case 4 -> { nameMode = NameMode.CLONE; nameTargetId = current.id(); beginEdit(Field.INSTANCE_NAME, source); }
+                    case 5 -> { nameMode = NameMode.RENAME; nameTargetId = current.id(); beginEdit(Field.INSTANCE_NAME, source); }
+                    case 6 -> {
                         if (config.instances.list().size() <= 1) setStatus("Keep at least one instance.", WARN);
                         else { instanceRemovePending = current.id(); removeConfirmed = false; }
                     }
-                    case 6 -> { go(Page.MODS, -1); refreshMods(); setStatus("", DIM); }
-                    case 7 -> { go(Page.SETTINGS, -1); setStatus("", DIM); }
                     default -> closeWindow();
                 }
             }
@@ -796,8 +818,13 @@ class LauncherScreen {
         }
     }
 
-    private static final List<String> HOME_ACTIONS = List.of("Play", "Create instance", "Get a modpack",
-            "Clone selected", "Rename selected", "Remove selected", "Mods", "Settings", "Quit");
+    private static final List<String> HOME_ACTIONS = List.of("Play", "Mods", "Instance settings", "New instance",
+            "Clone", "Rename", "Remove", "Quit");
+    /** Heap, GPU memory, JVM arguments, Minecraft arguments, debug log, Save, Back. */
+    private static final int SETTINGS_ROWS = 7;
+    private Page browseFrom = Page.MODS;
+    /** The device used last; the hints name its buttons or keys. */
+    private Input.Source lastInput = Input.Source.CONTROLLER;
 
     private void chooseInstance(String id) throws IOException {
         if (dirty) config.save();
@@ -929,6 +956,7 @@ class LauncherScreen {
     private void adjust(int direction) {
         if (page == Page.VERSIONS && selected == 0) { cycleLoader(direction); return; }
         if (page == Page.ACCOUNTS && selected == accountList().size() + 1) { cycleInstanceAccount(direction); return; }
+        if (page == Page.CREATE) { selected = (selected + 2 + direction) % 2; return; }
         if (page != Page.SETTINGS) return;
         int step = direction * LauncherConfig.STEP_MIB;
         switch (selected) {
@@ -942,7 +970,7 @@ class LauncherScreen {
                 if (config.heapMib + arena <= LauncherConfig.MAX_TOTAL_MIB) config.arenaMib = arena;
                 else setStatus("Heap and GPU memory together are limited to " + LauncherConfig.MAX_TOTAL_MIB + " MiB", WARN);
             }
-            case 2 -> config.debugLog = !config.debugLog;
+            case 4 -> config.debugLog = !config.debugLog;
             default -> { return; }
         }
         dirty = true;
@@ -1259,6 +1287,7 @@ class LauncherScreen {
             browseType = ModrinthClient.Type.MODPACK;
             setStatus("Vanilla instances do not load mods; modpacks create their own instance.", WARN);
         } else setStatus("", DIM);
+        if (page != Page.BROWSE && page != Page.PROJECT) browseFrom = page == Page.MODS ? Page.MODS : Page.CREATE;
         go(Page.BROWSE, -1);
         if (!searched || changed) search(false);
     }
@@ -1687,6 +1716,7 @@ class LauncherScreen {
             case INSTANCES -> drawHome(s);
             case ACCOUNTS -> drawAccounts(s);
             case SETTINGS -> drawSettings(s);
+            case CREATE -> drawCreate(s);
             case MODS -> drawMods(s);
             case BROWSE -> drawBrowse(s);
             case PROJECT -> drawProject(s);
@@ -1701,7 +1731,7 @@ class LauncherScreen {
         if (cloneOptions) drawCloneOptions(s);
         if (plan != null) drawPlanDialog(s);
         if (pack != null) drawPackDialog(s);
-        if (editor.active() && editingField == Field.INSTANCE_NAME) drawNameDialog(s);
+        if (editor.active() && editingField != null && editingField != Field.SEARCH) drawNameDialog(s);
         String shownStatus = instanceOperation == null ? status : instanceOperation.progress();
         if (instanceOperation != null && instanceOperation.destination() != null)
             r.text(r.fit("Destination: " + instanceOperation.destination(), r.width - 240 * s, 2.2f * s),
@@ -1740,17 +1770,22 @@ class LauncherScreen {
         return x - start;
     }
 
-    /** The controller buttons a hint's keys name: "Cross/Enter" is the cross, "L1/R1" both shoulder buttons. */
-    private static List<String> buttons(String keys) {
+    /**
+     * What a hint's keys are on the device used last: on a controller "Cross/Enter" is the cross and
+     * "L1/R1" both shoulder buttons; on a keyboard and mouse they are Enter and Page Up/Down, and actions
+     * only a controller button reaches by itself are clicks.
+     */
+    private List<String> buttons(String keys) {
         String first = keys.split(" or ")[0];
         String lead = first.split("/")[0];
+        boolean pad = lastInput == Input.Source.CONTROLLER;
         return switch (lead) {
-            case "Cross" -> List.of("cross");
-            case "Circle" -> List.of("circle");
-            case "Triangle" -> List.of("triangle");
-            case "Square" -> List.of("square");
-            case "L1" -> List.of("L1", "R1");
-            case "Start" -> List.of("OPTIONS");
+            case "Cross" -> List.of(pad ? "cross" : "ENTER");
+            case "Circle" -> List.of(pad ? "circle" : "ESC");
+            case "Triangle" -> List.of(pad ? "triangle" : "CLICK");
+            case "Square" -> List.of(pad ? "square" : "CLICK");
+            case "L1" -> pad ? List.of("L1", "R1") : List.of("PG UP", "PG DN");
+            case "Start" -> List.of(pad ? "OPTIONS" : "CLICK");
             case "Left" -> List.of("LEFT / RIGHT");
             case "Up" -> List.of("UP / DOWN");
             default -> List.of(first.toUpperCase(java.util.Locale.ROOT));
@@ -1784,16 +1819,12 @@ class LauncherScreen {
         r.text(r.fit(active.name(), 420 * s, 2.1f * s), chipX + avatar + 26 * s, 73 * s, 2.1f * s, DIM);
     }
 
-    private static final Page[] SECTIONS = {Page.INSTANCES, Page.MODS, Page.ACCOUNTS, Page.SETTINGS};
-    private static final String[] SECTION_TITLES = {"Instances", "Mods", "Accounts", "Settings"};
+    /** Mods and settings belong to an instance, so they open from it rather than from a tab. */
+    private static final Page[] SECTIONS = {Page.INSTANCES, Page.ACCOUNTS};
+    private static final String[] SECTION_TITLES = {"Instances", "Accounts"};
 
     private int section() {
-        return switch (page) {
-            case INSTANCES, VERSIONS -> 0;
-            case MODS, BROWSE, PROJECT -> 1;
-            case ACCOUNTS -> 2;
-            case SETTINGS -> 3;
-        };
+        return page == Page.ACCOUNTS ? 1 : 0;
     }
 
     /** The sections as tabs between the shoulder buttons that switch them; clicking one opens it. */
@@ -1812,7 +1843,6 @@ class LauncherScreen {
             clicks.add(x, y, w, h, null, () -> {
                 if (!idle()) return;
                 go(SECTIONS[index], -1);
-                if (SECTIONS[index] == Page.MODS) refreshMods();
                 setStatus("", DIM);
             });
             x += w + gap;
@@ -1833,11 +1863,13 @@ class LauncherScreen {
                 ? "Closing system keyboard..." : "System keyboard: confirm or cancel";
         if (editor.active()) return "Type: edit   Arrows/Home/End: caret   Enter: accept   Escape: cancel";
         return switch (page) {
-            case MODS -> "Cross: open / enable-disable   Triangle: remove   Circle: back   L1/R1: section";
+            case MODS -> "Cross: open / enable-disable   Triangle: remove   Circle: back";
             case BROWSE -> "Cross: open   Left/Right: tabs and sort   Start: search   Circle: back";
             case PROJECT -> galleryOpen >= 0 ? "Left/Right: previous / next image   Circle: close"
                     : "Up/Down: buttons, tabs, content   Left/Right: choose   Cross: select   Circle: back";
             case VERSIONS -> "Left/Right: loader   Cross/Enter: choose version   Circle/Escape: back";
+            case CREATE -> "Left/Right: choose   Cross/Enter: open   Circle/Escape: back";
+            case SETTINGS -> "Left/Right: change   Cross/Enter: edit or select   Circle/Escape: back";
             case INSTANCES -> "Cross/Enter: select   Left/Right or Tab: focus   L1/R1: section";
             case ACCOUNTS -> "Cross: make default / choose   Triangle: rename or sign out   Circle: back   L1/R1: section";
             default -> "Cross/Enter: select   Circle/Escape: back   L1/R1: section";
@@ -1993,7 +2025,8 @@ class LauncherScreen {
     private void drawNameDialog(float s) {
         float x = 350 * s, y = 330 * s;
         dialog(x, y, 1220 * s, 320 * s);
-        r.text(nameMode == NameMode.CREATE ? "CREATE INSTANCE" : nameMode == NameMode.CLONE
+        r.text(editingField == Field.JVM_ARGS ? "JVM ARGUMENTS" : editingField == Field.GAME_ARGS ? "MINECRAFT ARGUMENTS"
+                : nameMode == NameMode.CREATE ? "CREATE INSTANCE" : nameMode == NameMode.CLONE
                 ? "CLONE INSTANCE" : "RENAME INSTANCE", x + 40 * s, y + 35 * s, 3.5f * s, TEXT);
         String value = editor.value();
         String caret = value.substring(0, editor.caret()) + "|" + value.substring(editor.caret());
@@ -2183,11 +2216,81 @@ class LauncherScreen {
     }
 
     private void drawSettings(float s) {
-        r.text("Settings", 120 * s, 168 * s, 3.6f * s, TEXT);
-        menu(List.of("Java heap        < " + config.heapMib + " MiB >",
-                "GPU memory       < " + config.arenaMib + " MiB >",
-                "Runner debug log (global)  < " + (config.debugLog ? "on" : "off") + " >", "Save", "Back"),
-                120 * s, 280 * s, 760 * s);
+        InstanceStore.Instance current = config.selectedInstance();
+        r.text("Instance settings", 120 * s, 168 * s, 3.6f * s, TEXT);
+        r.text(r.fit(current.name(), 900 * s, 2.3f * s), 120 * s + r.width("Instance settings", 3.6f * s) + 30 * s,
+                182 * s, 2.3f * s, DIM);
+        String[][] rows = {
+                {"Java heap", "< " + config.heapMib + " MiB >"},
+                {"GPU memory", "< " + config.arenaMib + " MiB >"},
+                {"JVM arguments", current.jvmArgs().isEmpty() ? "None" : current.jvmArgs()},
+                {"Minecraft arguments", current.gameArgs().isEmpty() ? "None" : current.gameArgs()},
+                {"Runner debug log (all instances)", "< " + (config.debugLog ? "On" : "Off") + " >"},
+                {"Save", ""}, {"Back", ""}};
+        float x = 120 * s, w = 1000 * s, rowH = 72 * s, y = 250 * s;
+        for (int i = 0; i < rows.length; i++) {
+            boolean on = i == selected && !editor.active() && !systemKeyboardOpen;
+            float ry = y + i * rowH + (i >= 5 ? 24 * s : 0);
+            if (i < 5) r.roundRect(x, ry, w, rowH - 10 * s, 12 * s, PANEL);
+            row(x, ry, w, rowH - 10 * s, on);
+            r.text(rows[i][0], x + 34 * s, ry + 15 * s, 2.7f * s, on ? TEXT : i >= 5 ? DIM : TEXT);
+            if (!rows[i][1].isEmpty()) {
+                String value = r.fit(rows[i][1], 520 * s, 2.5f * s);
+                boolean none = rows[i][1].equals("None");
+                r.text(value, x + w - 34 * s - r.width(value, 2.5f * s), ry + 17 * s, 2.5f * s, none ? DIM : ACCENT_HI);
+            }
+            int index = i;
+            hit(x, ry, w, rowH - 10 * s, () -> selected = index, Input.Action.CONFIRM);
+        }
+        // What the highlighted setting does, as Amethyst's profile editor explains its fields.
+        String[] help = {
+                "Memory for Minecraft itself. More helps big modpacks; together with GPU memory it is limited to "
+                        + LauncherConfig.MAX_TOTAL_MIB + " MiB.",
+                "Memory reserved for the graphics driver: textures, shaders and chunk meshes.",
+                "Extra options for the Java virtual machine, such as -XX:+UseG1GC or -Dfabric.debug=true. "
+                        + "Memory, class paths and the runner's own properties are set by the launcher.",
+                "Extra Minecraft arguments, such as --quickPlaySingleplayer \"My World\" or --demo. "
+                        + "The account, version and game folder are set by the launcher.",
+                "Writes the runner's detailed log for every instance. Useful when reporting a problem.",
+                "Keeps the memory and log settings. Arguments are kept as soon as you enter them.",
+                "Returns to the instance."};
+        float px = 1160 * s, pw = 640 * s;
+        r.roundRect(px, y, pw, 5 * rowH - 10 * s, 18 * s, PANEL);
+        String title = rows[Math.min(selected, rows.length - 1)][0];
+        r.text(r.fit(title, pw - 70 * s, 3 * s), px + 35 * s, y + 30 * s, 3 * s, TEXT);
+        float ty = y + 85 * s;
+        for (String line : r.wrap(help[Math.min(selected, help.length - 1)], pw - 70 * s, 2.3f * s)) {
+            r.text(line, px + 35 * s, ty, 2.3f * s, DIM);
+            ty += 32 * s;
+        }
+    }
+
+    /** New instance: a version of Minecraft to set up, or a modpack that brings its own. */
+    private void drawCreate(float s) {
+        r.text("New instance", 120 * s, 168 * s, 3.6f * s, TEXT);
+        String[][] cards = {
+                {"Minecraft", "Choose a Minecraft version with Fabric, Quilt or no loader. Add mods afterwards.", "V"},
+                {"Modpack", "Browse Modrinth modpacks. A modpack brings its version, loader and mods.", "M"}};
+        float w = 820 * s, h = 520 * s, gap = 40 * s, x0 = (r.width - 2 * w - gap) / 2, y = 260 * s;
+        for (int i = 0; i < 2; i++) {
+            float x = x0 + i * (w + gap);
+            boolean on = selected == i;
+            if (on) r.roundRect(x - 5 * s, y - 5 * s, w + 10 * s, h + 10 * s, 26 * s, ACCENT);
+            r.roundRect(x, y, w, h, 22 * s, on ? PANEL_HI : PANEL);
+            if (i == 0 && r.artwork() > 0) r.image(r.artwork(), x + 40 * s, y + 40 * s, 160 * s, 160 * s, WHITE);
+            else {
+                r.roundRect(x + 40 * s, y + 40 * s, 160 * s, 160 * s, 24 * s, ACCENT_DARK);
+                r.text(cards[i][2], x + 40 * s + (160 * s - r.width(cards[i][2], 8 * s)) / 2, y + 70 * s, 8 * s, TEXT);
+            }
+            r.text(cards[i][0], x + 40 * s, y + 240 * s, 4.2f * s, TEXT);
+            float ty = y + 310 * s;
+            for (String line : r.wrap(cards[i][1], w - 80 * s, 2.5f * s)) {
+                r.text(line, x + 40 * s, ty, 2.5f * s, DIM);
+                ty += 34 * s;
+            }
+            int index = i;
+            hit(x, y, w, h, () -> selected = index, Input.Action.CONFIRM);
+        }
     }
 
     // ------------------------------------------------------------------ mods page
@@ -2206,7 +2309,7 @@ class LauncherScreen {
             if (on2) r.roundRect(x, y + 8 * s, 6 * s, rowH - 6 * s - 16 * s, 3 * s, ACCENT);
             hit(x, y, w, rowH - 6 * s, () -> selected = i, Input.Action.CONFIRM);
             if (i == 0) {
-                r.text("+ Browse Modrinth for mods and modpacks", x + 30 * s, y + 18 * s, 3 * s, ACCENT_HI);
+                r.text("+ Browse Modrinth for mods", x + 30 * s, y + 18 * s, 3 * s, ACCENT_HI);
                 return;
             }
             Path mod = mods.get(i - 1);

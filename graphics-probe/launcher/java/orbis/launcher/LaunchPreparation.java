@@ -56,6 +56,9 @@ final class LaunchPreparation {
         byte[] originalConf = LauncherFiles.read(confFile, MAX_FILE_BYTES);
         List<String> extra = new ArrayList<>(compatibilityMod(version));
         extra.addAll(lwjglOptions(version));
+        // The instance's own JVM arguments last, after checking none takes over what the runner manages.
+        try { extra.addAll(InstanceArguments.jvm(instance.jvmArgs())); }
+        catch (IllegalArgumentException invalid) { throw new IOException("JVM arguments: " + invalid.getMessage()); }
         byte[] preparedOptions = options(originalOptions, instance, version, extra);
         byte[] preparedConf = configuration(originalConf, instance.gameDir(), config.debugLog, version,
                 runtime(config.runtimes, version));

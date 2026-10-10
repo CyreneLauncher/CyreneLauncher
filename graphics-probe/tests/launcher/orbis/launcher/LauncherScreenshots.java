@@ -60,14 +60,29 @@ final class LauncherScreenshots {
                 new LauncherLogicTest.FakeInstaller(modrinth, game, random));
 
         save(screen, out.resolve("1-instances.png"));
-        for (String name : List.of("2-mods", "3-accounts", "4-settings")) {
-            screen.apply("", List.of(Input.Action.NEXT_SECTION));
-            settle(screen);
-            save(screen, out.resolve(name + ".png"));
-        }
+        // From the instance's actions (Play, Mods, Instance settings, New instance, ...).
+        shoot(screen, out, "2-mods", Input.Action.FOCUS, Input.Action.DOWN, Input.Action.CONFIRM);
+        screen.apply("", List.of(Input.Action.BACK));
+        shoot(screen, out, "3-instance-settings", Input.Action.FOCUS, Input.Action.DOWN, Input.Action.CONFIRM,
+                Input.Action.DOWN, Input.Action.DOWN);
+        screen.apply("", List.of(Input.Action.BACK));
+        shoot(screen, out, "4-new-instance", Input.Action.FOCUS, Input.Action.DOWN, Input.Action.CONFIRM);
+        screen.apply("", List.of(Input.Action.BACK));
+        shoot(screen, out, "5-accounts", Input.Action.NEXT_SECTION);
+        // The same page after keyboard input: the hints name keys instead of buttons.
+        screen.applyEvents("", List.of(new Input.Event(Input.Source.KEYBOARD, Input.Action.DOWN)));
+        settle(screen);
+        save(screen, out.resolve("6-accounts-keyboard.png"));
         glfwDestroyWindow(window);
         glfwTerminate();
         System.out.println("screenshots in " + out);
+    }
+
+    private static void shoot(LauncherScreen screen, Path out, String name, Input.Action... actions) throws Exception {
+        screen.applyEvents("", java.util.Arrays.stream(actions)
+                .map(action -> new Input.Event(Input.Source.CONTROLLER, action)).toList());
+        settle(screen);
+        save(screen, out.resolve(name + ".png"));
     }
 
     private static void settle(LauncherScreen screen) throws InterruptedException {

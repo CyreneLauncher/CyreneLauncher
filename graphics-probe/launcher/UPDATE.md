@@ -20,7 +20,11 @@ Back up configuration before uploading. Do not replace an active graphics/native
 
 ## Controls
 
-- L1/R1: switch Instances, Mods, Accounts and Settings. Keyboard: Page Up/Page Down.
+- L1/R1: switch between Instances and Accounts. Keyboard: Page Up/Page Down. An instance's
+  Mods and Instance settings open from its actions; New instance asks for a Minecraft version
+  or a Modrinth modpack.
+- The bottom bar shows the controls of the device used last: the controller's buttons, or the
+  keyboard's keys and clicks.
 - D-pad/stick: move selection. Cross/Enter: activate. Circle/Escape: back or cancel.
 - Tab or Left/Right: move between a list and its details where applicable.
 - Select a text field to edit it. Controller entry opens the PS4 system keyboard;
@@ -47,7 +51,10 @@ Clone copies mods/configuration; copying worlds is an explicit option, off by de
 Removing the imported installation removes its registration only. Removing a managed
 instance deletes its private files after confirmation.
 
-Memory settings belong to each instance. Runner debug logging is a global preference.
+Memory settings belong to each instance, as do its own JVM arguments and Minecraft arguments
+(Instance settings), as in Amethyst's profile editor. The launcher refuses arguments that would
+replace what it manages: memory, class and module paths, the runner's properties, the account,
+version and game folder. Runner debug logging is a global preference.
 An instance can follow the default account or explicitly select an account, including Offline.
 This update does not install other Minecraft versions.
 

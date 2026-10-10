@@ -1,0 +1,11 @@
+{
+  "source": "https://raw.githubusercontent.com/google/fonts/main/ofl/figtree/Figtree%5Bwght%5D.ttf",
+  "source_sha256": "26ad3db9b31ff7dde67a91ff515d022d2f495cd506590699cf264f0bfe6fb714",
+  "instance": "wght=500 (Medium), made with fontTools.varLib.instancer",
+  "license": "SIL Open Font License 1.1",
+  "font_sha256": "56fda85df372eebc7a8d84a6e0e38e3021674cda77332250f9d458531bbbd493",
+  "generated_files": {
+    "advances.bin": "42d9ba832b97b52ee589a14654c99f3a1951f93eefa6f084e51fb1a843453923",
+    "atlas.png": "fc4227e794fe171d6e3ff558b8719d3524aeb666f1ae8b62321f8f9aa74fba7e"
+  }
+}

@@ -53,6 +53,9 @@ final class LaunchArguments {
             add(args, "--assetIndex", version.assetIndex());
             add(args, "--versionType", version.versionType());
         }
+        // The instance's own arguments, which cannot replace any of the above.
+        try { args.addAll(InstanceArguments.game(instance.gameArgs())); }
+        catch (IllegalArgumentException invalid) { throw new IOException("Minecraft arguments: " + invalid.getMessage()); }
         return args.toArray(String[]::new);
     }
 

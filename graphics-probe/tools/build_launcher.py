@@ -51,7 +51,7 @@ classpath = ':'.join(str(lwjgl_sources.java_artifact(arguments.jars, name)) for 
                      ('lwjgl-3.2.2.jar', 'lwjgl-opengl-3.2.2.jar', 'lwjgl-glfw-3.2.2.jar')) + ':' + arguments.gson
 classpath += ''.join(':' + str(path) for path in third_party)
 qr_lock = json.loads((ROOT / 'launcher/qr-sources.lock.json').read_text())
-font_lock = json.loads((ROOT / 'launcher/fonts/inter.lock.json').read_text())
+font_lock = json.loads((ROOT / 'launcher/fonts/font.lock.json').read_text())
 for name, expected in font_lock['generated_files'].items():
     resource = ROOT / 'launcher/resources/orbis/launcher/fonts' / name
     if hashlib.sha256(resource.read_bytes()).hexdigest() != expected:
