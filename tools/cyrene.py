@@ -459,6 +459,12 @@ def package_inputs():
     if not data['desktop']['files']:raise ValueError('Missing desktop export')
     data['graphics']['source']='graphics-probe/build/graphics-bundle-native'
     data['graphics']['manifest_sha256']=digest(ROOT/data['graphics']['source']/'graphics-bundle.json')
+    # The revisions actually packaged: the repository pins, and for the runtimes the commit of the
+    # installed orbis-openjdk release when they came from one.
+    revisions={name:item['revision'] for name,item in json.loads((ROOT/'repositories.lock.json').read_text())['components'].items()}
+    jdk=installed_jdk_release()
+    if jdk['versions']:revisions['orbis-openjdk']=jdk['commit']
+    data['component_revisions']=revisions
     target=APP/'build-inputs/runtime-package-inputs.local.json';target.parent.mkdir(parents=True,exist_ok=True)
     target.write_text(json.dumps(data,indent=2)+'\n')
     return target

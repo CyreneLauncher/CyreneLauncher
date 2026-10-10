@@ -1,15 +1,6 @@
 {
   "schema": 1,
-  "component_revisions": {
-    "mesa-orbis": "728f563146ec893c6fdd13152ce65e6217da5bb2",
-    "lwjgl-orbis": "fd8777e88b8ddd1018e25c185d55a9d04f39e113",
-    "openal-soft-orbis": "99fa9adfdedaf8ac127cea5c00fc9ad562037cb0",
-    "sdl-orbis": "1e3c507a6e4e365f5166a6a77fc4cffe838b67bc",
-    "orbis-runtime-support": "637f2596d38d49271535c061a82dc1a1fbd16c9b",
-    "orbis-compat": "6922a7b6f4291a28edd239f1a4db50ed7aa00359",
-    "orbis-porting-kit": "213b0c38ff25ea7ca402c8844a6494086d0f1cae",
-    "orbis-openjdk": "dd6e35fbf2401816b28943437c5d3e71cbb615f8"
-  },
+  "component_revisions": {},
   "runtimes": {
     "jdk17": {
       "feature": 17,
