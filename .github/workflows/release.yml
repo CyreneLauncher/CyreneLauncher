@@ -11,6 +11,10 @@ on:
         description: Create a draft GitHub release after verification
         default: false
         type: boolean
+      jdk_release:
+        description: orbis-openjdk release tag to package (empty for the latest)
+        default: ''
+        type: string
 permissions:
   contents: read
 concurrency:
@@ -32,7 +36,6 @@ jobs:
         run: python3 -m unittest discover -s orbis-launcher/tools/tests -v
       - name: Require pinned runtime and library releases
         run: |
-          orbis-launcher/orbis pin-jdks --check
           orbis-launcher/orbis pin-libraries --check
   assets:
     needs: checks
@@ -99,15 +102,21 @@ jobs:
       - uses: ./orbis-launcher/.github/actions/build-host
         with:
           jdks: '17 25'
-      - name: Download pinned runtimes from orbis-openjdk
+      - name: Download the latest runtimes from orbis-openjdk
         env:
           # The default token cannot read another private repository; set this secret to a
-          # token with read access to CyreneLauncher/orbis-openjdk releases while it is private.
+          # token with read access to the CyreneLauncher repositories' releases while they are private.
           GH_TOKEN: ${{ secrets.CYRENE_RELEASES_TOKEN || github.token }}
+          JDK_RELEASE: ${{ inputs.jdk_release }}
         shell: bash
         run: |
-          read -r repository tag < <(python3 -c "import json;l=json.load(open('orbis-launcher/tools/runtimes.lock.json'));print(l['repository'],l['tag'])")
-          gh release download "$tag" --repo "$repository" --pattern 'orbis-jdk*-x86_64.tar.xz' --dir incoming/jdks
+          repository=$(python3 -c "import json;u=json.load(open('orbis-launcher/repositories.lock.json'))['components']['orbis-openjdk']['url'];print(u.removeprefix('https://github.com/').removesuffix('.git'))")
+          mkdir -p incoming/jdks
+          # Without a tag, gh release view answers with the latest release; record which one it was.
+          gh release view $JDK_RELEASE --repo "$repository" --json tagName,targetCommitish,url > incoming/jdks/release.json
+          tag=$(python3 -c "import json;print(json.load(open('incoming/jdks/release.json'))['tagName'])")
+          gh release download "$tag" --repo "$repository" --pattern 'orbis-jdk*-x86_64.tar.xz' \
+            --pattern SHA256SUMS --dir incoming/jdks
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: cyrene-assets
@@ -128,6 +137,7 @@ jobs:
         run: |
           orbis-launcher/orbis export
           cp orbis-launcher/tools/toolchain.lock.json orbis-launcher/dist/toolchain.lock.json
+          cp incoming/jdks/release.json orbis-launcher/dist/jdk-release.json
           cd orbis-launcher/dist
           sha256sum ./*.pkg ./*.json ./*.tar.gz ./*.sha256 > SHA256SUMS
       - name: Save release outputs
@@ -154,4 +164,4 @@ jobs:
           gh release create "v${APP_VERSION}" orbis-launcher/dist/* \
             --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --draft \
             --title "Cyrene Launcher ${APP_VERSION}" \
-            --notes "Built on GitHub-hosted Ubuntu from pinned sources and SDKs. Includes the verified PKG, reusable components, checksums and runtime manifest. Console testing status must be recorded before publishing this draft."
+            --notes "Built on GitHub-hosted Ubuntu from pinned sources and SDKs, with the runtimes of orbis-openjdk $(python3 -c "import json;print(json.load(open('incoming/jdks/release.json'))['tagName'])"). Includes the verified PKG, reusable components, checksums and runtime manifest. Console testing status must be recorded before publishing this draft."

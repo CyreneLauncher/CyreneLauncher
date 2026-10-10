@@ -30,8 +30,7 @@ The build downloads the pinned JDK 17, 21 and 25 runtimes from the [orbis-openjd
 
 ```bash
 ./orbis bootstrap       # Restore missing pinned repositories; never reset existing work
-./orbis fetch-jdks      # Download, hash-check and install the pinned runtime release
-./orbis pin-jdks        # Record the release for the pinned orbis-openjdk revision
+./orbis fetch-jdks      # Download, hash-check and install the latest orbis-openjdk release (--jdk-tag for another)
 ./orbis jdks            # Maintainers: compile all three runtimes from source instead
 ./orbis jdks --jdk 21   # Compile only JDK 21 with BOOT_JDK21
 ./orbis fetch-libraries # Download, hash-check and install the pinned Mesa/OpenAL/SDL/LWJGL releases
@@ -64,7 +63,7 @@ Both workflows run on **GitHub-hosted Ubuntu 24.04**. No self-hosted runner, loc
 
 `Build Cyrene Launcher` provisions LLVM 18, pinned Temurin host JDKs, .NET 8, OpenOrbis v0.5.4 and payload SDK v0.9. SDK archive SHA-256 values and the accepted OpenOrbis ABI files are checked before compilation. The PKG CLI is built from pinned OpenOrbis/LibOrbisPkg source. These upstream SDKs match the installed build inputs; no custom SDK fork is needed.
 
-The JDKs are no longer compiled here. `orbis-openjdk` builds and publishes them as the release `jdk-<first 12 characters of its commit>`; `tools/runtimes.lock.json` records that tag and the SHA-256 of each `orbis-jdkNN-x86_64.tar.xz`. The checks job stops early when the pin does not match the `orbis-openjdk` revision in `repositories.lock.json`. The native libraries are not compiled here either. mesa-orbis, openal-soft-orbis, sdl-orbis and lwjgl-orbis each publish a release `<prefix>-<first 12 characters of its commit>` from their own **Release** workflow; `tools/library-releases.lock.json` records the SHA-256 of each archive, and each port's `release.json` names its asset. lwjgl-orbis's platform PRX links the Mesa release that lwjgl-orbis's `dependencies.lock.json` pins, and pinning is refused unless that is the Mesa release the launcher ships. While the port repositories are private, add a `CYRENE_RELEASES_TOKEN` secret that can read their contents and releases, here and in each port repository. The assets job installs those releases, builds the LWJGL facades against this launcher's `NativeInput`, then the launcher and desktop support. The package job downloads the pinned runtimes and the assets artifact, verifies hashes, file inventories and source/SDK provenance, then assembles and validates the PKG. Tar archives preserve executable permissions across Actions artifact transfers. All jobs save their build logs, including nested compiler diagnostics. The CLI streams compiler output live when running in Actions.
+The JDKs are no longer compiled here. `orbis-openjdk` builds and publishes them as the release `jdk-<first 12 characters of its commit>`, and every launcher build packages the **latest** such release; the workflow's `jdk_release` input selects an older tag. The runtimes are not pinned: each archive is checked against its release's `SHA256SUMS` and its own file inventory, and its recorded `libc.a` hash must match `tools/toolchain.lock.json`, so a runtime built with another SDK is refused. The chosen release is recorded in `jdk-release.json`, the component seal and the draft release notes. The native libraries are not compiled here either. mesa-orbis, openal-soft-orbis, sdl-orbis and lwjgl-orbis each publish a release `<prefix>-<first 12 characters of its commit>` from their own **Release** workflow; `tools/library-releases.lock.json` records the SHA-256 of each archive, and each port's `release.json` names its asset. lwjgl-orbis's platform PRX links the Mesa release that lwjgl-orbis's `dependencies.lock.json` pins, and pinning is refused unless that is the Mesa release the launcher ships. While the port repositories are private, add a `CYRENE_RELEASES_TOKEN` secret that can read their contents and releases, here and in each port repository. The assets job installs those releases, builds the LWJGL facades against this launcher's `NativeInput`, then the launcher and desktop support. The package job downloads the runtimes and the assets artifact, verifies hashes, file inventories and source/SDK provenance, then assembles and validates the PKG. Tar archives preserve executable permissions across Actions artifact transfers. All jobs save their build logs, including nested compiler diagnostics. The CLI streams compiler output live when running in Actions.
 
 Run a complete build from the GitHub **Actions → Build Cyrene Launcher → Run workflow** page, or use:
 
@@ -95,10 +94,7 @@ Release the ports in dependency order, since each pins what it builds against:
 
 ### Updating the JDKs
 
-1. Commit the change in `orbis-openjdk`, then run its **Build Orbis runtimes** workflow with `publish` checked.
-2. In the launcher, set `orbis-openjdk`'s `revision` in `repositories.lock.json` to that commit.
-3. Run `./orbis pin-jdks`. For a private repository, download the assets first with `gh release download jdk-XXXXXXXXXXXX -R CyreneLauncher/orbis-openjdk --dir /tmp/jdks` and run `./orbis pin-jdks --from /tmp/jdks`.
-4. Commit both lock files together.
+Commit the change in `orbis-openjdk` and run its **Build Orbis runtimes** workflow with `publish` checked. The next launcher build uses it; nothing changes in the launcher. `repositories.lock.json` still pins `orbis-openjdk` for `./orbis jdks`, the source build. For a private repository, set `GH_TOKEN` before running `./orbis fetch-jdks` locally.
 
 ## Source ownership
 
