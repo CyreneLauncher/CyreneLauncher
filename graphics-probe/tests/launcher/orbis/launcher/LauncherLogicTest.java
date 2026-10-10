@@ -30,6 +30,10 @@ public final class LauncherLogicTest {
         ownershipAndAssets();
         runtimeDownload();
         instanceArguments();
+        check(LauncherScreen.consoleMode("pro")[0].contains("Pro mode")
+                && LauncherScreen.consoleMode("pro-base")[0].contains("Boost Mode")
+                && LauncherScreen.consoleMode("base")[0].startsWith("PS4 ")
+                && LauncherScreen.consoleMode("")[0].contains("not reported"), "the runner's console mode is named");
         consoleModSettings();
         scroller();
         packRules();

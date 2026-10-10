@@ -16,7 +16,7 @@ final class InstanceArguments {
     private static final Set<String> RUNNER_PROPERTIES = Set.of("java.home", "java.class.path", "java.library.path",
             "java.io.tmpdir", "user.dir", "java.system.class.loader", "runner.display", "runner.desktop.bundle",
             "runner.graphics.bundle", "runner.gpu.metadata", "runner.gpu.libraries", "runner.jar", "runner.output.log",
-            "runner.debug.log", "orbis.runner.root", "orbis.runner.screen.enabled", "orbis.module.finder.imageFallback",
+            "runner.debug.log", "orbis.runner.root", "orbis.runner.screen.enabled", "orbis.console.mode", "orbis.module.finder.imageFallback",
             "orbis.module.names.file", "orbis.module.names.list", "jdk.module.path", "jdk.module.upgrade.path",
             "jdk.module.main", "jdk.module.addmods", "sun.boot.library.path", "sun.boot.class.path");
     private static final List<String> RUNNER_FLAGS = List.of("--module-path", "--upgrade-module-path", "--patch-module",

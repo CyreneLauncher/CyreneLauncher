@@ -221,7 +221,7 @@ done:
     return result;
 }
 int runner_option_reserved(const char *option) {
-    static const char *properties[] = {"java.home", "java.class.path", "java.library.path", "java.io.tmpdir", "user.dir", "java.system.class.loader", "runner.display", "runner.desktop.bundle", "runner.graphics.bundle", "runner.gpu.metadata", "runner.gpu.libraries", "runner.jar", "runner.output.log", "runner.debug.log", "orbis.runner.root", "orbis.runner.screen.enabled", "orbis.module.finder.imageFallback", "orbis.module.names.file", "orbis.module.names.list", "jdk.module.path", "jdk.module.upgrade.path", "jdk.module.main", "jdk.module.addmods", "sun.boot.library.path", "sun.boot.class.path"};
+    static const char *properties[] = {"java.home", "java.class.path", "java.library.path", "java.io.tmpdir", "user.dir", "java.system.class.loader", "runner.display", "runner.desktop.bundle", "runner.graphics.bundle", "runner.gpu.metadata", "runner.gpu.libraries", "runner.jar", "runner.output.log", "runner.debug.log", "orbis.runner.root", "orbis.runner.screen.enabled", "orbis.console.mode", "orbis.module.finder.imageFallback", "orbis.module.names.file", "orbis.module.names.list", "jdk.module.path", "jdk.module.upgrade.path", "jdk.module.main", "jdk.module.addmods", "sun.boot.library.path", "sun.boot.class.path"};
     if (!strncmp(option, "-D", 2)) {
         const char *key = option + 2;
         size_t n = strcspn(key, "=");

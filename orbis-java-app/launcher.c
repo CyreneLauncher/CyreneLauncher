@@ -980,6 +980,14 @@ static int require_writable_directory(const char *path) {
     return result;
 }
 
+/* What the launcher shows as the console's mode. The package declares PS4 Pro support (ATTRIBUTE
+ * 0x00800000, see the Makefile), so a Pro runs it in Pro mode; "pro-base" is a Pro running it in base
+ * mode, where the console's Boost Mode setting applies. libkernel reports no Boost Mode state. */
+static const char *runner_console_mode(void) {
+    if (!sceKernelHasNeoMode()) return "base";
+    return sceKernelIsNeoMode() ? "pro" : "pro-base";
+}
+
 static int validate_runner_paths(void) {
     char modules[1024], names[1024], parent[512];
     snprintf(modules, sizeof(modules), "%s/lib/modules", runner_config.java_home);
@@ -1281,7 +1289,7 @@ int main(int argc, char **argv) {
     }
 
     constexpr int runtime_option_capacity = 32;
-    constexpr int configured_option_count = 18;
+    constexpr int configured_option_count = 19;
     constexpr int desktop_option_capacity = 32;
     int desktop_option_count = runner_display_desktop() ? static_cast<int>(runner_desktop_option_count()) : 0;
     if (desktop_option_count > desktop_option_capacity) { startup_error("desktop option capacity exceeded"); return 3; }
@@ -1308,7 +1316,7 @@ int main(int argc, char **argv) {
         "-Dorbis.runner.screen.enabled=%s", "-Drunner.debug.log=%s",
         "-Drunner.display=%s", "-Drunner.desktop.bundle=%s",
         "-Djava.system.class.loader=%s", "-Drunner.graphics.bundle=%s",
-        "-Drunner.gpu.metadata=%s", "-Drunner.gpu.libraries=%s"
+        "-Drunner.gpu.metadata=%s", "-Drunner.gpu.libraries=%s", "-Dorbis.console.mode=%s"
     };
     // GPU mode appends the graphics bundle's natives after the JDK search path.
     char library_path[2048];
@@ -1339,7 +1347,7 @@ int main(int argc, char **argv) {
         runner_config.debug ? RUNNER_DEBUG_LOG : "",
         runner_display_name(), runner_config.desktop_bundle,
         "runner.RunnerSystemClassLoader", runner_config.graphics_bundle,
-        runner_config.version_metadata, runner_config.libraries };
+        runner_config.version_metadata, runner_config.libraries, runner_console_mode() };
     for (int i = 0; i < configured_option_count; ++i) {
         int length = snprintf(configured_storage[i], sizeof(configured_storage[i]), configured_formats[i],
                  configured_values[i], configured_values[i]);

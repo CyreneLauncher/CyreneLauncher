@@ -1792,6 +1792,19 @@ class LauncherScreen {
         };
     }
 
+    /**
+     * The runner's orbis.console.mode as shown: a PS4, a PS4 Pro in Pro mode, or a PS4 Pro in base mode, where
+     * the console's Boost Mode setting applies (the system reports no Boost Mode state of its own).
+     */
+    static String[] consoleMode(String value) {
+        return switch (value) {
+            case "pro" -> new String[]{"PS4 Pro  \u00b7  Pro mode", "pro"};
+            case "pro-base" -> new String[]{"PS4 Pro  \u00b7  Base mode, Boost Mode if enabled", "pro-base"};
+            case "base" -> new String[]{"PS4  \u00b7  Base mode", "base"};
+            default -> new String[]{"Console mode not reported", ""};
+        };
+    }
+
     /** The top bar: the application, the sections between L1 and R1, and who plays what. */
     private void drawHeader(float s) {
         r.rect(0, 0, r.width, 130 * s, BAR);
@@ -1802,7 +1815,11 @@ class LauncherScreen {
             r.image(r.artwork(), 60 * s, 26 * s, logo, logo, WHITE);
         } else r.roundRect(60 * s, 26 * s, logo, logo, 14 * s, ACCENT);
         r.text("Cyrene Launcher", 160 * s, 30 * s, 3.6f * s, TEXT);
-        r.text("Minecraft: Java Edition for PlayStation 4", 162 * s, 82 * s, 2.1f * s, DIM);
+        // The console and the mode it runs the launcher in, as the runner detected them.
+        String[] mode = consoleMode(System.getProperty("orbis.console.mode", ""));
+        int modeColor = mode[1].equals("pro") ? ACCENT_HI : mode[1].equals("pro-base") ? WARN : DIM;
+        r.disc(162 * s, 88 * s, 14 * s, modeColor);
+        r.text(mode[0], 186 * s, 80 * s, 2.1f * s, mode[1].isEmpty() ? DIM : TEXT);
         drawSections(s);
         InstanceStore.Instance active = config.selectedInstance();
         String account = effectiveAccount(active);
