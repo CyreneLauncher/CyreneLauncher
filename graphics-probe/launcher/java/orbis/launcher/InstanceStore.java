@@ -250,6 +250,17 @@ final class InstanceStore {
         return changed;
     }
 
+    /** An instance's own icon (a modpack's, or one put there by hand); the launcher's block when there is none. */
+    Path iconPath(String id) { return recordDir(id).resolve("icon.png"); }
+
+    /** Keeps a picture as an instance's icon, if it is one. */
+    void setIcon(String id, byte[] image) throws IOException {
+        require(id);
+        if (image.length > (1 << 20) || javax.imageio.ImageIO.read(new java.io.ByteArrayInputStream(image)) == null)
+            throw new IOException("Not a usable icon");
+        LauncherFiles.write(iconPath(id), image, false);
+    }
+
     /** Points an instance at another installed game profile (a downloaded version's game.json). */
     synchronized Instance setProfile(String id, Path profile) throws IOException {
         Instance old = require(id);

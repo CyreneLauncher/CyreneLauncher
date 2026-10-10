@@ -1701,6 +1701,7 @@ class LauncherScreen {
         input.releaseBarrier();
         InstanceStore.Operation operation = new InstanceStore.Operation();
         PackInstaller packs = packInstaller();
+        String packIcon = chosen != null ? chosen.iconUrl() : null;
         long started = ++generation;
         instanceOperation = operation;
         busy = true;
@@ -1711,6 +1712,11 @@ class LauncherScreen {
             try { done = packs.install(chosenPack, chosenPack.name(), operation); }
             catch (Exception failure) { error = failure; }
             finally { deleteArchive(chosenPack); }
+            // The pack's own icon becomes the instance's; without it the instance shows the block.
+            if (done != null && packIcon != null && !packIcon.isEmpty()) {
+                try { config.instances.setIcon(done.instance().id(), modrinth.fetchPublic(packIcon)); }
+                catch (IOException | RuntimeException noIcon) { System.err.println("launcher: no pack icon: " + noIcon.getMessage()); }
+            }
             PackInstaller.Installed result = done;
             Exception failed = error;
             results.add(() -> {
@@ -1996,8 +2002,13 @@ class LauncherScreen {
             float h = rowH - 12 * s, tile = 60 * s;
             row(lx, y, lw, h, highlighted);
             String[] info = instanceInfo(value);
-            r.roundRect(lx + 22 * s, y + (h - tile) / 2, tile, tile, 12 * s, loaderColor(info[1]));
-            r.textCentered(info[1], lx + 22 * s, y + (h - tile) / 2, tile, tile, 3.2f * s, TEXT);
+            int icon = instanceIcon(value);
+            if (icon > 0) r.roundImage(icon, lx + 22 * s, y + (h - tile) / 2, tile, tile, 10 * s,
+                    highlighted || hovered(lx, y, lw, h) ? PANEL_HI : BACKGROUND);
+            else {
+                r.roundRect(lx + 22 * s, y + (h - tile) / 2, tile, tile, 12 * s, loaderColor(info[1]));
+                r.textCentered(info[1], lx + 22 * s, y + (h - tile) / 2, tile, tile, 3.2f * s, TEXT);
+            }
             // Name and version as one block centred on the row.
             r.textMiddle(r.fit(value.name(), lw - 280 * s, 2.9f * s), lx + 104 * s, y + 10 * s, 34 * s, 2.9f * s, TEXT);
             r.textMiddle(r.fit(info[0], lw - 280 * s, 2.1f * s), lx + 104 * s, y + 44 * s, 26 * s, 2.1f * s, DIM);
@@ -2092,6 +2103,51 @@ class LauncherScreen {
         r.text(label, x + (w - tw) / 2 + 3 * s, ty + 3 * s, scale, 0x60000000);
         r.text(label, x + (w - tw) / 2, ty, scale, TEXT);
         if (focused) r.button("cross", x + (w - tw) / 2 - 64 * s, y + (face - 38 * s) / 2, 38 * s);
+    }
+
+    /** Uploaded instance icons by file and change time (0: none), and the default block. */
+    private final java.util.Map<String, Integer> icons = new java.util.HashMap<>();
+    private final java.util.Set<String> iconsLoading = new java.util.HashSet<>();
+    private int blockIcon = -1;
+
+    /** The instance's icon texture, loaded in the background; the launcher's block meanwhile and without one. */
+    private int instanceIcon(InstanceStore.Instance instance) {
+        if (blockIcon < 0) blockIcon = loadResourceIcon("block.png");
+        Path file = config.instances.iconPath(instance.id());
+        String key;
+        try {
+            key = file + "@" + (Files.isRegularFile(file, LinkOption.NOFOLLOW_LINKS) ? Files.getLastModifiedTime(file).toMillis() : 0);
+        } catch (IOException unreadable) { return blockIcon; }
+        if (key.endsWith("@0")) return blockIcon;
+        Integer known = icons.get(key);
+        if (known != null) return known > 0 ? known : blockIcon;
+        if (iconsLoading.add(key)) infoWorker.execute(() -> {
+            java.awt.image.BufferedImage image;
+            try { image = javax.imageio.ImageIO.read(file.toFile()); }
+            catch (IOException | RuntimeException unreadable) { image = null; }
+            java.awt.image.BufferedImage loaded = image;
+            results.add(() -> icons.put(key, loaded == null ? 0 : uploadImage(loaded)));
+        });
+        return blockIcon;
+    }
+
+    private int loadResourceIcon(String name) {
+        try (java.io.InputStream in = LauncherScreen.class.getResourceAsStream(name)) {
+            java.awt.image.BufferedImage image = in == null ? null : javax.imageio.ImageIO.read(in);
+            return image == null ? 0 : uploadImage(image);
+        } catch (IOException unreadable) { return 0; }
+    }
+
+    /** Small pictures (pixel art) keep sharp pixels when drawn large; photos are smoothed. */
+    private int uploadImage(java.awt.image.BufferedImage image) {
+        int w = image.getWidth(), h = image.getHeight();
+        int[] pixels = image.getRGB(0, 0, w, h, null, 0, w);
+        java.nio.ByteBuffer rgba = org.lwjgl.system.MemoryUtil.memAlloc(w * h * 4);
+        try {
+            for (int argb : pixels) rgba.put((byte) (argb >> 16)).put((byte) (argb >> 8)).put((byte) argb).put((byte) (argb >>> 24));
+            rgba.flip();
+            return r.upload(w, h, rgba, Math.max(w, h) <= 64);
+        } finally { org.lwjgl.system.MemoryUtil.memFree(rgba); }
     }
 
     /** Per runtime profile: the version line and the loader's initial; reading it each frame would read files. */
@@ -2792,7 +2848,7 @@ class LauncherScreen {
             boolean current = t == tab;
             r.roundRect(tx, tabsY, tw, 52 * s, 12 * s, current || hovered(tx, tabsY, tw, 52 * s) ? PANEL_HI : PANEL);
             // The current tab's mark sits inside its rounded corners.
-            if (current) r.roundRect(tx + 18 * s, tabsY + 42 * s, tw - 36 * s, 4 * s, 2 * s, ACCENT);
+            if (current) r.roundRect(tx + 18 * s, tabsY + 45 * s, tw - 36 * s, 3 * s, 1.5f * s, ACCENT);
             r.textMiddle(label, tx + 25 * s, tabsY, 52 * s, 3 * s, current ? TEXT : DIM);
             if (zone == Zone.TABS && current && galleryOpen < 0) r.roundFrame(tx - 4 * s, tabsY - 4 * s, tw + 8 * s, 60 * s, 16 * s, WHITE);
             Tab target = t;

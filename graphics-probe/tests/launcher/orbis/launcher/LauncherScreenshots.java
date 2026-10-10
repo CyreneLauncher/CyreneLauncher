@@ -87,6 +87,41 @@ final class LauncherScreenshots {
         screen.applyEvents("", List.of(new Input.Event(Input.Source.KEYBOARD, Input.Action.DOWN)));
         settle(screen);
         save(screen, out.resolve("6-accounts-keyboard.png"));
+
+        // A second instance with its own icon, long JVM arguments, and a fresh screen for the settings shots.
+        InstanceStore.Instance modded = config.instances.create("Modded Adventure");
+        java.awt.image.BufferedImage icon = javax.imageio.ImageIO.read(LauncherScreen.class.getResourceAsStream("art.png"));
+        java.io.ByteArrayOutputStream png = new java.io.ByteArrayOutputStream();
+        javax.imageio.ImageIO.write(icon, "png", png);
+        config.instances.setIcon(modded.id(), png.toByteArray());
+        config.instances.saveArguments(config.selectedInstance().id(), "-XX:+UseG1GC -XX:MaxGCPauseMillis=50\n"
+                + "-XX:G1NewSizePercent=20 -XX:G1ReservePercent=20 -XX:G1HeapRegionSize=32M -Dfabric.debug=false", "--demo");
+        LauncherScreen settings = new LauncherScreen(config, renderer, modrinth,
+                new LauncherLogicTest.FakeInstaller(modrinth, game, random));
+        settings.frame(1920, 1080);              // starts loading the icons
+        Thread.sleep(500);
+        settle(settings);
+        save(settings, out.resolve("a-instances-icons.png"));
+        shoot(settings, out, "b-settings", Input.Action.FOCUS, Input.Action.DOWN, Input.Action.DOWN, Input.Action.CONFIRM,
+                Input.Action.DOWN, Input.Action.DOWN);
+        settings.apply("", List.of(Input.Action.CONFIRM));     // a keyboard opens the launcher's own editor
+        settle(settings);
+        save(settings, out.resolve("c-args-editor.png"));
+        settings.apply("", List.of(Input.Action.BACK));
+        settle(settings);
+        // The mouse over the GPU memory stepper's plus: it highlights under the pointer.
+        settings.applyMouse(List.of(new Input.Mouse(Input.MouseKind.MOVE, 1073, 353, 0, 0)));
+        save(settings, out.resolve("d-hover.png"));
+        // Work in progress, as a download reports it.
+        InstanceStore.Operation op = new InstanceStore.Operation();
+        op.progress("Downloading assets: 1830/4120 (212 of 487 MiB)", 0.435);
+        java.lang.reflect.Field operation = LauncherScreen.class.getDeclaredField("instanceOperation");
+        operation.setAccessible(true);
+        operation.set(settings, op);
+        java.lang.reflect.Field busy = LauncherScreen.class.getDeclaredField("busy");
+        busy.setAccessible(true);
+        busy.set(settings, true);
+        save(settings, out.resolve("e-progress.png"));
         glfwDestroyWindow(window);
         glfwTerminate();
         System.out.println("screenshots in " + out);
