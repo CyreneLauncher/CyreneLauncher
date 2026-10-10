@@ -78,14 +78,20 @@ An **instance** is a separate game setup with its own name, mods, settings, and 
    | **Vanilla** | Minecraft without a mod loader |
    | **Fabric** | Fabric mods |
    | **Quilt** | Quilt, with Fabric mods offered by the launcher |
+   | **Forge** | Forge mods, for Minecraft 1.18.2–1.21.11 |
+   | **NeoForge** | NeoForge mods, for Minecraft 1.20.2–1.21.11 |
 
 4. Select a Minecraft version and enter a name for the instance.
 5. Wait for installation to finish. The launcher displays download progress.
 6. Select the new instance and choose **Play**.
 
-The current version browser offers releases from **1.14 through 26.3**, subject to loader availability. Forge and NeoForge are not offered by this installer. Start with an unmodified instance before adding mods; older versions and demanding modpacks may need more troubleshooting.
+The current version browser offers releases from **1.14 through 26.3**, subject to loader availability. Forge and NeoForge use the ranges shown above; their year-numbered releases are not offered yet. Start with an unmodified instance before adding mods; older versions and demanding modpacks may need more troubleshooting.
 
 The launcher chooses Java automatically. Games that need Java 21 or 25 download that runtime on first use, so their first installation or launch can take longer. Shared libraries and assets are reused across instances.
+
+Forge and NeoForge installation also patches Minecraft. This takes longer than installing Fabric or Quilt. Keep the console running until the progress finishes. If installation is interrupted, retry; the launcher reuses verified downloads. Some installer tools need a newer Java runtime themselves. The launcher may restart to finish that installation, then return to the menu so you can create your instance using the installed version.
+
+Use mods made for your chosen loader: a Forge mod is not automatically a NeoForge mod. Packs retain the exact Forge/NeoForge build they request. Their games use the matching Java major version, and the launcher disables the loader's separate early-loading window so Minecraft owns the console display.
 
 **Circle / Escape** cancels a download. A later installation attempt reuses and checks files that were already downloaded.
 
@@ -105,7 +111,7 @@ Launcher controller navigation and Minecraft controller gameplay are separate. F
 4. Choose **Install** and review the required dependencies and any warnings.
 5. Confirm installation, then launch the instance with **Play**.
 
-The browser filters mods for the selected instance's game version and loader. Quilt instances are offered Fabric mods. Vanilla instances do not have a mod browser. Matching the version and loader does not guarantee PS4 compatibility, especially for mods that require additional native libraries.
+The browser filters mods for the selected instance's game version and loader. Quilt instances are offered Fabric mods. Vanilla instances do not have a mod browser. Matching the version and loader does not guarantee PS4 compatibility, especially for mods that require additional native libraries. Java agents and mods that require Java instrumentation are not supported by the bundled runtime.
 
 In the installed-mod list, **Cross** enables or disables a mod. **Triangle** removes it after confirmation. Disable a recently added mod first when troubleshooting; you can re-enable it later. Changes apply the next time you press Play.
 
@@ -117,7 +123,7 @@ In the installed-mod list, **Cross** enables or disables a mod. **Triangle** rem
 4. Confirm and wait for installation. The pack is created as a separate instance.
 5. Select that instance and choose **Play**.
 
-The installer supports compatible Fabric and Quilt packs in the launcher's Minecraft version range. If a pack cannot be installed, check its loader, game version, and the reason shown in the dialog. Large PC modpacks can exceed console memory or depend on unsupported features.
+The installer supports compatible Fabric, Quilt, Forge, and NeoForge packs in the launcher's Minecraft version range. If a pack cannot be installed, check its loader, game version, and the reason shown in the dialog. Large PC modpacks can exceed console memory or depend on unsupported features.
 
 ## Manage instances and memory
 
@@ -175,7 +181,7 @@ Copy the whole instance folder to preserve its setup, or at least `saves/` to pr
 | Sign-in says it is not configured | Report the exact message and package version. Application registration is configured by the release maintainer; players should not need to register an Azure application. |
 | Download or runtime installation fails | Check internet access and free space, then retry. Java 21/25 must finish downloading before games needing them can launch. |
 | Minecraft crashes after adding mods | Disable the most recently added mods, check dependencies, and try an unmodified instance of the same version. |
-| A modpack will not install | Read the dialog's reason and check that it uses an offered game version and Fabric or Quilt. |
+| A modpack will not install | Read the dialog's reason and check that it uses an offered game version and a supported loader. |
 | Settings did not take effect | Open **Instance settings**, choose **Save**, then launch again. |
 | Launch returns to the launcher or the application closes | Reopen Cyrene, read any crash summary, and collect the logs below. |
 | An older installation behaves unexpectedly after updating | Back up settings and report the issue before replacing files. Older installations can retain custom runner settings. |

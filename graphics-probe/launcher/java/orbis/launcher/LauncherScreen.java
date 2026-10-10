@@ -172,8 +172,7 @@ class LauncherScreen {
 
     /** A Modrinth client for the selected instance: its game version, and Quilt instances also take Fabric mods. */
     private ModrinthClient newModrinth() {
-        return new ModrinthClient(config.gameVersion(), config.loader() == VersionStore.Loader.QUILT
-                ? List.of("quilt", "fabric") : List.of("fabric"));
+        return new ModrinthClient(config.gameVersion(), LoaderLaunch.modrinthLoaders(config.loader()));
     }
 
     void run() throws IOException {
@@ -1825,12 +1824,14 @@ class LauncherScreen {
             return config.metadata;
         for (VersionStore.Installed installed : config.versions.list())
             if (installed.minecraft().equals(minecraft) && installed.loader() == loader
-                    && VersionStore.compare(VersionStore.parts(installed.loaderVersion()), wanted) >= 0)
+                    && (ForgeInstaller.family(loader) ? installed.loaderVersion().equals(loaderVersion)
+                        : VersionStore.compare(VersionStore.parts(installed.loaderVersion()), wanted) >= 0))
                 return installed.gameProfile();
         op.progress("Finding Minecraft " + minecraft + "...");
         for (VersionStore.GameVersion version : fetchCatalog(loader))
             if (version.id().equals(minecraft)) {
-                VersionStore.Installed fresh = installVersion(version, loader, op);
+                VersionStore.Installed fresh = ForgeInstaller.family(loader) ? installVersion(version,loader,loaderVersion,op)
+                        : installVersion(version, loader, op);
                 if (VersionStore.compare(VersionStore.parts(fresh.loaderVersion()), wanted) < 0)
                     throw new IOException("the pack needs " + loader.title + " loader " + loaderVersion + "; the newest is "
                             + fresh.loaderVersion());

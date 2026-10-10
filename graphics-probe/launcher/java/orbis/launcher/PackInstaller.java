@@ -126,12 +126,16 @@ class PackInstaller {
             JsonObject deps = index.has("dependencies") && index.get("dependencies").isJsonObject()
                     ? index.getAsJsonObject("dependencies") : new JsonObject();
             minecraft = text(deps, "minecraft");
-            if (deps.has("forge") || deps.has("neoforge"))
-                blockers.add("This pack needs " + (deps.has("neoforge") ? "NeoForge" : "Forge")
-                        + "; the launcher runs Fabric and Quilt packs.");
+            int loaderCount = 0;
+            for (String key : List.of("forge","neoforge","quilt-loader","fabric-loader")) if (deps.has(key)) loaderCount++;
+            if (loaderCount > 1) blockers.add("The pack declares conflicting mod loaders.");
+            if (deps.has("neoforge")) { loader = VersionStore.Loader.NEOFORGE; loaderVersion = text(deps,"neoforge"); }
+            else if (deps.has("forge")) { loader = VersionStore.Loader.FORGE; loaderVersion = text(deps,"forge"); }
             else if (deps.has("quilt-loader")) { loader = VersionStore.Loader.QUILT; loaderVersion = text(deps, "quilt-loader"); }
             else if (deps.has("fabric-loader")) { loader = VersionStore.Loader.FABRIC; loaderVersion = text(deps, "fabric-loader"); }
-            else blockers.add("The pack names no Fabric or Quilt loader.");
+            else blockers.add("The pack names no supported mod loader.");
+            if (ForgeInstaller.family(loader) && !ForgeInstaller.supported(loader,minecraft))
+                blockers.add(loader.title + " is not supported for this Minecraft release.");
             if (minecraft.isEmpty()) blockers.add("The pack names no Minecraft version.");
             else if (!VersionStore.inRange(minecraft))
                 blockers.add("The pack is for Minecraft " + minecraft + "; the console runs 1.14 to "

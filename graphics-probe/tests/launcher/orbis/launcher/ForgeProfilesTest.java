@@ -40,7 +40,7 @@ public final class ForgeProfilesTest {
                 "<versions><version>1.20.1-47.4.0</version><version>1.16.5-36.0.0</version><version>1.20.1-47.2.0</version></versions>");
         check(catalog.get("1.20.1").equals(List.of("47.4.0", "47.2.0")) && !catalog.containsKey("1.16.5"), "supported sorted catalog");
         check(ForgeInstaller.catalog(VersionStore.Loader.NEOFORGE,
-                "<version>21.1.172</version><version>21.1.173-beta</version>").get("1.21.1").equals(List.of("21.1.172")), "stable Neo selection");
+                "<version>21.1.172</version><version>21.1.173-beta</version>").get("1.21.1").equals(List.of("21.1.172", "21.1.173-beta")), "stable Neo selection");
         fails(() -> LoaderLaunch.expand("-Dtest=" + "a".repeat(8192), values));
         check(LoaderLaunch.game(JsonParser.parseString("{\"arguments\":{\"game\":[{\"rules\":[{\"action\":\"disallow\"}],\"value\":\"omit\"},\"keep\"]}}").getAsJsonObject(), values).equals(List.of("keep")), "argument rules");
         check(LoaderLaunch.mainClass("orbis.launcher.ForgeProfilesTest") == ForgeProfilesTest.class, "classpath main lookup");

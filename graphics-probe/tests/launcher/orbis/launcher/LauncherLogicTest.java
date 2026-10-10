@@ -978,9 +978,18 @@ public final class LauncherLogicTest {
             Files.writeString(dir.resolve("install.json"), "{\"schema\":1,\"id\":\"" + id + "\",\"minecraft\":\""
                     + version.id() + "\",\"loader\":\"" + loader.name() + "\",\"loaderVersion\":\"" + loaderVersion
                     + "\",\"mainClass\":\"x.Main\",\"assetIndex\":\"1\",\"versionType\":\"release\","
-                    + "\"jvm\":[\"-Dlog4j.configurationFile=/x\"],\"provides\":{\"minecraft\":\"" + version.id() + "\"}}");
+                    + "\"generated\":[],\"jvm\":[\"-Dlog4j.configurationFile=/x\"],\"provides\":{\"minecraft\":\"" + version.id() + "\"}}");
             installs++;
             return config.versions.installed(dir.resolve("game.json"));
+        }
+        @Override protected VersionStore.Installed installVersion(VersionStore.GameVersion game, VersionStore.Loader loader,
+                String build, InstanceStore.Operation op) throws IOException {
+            VersionStore.Installed existing = installVersion(game,loader,op);
+            Path dir = existing.gameProfile().getParent();
+            com.google.gson.JsonObject record = com.google.gson.JsonParser.parseString(Files.readString(dir.resolve("install.json"))).getAsJsonObject();
+            record.addProperty("loaderVersion",build); record.add("generated",new com.google.gson.JsonArray());
+            Files.writeString(dir.resolve("install.json"),record.toString());
+            return config.versions.installed(existing.gameProfile());
         }
         @Override void presentNow() {}
         @Override void closeWindow() { closes++; }
@@ -1000,9 +1009,9 @@ public final class LauncherLogicTest {
                     check(conf.contains("version_metadata=" + version.bootProfile() + "\n"), "prepared boot profile");
                     check(options.contains("-Dlog4j.configurationFile=/x\n"), "prepared version JVM options");
                     String addMods = version.loader() == VersionStore.Loader.QUILT ? "-Dloader.addMods=" : "-Dfabric.addMods=";
-                    check(options.contains(addMods) == (version.loader() != VersionStore.Loader.VANILLA),
+                    check(options.contains(addMods) == (version.loader() == VersionStore.Loader.FABRIC || version.loader() == VersionStore.Loader.QUILT),
                             "compatibility mod for Fabric and Quilt only");
-                    if (version.loader() != VersionStore.Loader.VANILLA) compatLaunches++;
+                    if (version.loader() == VersionStore.Loader.FABRIC || version.loader() == VersionStore.Loader.QUILT) compatLaunches++;
                 } catch (IOException failure) { throw new AssertionError(failure); }
             }
             try {

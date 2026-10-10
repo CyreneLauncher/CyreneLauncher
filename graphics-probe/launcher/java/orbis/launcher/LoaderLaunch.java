@@ -14,6 +14,16 @@ final class LoaderLaunch {
     private static final Pattern TOKEN = Pattern.compile("\\$\\{([^}]+)}");
     private LoaderLaunch() { }
 
+    static List<String> modrinthLoaders(VersionStore.Loader loader) {
+        return switch (loader) {
+            case FABRIC -> List.of("fabric");
+            case QUILT -> List.of("quilt","fabric");
+            case FORGE -> List.of("forge");
+            case NEOFORGE -> List.of("neoforge");
+            case VANILLA -> List.of();
+        };
+    }
+
     static List<String> game(JsonObject profile, Map<String,String> values) throws IOException {
         return arguments(profile, "game", values);
     }

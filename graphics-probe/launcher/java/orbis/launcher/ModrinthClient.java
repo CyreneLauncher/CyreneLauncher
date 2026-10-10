@@ -110,7 +110,7 @@ class ModrinthClient {
             groups.add(any("categories", loaders));
         } else {
             groups.add(any("versions", supportedReleases()));
-            groups.add(any("categories", List.of("fabric", "quilt")));
+            groups.add(any("categories", List.of("fabric", "quilt", "forge", "neoforge")));
         }
         String facets = "[" + String.join(",", groups) + "]";
         JsonObject result = get(API + "/search?limit=" + PAGE + "&offset=" + Math.max(0, offset) + "&index=" + sort.api
@@ -164,7 +164,7 @@ class ModrinthClient {
         String url = API + "/project/" + encode(projectIdOrSlug) + "/version";
         if (compatible) {
             if (type == Type.MOD) url += "?loaders=" + encode(json(loaders)) + "&game_versions=" + encode(json(List.of(gameVersion)));
-            else url += "?loaders=" + encode(json(List.of("fabric", "quilt"))) + "&game_versions=" + encode(json(supportedReleases()));
+            else url += "?loaders=" + encode(json(List.of("fabric", "quilt", "forge", "neoforge"))) + "&game_versions=" + encode(json(supportedReleases()));
         }
         JsonElement response;
         try {

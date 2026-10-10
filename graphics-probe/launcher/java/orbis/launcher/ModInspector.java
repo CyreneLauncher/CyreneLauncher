@@ -86,7 +86,10 @@ final class ModInspector {
     static LocalMod describe(Path jar) {
         try (java.util.zip.ZipFile zip = new java.util.zip.ZipFile(jar.toFile())) {
             ZipEntry fabric = zip.getEntry("fabric.mod.json"), quilt = zip.getEntry("quilt.mod.json");
-            if (fabric == null && quilt == null) return null;
+            if (fabric == null && quilt == null) {
+                ModInfo info = inspect(Files.readAllBytes(jar));
+                return info.id() == null ? null : new LocalMod(info.id(),info.name(),info.version(),"",List.of(),null);
+            }
             JsonObject root = JsonParser.parseString(new String(zip.getInputStream(fabric != null ? fabric : quilt)
                     .readAllBytes(), StandardCharsets.UTF_8)).getAsJsonObject();
             JsonObject meta = root;
@@ -162,6 +165,10 @@ final class ModInspector {
                     natives.add(name);
                 } else if (name.equals("fabric.mod.json")) {
                     readModJson(zip.readAllBytes(), provides, versions, depends, identity, top);
+                } else if (name.equals("META-INF/mods.toml") || name.equals("META-INF/neoforge.mods.toml")) {
+                    byte[] metadata = zip.readNBytes((1 << 20) + 1);
+                    if (metadata.length > (1 << 20)) throw new IOException("Mod metadata is too large");
+                    readForgeToml(new String(metadata,StandardCharsets.UTF_8),provides,versions,identity,top);
                 } else if (name.endsWith(".jar")) {
                     walk(zip.readAllBytes(), provides, versions, depends, natives, glfw, identity, false);
                 } else if (name.endsWith(".class")) {
@@ -171,6 +178,42 @@ final class ModInspector {
                         while (m.find()) glfw.add(m.group());
                     }
                 }
+            }
+        }
+    }
+
+    /** Metadata presence follows the selected loader; dependency semantics remain the loader's own. */
+    static boolean forLoader(byte[] jar, List<String> loaders) throws IOException {
+        try (ZipInputStream zip = new ZipInputStream(new ByteArrayInputStream(jar))) {
+            for (ZipEntry entry; (entry = zip.getNextEntry()) != null;) {
+                String name = entry.getName();
+                if (loaders.contains("fabric") && name.equals("fabric.mod.json")) return true;
+                if (loaders.contains("quilt") && name.equals("quilt.mod.json")) return true;
+                if (loaders.contains("forge") && name.equals("META-INF/mods.toml")) return true;
+                if (loaders.contains("neoforge") && (name.equals("META-INF/neoforge.mods.toml") || name.equals("META-INF/mods.toml"))) return true;
+            }
+        }
+        return false;
+    }
+
+    private static void readForgeToml(String toml, Set<String> provides, Map<String,String> versions,
+            String[] identity, boolean top) {
+        Map<String,String> mod = new HashMap<>();
+        boolean active = false;
+        for (String line : (toml + "\n[end]").split("\\R")) {
+            String text = line.trim();
+            if (text.startsWith("[")) {
+                String id = mod.get("modId");
+                if (active && id != null && id.matches("[a-z][a-z0-9_]{1,63}")) {
+                    provides.add(id);
+                    String version = mod.getOrDefault("version","");
+                    versions.put(id,version.contains("${") ? "" : version);
+                    if (top && identity[0] == null) { identity[0]=id; identity[1]=mod.getOrDefault("displayName",id); }
+                }
+                active = text.equals("[[mods]]"); mod.clear();
+            } else if (active) {
+                Matcher value = Pattern.compile("^([A-Za-z]+)\\s*=\\s*([\"'])(.*?)\\2\\s*(#.*)?$").matcher(text);
+                if (value.matches()) mod.put(value.group(1),value.group(3));
             }
         }
     }

@@ -178,7 +178,7 @@ class ModInstaller {
             throws IOException {
         List<ModrinthClient.Version> candidates = modrinth.versions(projectId);
         if (candidates.isEmpty()) {
-            blockers.add(title + " has no Fabric build for this Minecraft version.");
+            blockers.add(title + " has no compatible loader build for this Minecraft version.");
             return null;
         }
         String firstProblem = null;
@@ -188,11 +188,11 @@ class ModInstaller {
             try {
                 info = ModInspector.inspect(data);
             } catch (IOException | RuntimeException broken) {
-                if (firstProblem == null) firstProblem = "could not be read as a Fabric mod: " + broken.getMessage();
+                if (firstProblem == null) firstProblem = "could not be read as a mod: " + broken.getMessage();
                 continue;
             }
-            if (info.id() == null) {
-                if (firstProblem == null) firstProblem = "is not a Fabric mod (no fabric.mod.json)";
+            if (info.id() == null || !ModInspector.forLoader(data,modrinth.loaders())) {
+                if (firstProblem == null) firstProblem = "does not contain metadata for the selected loader";
                 continue;
             }
             List<String> conflicts = conflicts(info, versions);
@@ -212,11 +212,11 @@ class ModInstaller {
         try {
             info = ModInspector.inspect(data);
         } catch (IOException | RuntimeException broken) {
-            blockers.add(title + " " + version.versionNumber() + " could not be read as a Fabric mod: " + broken.getMessage() + ".");
+            blockers.add(title + " " + version.versionNumber() + " could not be read as a mod: " + broken.getMessage() + ".");
             return null;
         }
-        if (info.id() == null) {
-            blockers.add(title + " " + version.versionNumber() + " is not a Fabric mod (no fabric.mod.json).");
+        if (info.id() == null || !ModInspector.forLoader(data,modrinth.loaders())) {
+            blockers.add(title + " " + version.versionNumber() + " does not contain metadata for the selected loader.");
             return null;
         }
         List<String> conflicts = conflicts(info, versions);

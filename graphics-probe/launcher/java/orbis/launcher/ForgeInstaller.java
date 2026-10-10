@@ -61,12 +61,15 @@ final class ForgeInstaller {
                 if (!build.matches("[0-9.]+")) continue;
             } else {
                 try { mc = neoMinecraft(version); } catch (IOException unsupported) { continue; }
-                if (version.endsWith("-beta")) continue;
                 build = version;
             }
             if (supported(loader, mc)) out.computeIfAbsent(mc, ignored -> new ArrayList<>()).add(build);
         }
-        out.values().forEach(list -> list.sort((a,b) -> VersionStore.compare(VersionStore.parts(b), VersionStore.parts(a))));
+        out.values().forEach(list -> list.sort((a,b) -> {
+            boolean betaA = a.endsWith("-beta"), betaB = b.endsWith("-beta");
+            if (betaA != betaB) return betaA ? 1 : -1;
+            return VersionStore.compare(VersionStore.parts(b.replace("-beta","")),VersionStore.parts(a.replace("-beta","")));
+        }));
         return out;
     }
 
