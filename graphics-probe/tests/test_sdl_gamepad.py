@@ -20,7 +20,7 @@ with tempfile.TemporaryDirectory() as directory:
     (tmp / 'libSDL3.so').symlink_to(Path(library).resolve())
     test = tmp / 'test'
     subprocess.run(['clang', '-std=gnu11', '-O1', '-Wall', '-Werror', '-I', headers,
-                    root / 'lwjgl/sdl/orbis_sdl_gamepad.c', root / 'tests/sdl/orbis_sdl_gamepad_test.c',
+                    root.parents[1] / 'sdl-orbis/orbis_sdl_gamepad.c', root / 'tests/sdl/orbis_sdl_gamepad_test.c',
                     '-L', tmp, '-lSDL3', f'-Wl,-rpath,{tmp}', '-o', test], check=True)
     env = dict(os.environ, SDL_VIDEO_DRIVER='dummy', SDL_AUDIO_DRIVER='dummy', SDL_JOYSTICK_HIDAPI='0')
     print(subprocess.run([test], check=True, env=env, stdout=subprocess.PIPE, text=True).stdout.strip())

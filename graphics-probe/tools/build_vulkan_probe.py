@@ -9,7 +9,7 @@ import subprocess
 from pathlib import Path
 import lwjgl_sources
 
-ROOT = lwjgl_sources.ROOT
+ROOT = Path(__file__).resolve().parents[1]
 MODULES = ('lwjgl', 'lwjgl-freetype', 'lwjgl-jemalloc', 'lwjgl-openal', 'lwjgl-opengl', 'lwjgl-sdl',
            'lwjgl-shaderc', 'lwjgl-spvc', 'lwjgl-stb', 'lwjgl-vma', 'lwjgl-vulkan')
 

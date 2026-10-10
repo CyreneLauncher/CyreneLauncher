@@ -12,37 +12,34 @@
     },
     "lwjgl-orbis": {
       "directory": "lwjgl-orbis",
-      "revision": "fd8777e88b8ddd1018e25c185d55a9d04f39e113",
+      "revision": "1f66c9b89dd23acacadb0b94277981b83f63337b",
       "url": "https://github.com/CyreneLauncher/lwjgl-orbis.git",
       "dependencies": [
-        "openal-soft-orbis",
-        "sdl-orbis",
         "orbis-runtime-support",
-        "orbis-compat"
+        "orbis-compat",
+        "mesa-orbis"
       ]
     },
     "openal-soft-orbis": {
       "directory": "openal-soft-orbis",
-      "revision": "99fa9adfdedaf8ac127cea5c00fc9ad562037cb0",
+      "revision": "d9cd1b9fbf7806b775b1edd2af9af0c3cc21c30c",
       "url": "https://github.com/CyreneLauncher/openal-soft-orbis.git",
       "dependencies": [
-        "lwjgl-orbis",
         "orbis-runtime-support",
         "orbis-compat"
       ]
     },
     "sdl-orbis": {
       "directory": "sdl-orbis",
-      "revision": "1e3c507a6e4e365f5166a6a77fc4cffe838b67bc",
+      "revision": "5702a32833fe7cd35ac2067744eae8eaaac24d1d",
       "url": "https://github.com/CyreneLauncher/sdl-orbis.git",
       "dependencies": [
-        "lwjgl-orbis",
         "orbis-runtime-support"
       ]
     },
     "orbis-runtime-support": {
       "directory": "orbis-runtime-support",
-      "revision": "637f2596d38d49271535c061a82dc1a1fbd16c9b",
+      "revision": "89a65d1805ba70e85ec4193db0f9465fceb3283f",
       "url": "https://github.com/CyreneLauncher/orbis-runtime-support.git"
     },
     "orbis-compat": {
@@ -69,14 +66,6 @@
     "graphics-probe/patches/mesa": {
       "component": "mesa-orbis",
       "path": "orbis-port/patches"
-    },
-    "graphics-probe/lwjgl/openal": {
-      "component": "openal-soft-orbis",
-      "path": "."
-    },
-    "graphics-probe/lwjgl/sdl": {
-      "component": "sdl-orbis",
-      "path": "."
     },
     "orbis-java-app/tools/native_dlfcn.c": {
       "component": "orbis-runtime-support",

@@ -8,15 +8,22 @@ launcher integration repository. Exact revisions and compatibility links live in
 | Sibling repository | Owns |
 | --- | --- |
 | `mesa-orbis` | Mesa upstream history, all 45 ordered local patches, Mesa build recipe |
-| `lwjgl-orbis` | Four LWJGL profiles, Java/JNI adapters, dyncall/libffi adaptations, LWJGL/FreeType/shader/VMA build recipes |
-| `openal-soft-orbis` | AudioOut backend, OpenAL adaptations and build recipe |
-| `sdl-orbis` | SDL threading adaptations, gamepad adapter and build recipe |
-| `orbis-runtime-support` | PRX runtime/TLS/environment/initializer support, linker preparation and common PRX build recipe |
+| `lwjgl-orbis` | Four LWJGL profiles, Java/JNI adapters, dyncall/libffi adaptations, LWJGL/FreeType/shader/VMA/platform PRX build recipes and their source pins |
+| `openal-soft-orbis` | AudioOut backend, OpenAL adaptations, build recipe and upstream pin |
+| `sdl-orbis` | SDL threading adaptations, gamepad adapter, build recipe and upstream pin |
+| `orbis-runtime-support` | PRX runtime/TLS/environment/initializer support, linker preparation, the shared PRX build recipe, build stamps and pinned-archive downloads |
 | `jdk17u` | OpenJDK 17 Orbis port |
 | `jdk21u` | OpenJDK 21 Orbis port; `.git` points to its existing `.orbis-git` history |
 | `jdk25u` | OpenJDK 25 Orbis port |
 | `orbis-compat` | Pinned compatibility implementation used by native builds |
 | `orbis-porting-kit` | Pinned cross-build support |
+
+The ports do not depend on each other except where code is linked: every port
+uses `orbis-runtime-support`, ports that compile orbis-compat sources use
+`orbis-compat`, and lwjgl-orbis's platform PRX links the Mesa build. LWJGL loads
+OpenAL and SDL at run time only. Each port reads its own pins and files; set
+`ORBIS_BUILD_ROOT` to choose where downloads, prepared sources and outputs go. The
+launcher's wrappers set it to `graphics-probe/build`.
 
 RADV, radeonsi and Zink are drivers inside Mesa, not separate repositories.
 LWJGL's four releases are profiles inside one port repository. OpenAL and SDL

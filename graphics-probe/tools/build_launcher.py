@@ -18,7 +18,7 @@ import launcher_secrets  # noqa: E402
 import lwjgl_sources  # noqa: E402
 import launcher_deps  # noqa: E402
 
-ROOT = lwjgl_sources.ROOT
+ROOT = Path(__file__).resolve().parents[1]
 SOURCES = ROOT / 'launcher/java'
 
 parser = argparse.ArgumentParser()

@@ -82,16 +82,21 @@ def run_recipe(component, filename, namespace, integration_root=None):
     launcher = Path(integration_root or DEFAULT_LOCK.parent).resolve()
     data = verify(launcher / 'repositories.lock.json', (component,))
     recipe = launcher.parent / data['components'][component]['directory'] / relative(filename)
-    previous = os.environ.get('ORBIS_LAUNCHER_ROOT')
-    os.environ['ORBIS_LAUNCHER_ROOT'] = str(launcher)
+    # Ports keep downloads, prepared sources and outputs in the integration's build tree, and
+    # find each other (orbis-runtime-support, mesa-orbis) as siblings of their own checkout.
+    settings = {'ORBIS_LAUNCHER_ROOT': str(launcher),
+                'ORBIS_BUILD_ROOT': os.environ.get('ORBIS_BUILD_ROOT') or str(launcher / 'graphics-probe/build')}
+    previous = {name: os.environ.get(name) for name in settings}
+    os.environ.update(settings)
     namespace['__file__'] = str(recipe)
     try:
         exec(compile(recipe.read_bytes(), str(recipe), 'exec'), namespace)
     finally:
-        if previous is None:
-            os.environ.pop('ORBIS_LAUNCHER_ROOT', None)
-        else:
-            os.environ['ORBIS_LAUNCHER_ROOT'] = previous
+        for name, value in previous.items():
+            if value is None:
+                os.environ.pop(name, None)
+            else:
+                os.environ[name] = value
 
 
 def bootstrap(lock=DEFAULT_LOCK, seed_root=None):

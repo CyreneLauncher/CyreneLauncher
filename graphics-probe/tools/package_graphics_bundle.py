@@ -253,7 +253,7 @@ if (sources / 'orbis-compat/licenses').is_dir():
   original Orbis implementation of tinyfiledialogs (Zlib; see `tinyfiledialogs.h`).
 - `libopenal.so` is OpenAL Soft 1.23.1 (LGPL-2.1-or-later, `openal-soft-COPYING`) built
   unmodified as a separate dynamically loaded module, plus an Orbis AudioOut playback backend
-  added at build time (graphics-probe/lwjgl/openal/). TinyFD file and message dialogs cancel.
+  added at build time (openal-soft-orbis). TinyFD file and message dialogs cancel.
 - All modules also contain the runner's own Orbis runtime objects and SDK libc/libc++.
 - Compatibility fixture provenance and the DejaVu font license are in the separate
   `lwjgl-compat/runner/fixtures/` upload set; fixtures are not shipped in this bundle.
