@@ -73,11 +73,16 @@ final class RuntimeInstaller {
         } catch (IOException offline) {
             if (installed != null) {
                 System.err.println("launcher: cannot check for a newer Java " + feature + ": " + offline.getMessage());
+                makeLoadable(home);
                 return home;
             }
             throw new IOException("Java " + feature + " must be downloaded first: " + offline.getMessage(), offline);
         }
-        if (expected.equals(installed)) return home;
+        if (expected.equals(installed)) {
+            // Launchers before this one unpacked modules without execute permission.
+            makeLoadable(home);
+            return home;
+        }
         progress.accept((installed == null ? "Downloading" : "Updating") + " Java " + feature + "...");
         install(feature, expected, progress);
         return home;
@@ -138,6 +143,7 @@ final class RuntimeInstaller {
             Path home = staging.resolve(name);
             if (Runtimes.feature(home, -1) != feature)
                 throw new IOException("Java " + feature + " download holds no Java " + feature + " runtime");
+            makeLoadable(home);
             Files.writeString(home.resolve(MARKER), sha256 + "\n", StandardCharsets.US_ASCII);
             Path target = root.resolve(name);
             // The launcher runs on the packaged JDK 17, so the runtime being replaced is not in use.
@@ -147,6 +153,26 @@ final class RuntimeInstaller {
             Files.deleteIfExists(archive);
             deleteTree(staging);
             deleteTree(old);
+        }
+    }
+
+    /**
+     * Marks a runtime's native modules executable. The kernel loads a PRX only when execute access is granted
+     * (VOP_ACCESS, EACCES 0xd otherwise); the release archive records them 0644 and the package installer, not
+     * the archive, gives the packaged JDK its modes.
+     */
+    static void makeLoadable(Path home) throws IOException {
+        Path lib = home.resolve("lib");
+        if (!Files.isDirectory(lib, LinkOption.NOFOLLOW_LINKS)) return;
+        if (Files.isExecutable(lib.resolve("server/libjvm.prx")) && Files.isExecutable(lib.resolve("libjava.so"))) return;
+        try (java.util.stream.Stream<Path> files = Files.walk(lib)) {
+            for (Path file : (Iterable<Path>) files::iterator) {
+                String name = file.getFileName().toString();
+                boolean module = name.endsWith(".prx") || name.endsWith(".sprx") || name.endsWith(".so");
+                if (Files.isDirectory(file, LinkOption.NOFOLLOW_LINKS) || module && Files.isRegularFile(file, LinkOption.NOFOLLOW_LINKS))
+                    if (!file.toFile().setExecutable(true, false) || !file.toFile().setReadable(true, false))
+                        throw new IOException("Cannot make " + file + " loadable");
+            }
         }
     }
 

@@ -288,6 +288,11 @@ public final class LauncherLogicTest {
         check(home.equals(root.resolve("jdk21")) && Runtimes.feature(home, -1) == 21, "Java 21 installed: " + home);
         check(Files.isRegularFile(home.resolve("legal/" + "x".repeat(120))), "PAX long names unpacked");
         check(progress.get(0).equals("Downloading Java 21..."), "progress shown: " + progress);
+        // The kernel refuses to load a PRX without execute access (EACCES 0xd on the console).
+        check(Files.isExecutable(home.resolve("lib/server/libjvm.prx")), "unpacked modules are executable");
+        home.resolve("lib/server/libjvm.prx").toFile().setExecutable(false, false);
+        installer.ensure(21, progress::add);
+        check(Files.isExecutable(home.resolve("lib/server/libjvm.prx")), "an installed runtime's modules are repaired");
         progress.clear();
         installer.ensure(21, progress::add);
         check(progress.isEmpty(), "an up-to-date runtime is not downloaded again: " + progress);
