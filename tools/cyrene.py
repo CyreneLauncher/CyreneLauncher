@@ -17,6 +17,8 @@ ROOT = Path(__file__).resolve().parents[1]
 GP = ROOT / 'graphics-probe'
 APP = ROOT / 'orbis-java-app'
 WORK = ROOT.parent
+# Mesa's base revision, compat/porting-kit pins and host build tools.
+MESA_LOCK = WORK / 'mesa-orbis/orbis-port/build.lock.json'
 sys.path.insert(0, str(APP / 'tools'))
 import runtime_package as rp
 
@@ -254,7 +256,7 @@ def native(args, runner):
     else:
         script(runner,'host-dependencies',tools/'bootstrap_deps.py','--output',build/'deps/clean','--verify-only')
     if not (build/'sources').exists():
-        script(runner,'mesa-sources',tools/'prepare_sources.py','--lock',GP/'deps.lock.json','--output',build/'sources')
+        script(runner,'mesa-sources',tools/'prepare_sources.py','--lock',MESA_LOCK,'--output',build/'sources')
     runner.run('compat',['bash',build/'sources/orbis-compat/build.sh'],env={**os.environ,'OO_PS4_TOOLCHAIN':str(args.toolchain)})
     script(runner,'mesa',tools/'build_mesa.py','--sources',build/'sources','--sdk',args.toolchain,'--output',build/'vulkan-mesa')
     common = ['--sdk',args.sdk,'--toolchain',args.toolchain]
@@ -312,12 +314,12 @@ def record_components(args):
         root=WORK/'orbis-openjdk/output'/f'jdk{v}'
         verify_jdk(root,expected[str(v)],digest(lock),digest(args.toolchain/'lib/libc.a'))
     info=json.loads((GP/'build/graphics-bundle-native/build-info.json').read_text())
-    if info['mesa_lock']!=json.loads((GP/'deps.lock.json').read_text())['sources']:
+    if info['mesa_lock']!=json.loads(MESA_LOCK.read_text())['sources']:
         raise ValueError('Graphics source provenance mismatch')
     platform=json.loads((GP/'build/platform-native/platform-audit.json').read_text())
     if platform['graphics_drivers']!={'opengl':'radeonsi','vulkan':'radv','zink_compiled':False}:
         raise ValueError('Native driver audit missing')
-    seal={'schema':1,'locks':{str(p.relative_to(WORK)):digest(p) for p in (ROOT/'repositories.lock.json',lock,GP/'deps.lock.json')},
+    seal={'schema':1,'locks':{str(p.relative_to(WORK)):digest(p) for p in (ROOT/'repositories.lock.json',lock,MESA_LOCK)},
           'libc_sha256':digest(args.toolchain/'lib/libc.a'),
           'components':{str(p.relative_to(WORK)):inventory(p) for p in component_paths()}}
     target=APP/'build-inputs/component-inventory.json';target.parent.mkdir(parents=True,exist_ok=True)
@@ -327,7 +329,7 @@ def record_components(args):
 def verify_components(toolchain=None, root=WORK, seal=None):
     if seal is None:seal=json.loads((APP/'build-inputs/component-inventory.json').read_text())
     if seal.get('schema')!=1:raise ValueError('Unsupported component inventory')
-    expected_locks={str(p.relative_to(WORK)) for p in (ROOT/'repositories.lock.json',WORK/'orbis-openjdk/versions.lock.json',GP/'deps.lock.json')}
+    expected_locks={str(p.relative_to(WORK)) for p in (ROOT/'repositories.lock.json',WORK/'orbis-openjdk/versions.lock.json',MESA_LOCK)}
     expected_components={str(p.relative_to(WORK)) for p in component_paths()}
     if set(seal['locks'])!=expected_locks or set(seal['components'])!=expected_components:
         raise ValueError('Unexpected component inventory layout')
@@ -336,7 +338,7 @@ def verify_components(toolchain=None, root=WORK, seal=None):
     if toolchain:
         if digest(toolchain/'lib/libc.a')!=seal['libc_sha256']:
             raise ValueError('Component toolchain mismatch')
-        expected=json.loads((GP/'deps.lock.json').read_text())['sdk']['sha256']
+        expected=json.loads((ROOT/'tools/toolchain.lock.json').read_text())['toolchain_files']
         for name,sha in expected.items():
             if digest(toolchain/name)!=sha:raise ValueError('Component SDK mismatch: '+name)
     verify_inventories(root,seal['components'])

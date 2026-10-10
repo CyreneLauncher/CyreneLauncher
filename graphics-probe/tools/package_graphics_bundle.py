@@ -268,7 +268,7 @@ build_info = {
     'profile': PROFILE_ID,
     'profiles': [PROFILE_ID, MODERN_ID, CURRENT_ID, NEXT_ID, SDL_ID],
     'sources': json.loads((ROOT / 'lwjgl/lwjgl-sources.lock.json').read_text()),
-    'mesa_lock': json.loads((ROOT / 'deps.lock.json').read_text())['sources'],
+    'mesa_lock': json.loads((ROOT.parents[1] / 'mesa-orbis/orbis-port/build.lock.json').read_text())['sources'],
     'platform': {k: platform_audit[k] for k in ('needed', 'imports', 'tls')},
     'lwjgl': {name: {k: audit[k] for k in ('needed', 'imports', 'jni_natives', 'tls')}
               for name, audit in lwjgl_audit['modules'].items()},

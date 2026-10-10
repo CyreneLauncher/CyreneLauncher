@@ -1,12 +1,12 @@
 # Isolated Mesa/Orbis build
 
-This directory builds the pinned Mesa/Zink/RADV stack as a separate PS4 probe input. It does not alter the runner or JVM. All generated files go under `graphics-probe/build/`.
+This directory builds the pinned Mesa/Zink/RADV stack as a separate PS4 probe input. The recipes and their pins live in mesa-orbis (`build_mesa.py`, `orbis-port/tools/`, `orbis-port/build.lock.json`); the commands below are compatibility entry points that run them with `ORBIS_BUILD_ROOT=graphics-probe/build`. It does not alter the runner or JVM. All generated files go under `graphics-probe/build/`.
 
 From the repository root:
 
 ```sh
 python3 graphics-probe/tools/prepare_sources.py \
-  --lock graphics-probe/deps.lock.json \
+  --lock ../mesa-orbis/orbis-port/build.lock.json \
   --output graphics-probe/build/sources
 python3 graphics-probe/tools/bootstrap_deps.py \
   --output graphics-probe/build/deps/clean
@@ -18,7 +18,7 @@ python3 graphics-probe/tools/build_mesa.py \
   --output graphics-probe/build/target
 ```
 
-The compat script defaults to an archive inside its pinned source directory, still within `graphics-probe/build/`. Bootstrap downloads exactly the versions in `deps.lock.json`, verifies every wheel and Debian package hash, extracts Flex/Bison locally, and installs Python wheels into a local venv. It requires Python 3.12 on Ubuntu 24.04 for the pinned wheel tags and Debian package versions. The SDK hashes in the lock must match the selected `--sdk` directory.
+The compat script defaults to an archive inside its pinned source directory, still within `graphics-probe/build/`. Bootstrap downloads exactly the versions in mesa-orbis's `orbis-port/build.lock.json`, verifies every wheel and Debian package hash, extracts Flex/Bison locally, and installs Python wheels into a local venv. It requires Python 3.12 on Ubuntu 24.04 for the pinned wheel tags and Debian package versions. The SDK hashes in the lock must match the selected `--sdk` directory.
 
 `build_mesa.py` uses the porting kit's cross file, an empty package config lookup directory, Meson's zlib wrap, and Ninja with two jobs. It injects the pinned compatibility build's five `libc16_*.o` files after the whole-archive compatibility library and before SDK libc into the Meson cross link arguments and GL link probe. It emits `build-manifest.json` with hashes of those objects and logs under the selected output. A successful status requires the corrected GL link probe, the kit's `check-wchar-link.sh` extraction audit, plus target archive, undefined-symbol and host link input audits. Run `python3 -m unittest discover -s graphics-probe/tests -v` for the build contract checks.
 

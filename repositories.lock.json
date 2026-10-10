@@ -3,7 +3,7 @@
   "components": {
     "mesa-orbis": {
       "directory": "mesa-orbis",
-      "revision": "44141c121a1cf4fb969b1b8490c3fa879642ee81",
+      "revision": "cb1990ee9bb4c6b7079003da2c322e5257d8676f",
       "url": "https://github.com/CyreneLauncher/mesa-orbis.git",
       "dependencies": [
         "orbis-compat",

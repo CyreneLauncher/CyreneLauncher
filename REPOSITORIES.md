@@ -3,11 +3,11 @@
 The Orbis Java/game stack uses **10 pinned sibling repositories**, plus this
 launcher integration repository. Exact revisions and compatibility links live in
 `repositories.lock.json`; upstream archive hashes live in
-`graphics-probe/deps.lock.json` and `graphics-probe/lwjgl/lwjgl-sources.lock.json`.
+`mesa-orbis/orbis-port/build.lock.json` and `lwjgl-orbis/lwjgl-sources.lock.json`.
 
 | Sibling repository | Owns |
 | --- | --- |
-| `mesa-orbis` | Mesa upstream history, all 45 ordered local patches, Mesa build recipe |
+| `mesa-orbis` | Mesa upstream history, all 45 ordered local patches, Mesa build recipe, its source/host-tool pins and build-tree setup (`orbis-port/tools`) |
 | `lwjgl-orbis` | Four LWJGL profiles, Java/JNI adapters, dyncall/libffi adaptations, LWJGL/FreeType/shader/VMA/platform PRX build recipes and their source pins |
 | `openal-soft-orbis` | AudioOut backend, OpenAL adaptations, build recipe and upstream pin |
 | `sdl-orbis` | SDL threading adaptations, gamepad adapter, build recipe and upstream pin |
@@ -60,7 +60,7 @@ there. Then update that component's `revision` in `repositories.lock.json` to
 change in the launcher. Never silently reset dirty repositories to satisfy a pin.
 
 Mesa has two different pins: the component pin identifies the port repository
-and patch series; `deps.lock.json` identifies the upstream base used by the build
+and patch series; its `orbis-port/build.lock.json` identifies the upstream base used by the build
 checkout. Keep the base pin unchanged when only changing the patch series.
 The build recipe hashes the patches into its manifest and shader-cache identity.
 Do not apply the series permanently to the cached checkout, or apply it twice.

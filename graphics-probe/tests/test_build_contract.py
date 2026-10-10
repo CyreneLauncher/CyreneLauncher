@@ -128,7 +128,7 @@ class BuildContract(unittest.TestCase):
     def test_rejects_output_outside_build_root(self):
         with tempfile.TemporaryDirectory() as temp:
             result = self.run_script("prepare_sources.py", "--lock",
-                                     ROOT / "deps.lock.json", "--output", temp)
+                                     ROOT.parents[1] / "mesa-orbis/orbis-port/build.lock.json", "--output", temp)
             self.assertNotEqual(result.returncode, 0)
             self.assertIn("outside build root", result.stderr)
             self.assertEqual(list(Path(temp).iterdir()), [])

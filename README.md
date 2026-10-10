@@ -22,7 +22,7 @@ export PKGTOOL=/path/to/PkgTool.Core.dll
 ./orbis build
 ```
 
-Linux x86_64 with Python 3.12, OpenJDK host build dependencies, LLVM/Clang, CMake, Ninja, .NET, and the exact compatible SDK/toolchain is required. Mesa verifies the SDK and dependency hashes in `graphics-probe/deps.lock.json`. The open-source SDK distributions are pinned in `tools/toolchain.lock.json`; `tools/provision_toolchain.py` downloads and verifies them and builds LibOrbisPkg from its pinned source revision.
+Linux x86_64 with Python 3.12, OpenJDK host build dependencies, LLVM/Clang, CMake, Ninja, .NET, and the exact compatible SDK/toolchain is required. Mesa verifies the SDK and dependency hashes in mesa-orbis's `orbis-port/build.lock.json`. The open-source SDK distributions are pinned in `tools/toolchain.lock.json`; `tools/provision_toolchain.py` downloads and verifies them and builds LibOrbisPkg from its pinned source revision.
 
 The build downloads the pinned JDK 17, 21 and 25 runtimes from the [orbis-openjdk releases](https://github.com/CyreneLauncher/orbis-openjdk/releases), then builds all LWJGL profiles, native Mesa, audio/SDL, launcher, desktop support, runner, and package checks. Logs live in `build-logs/`. The validated PKG appears in `dist/`. Installation is manual. Title ID and `/data/orbis-jdk` paths remain compatible with earlier packages.
 
