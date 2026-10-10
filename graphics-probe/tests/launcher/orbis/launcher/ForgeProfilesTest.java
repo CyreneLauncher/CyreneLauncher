@@ -17,7 +17,7 @@ public final class ForgeProfilesTest {
         for (String name : List.of("forge", "neo")) {
             JsonObject profile = JsonParser.parseString(Files.readString(fixtures.resolve(name + "-version.json"))).getAsJsonObject();
             List<String> jvm = LoaderLaunch.jvm(profile, values);
-            check(jvm.stream().anyMatch(x -> x.startsWith("-Djdk.module.path=/data/libs/cpw/mods/bootstraplauncher/")), "module path translated");
+            check(jvm.stream().anyMatch(x -> x.startsWith("--module-path=/data/libs/cpw/mods/bootstraplauncher/")), "module path translated");
             check(jvm.contains("--add-modules=ALL-MODULE-PATH"), "modules loaded before boot");
             check(jvm.contains("--add-opens=java.base/java.util.jar=cpw.mods.securejarhandler"), "opens use JNI form");
             check(jvm.stream().noneMatch(x -> x.contains("${")), "all placeholders expanded");
@@ -25,6 +25,7 @@ public final class ForgeProfilesTest {
             check(game.contains("--launchTarget") && game.contains("forgeclient"), "loader target retained");
         }
         check(ForgeInstaller.mavenPath("net.neoforged:neoform:1.21.1:mappings@txt").equals("net/neoforged/neoform/1.21.1/neoform-1.21.1-mappings.txt"), "classifier extension");
+        check(ForgeInstaller.mavenPath("a.b:c:1:mappings@tsrg.lzma").equals("a/b/c/1/c-1-mappings.tsrg.lzma"), "compressed mapping extension");
         check(ForgeInstaller.mavenPath("a.b:c:1@zip").equals("a/b/c/1/c-1.zip"), "zip coordinate");
         fails(() -> ForgeInstaller.mavenPath("a:../../evil:1"));
         fails(() -> ForgeInstaller.mavenPath("a:b:1:two:extra"));

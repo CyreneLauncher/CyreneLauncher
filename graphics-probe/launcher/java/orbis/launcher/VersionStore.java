@@ -297,8 +297,8 @@ final class VersionStore {
         Set<Path> modulePaths = new LinkedHashSet<>();
         if (ForgeInstaller.family(loader)) {
             for (String option : LoaderLaunch.jvm(loaderProfile,loaderValues)) {
-                if (option.startsWith("-Djdk.module.path="))
-                    for (String path : option.substring("-Djdk.module.path=".length()).split(":")) modulePaths.add(Path.of(path));
+                if (option.startsWith("--module-path="))
+                    for (String path : option.substring("--module-path=".length()).split(":")) modulePaths.add(Path.of(path));
                 // The unpatched vanilla client must not become another game module.
                 jvm.add(option.startsWith("-DignoreList=") ? option + ",client.jar" : option);
             }

@@ -60,7 +60,7 @@ final class InstanceArguments {
                 throw new IllegalArgumentException("The launcher starts the game itself: " + option);
             if (option.startsWith("-D")) {
                 String key = option.substring(2).split("=", 2)[0];
-                if (RUNNER_PROPERTIES.contains(key) || key.startsWith("jdk.module.") || key.startsWith("orbis.module."))
+                if (RUNNER_PROPERTIES.contains(key) || key.startsWith("jdk.module.") || key.startsWith("orbis.module.") || key.startsWith("orbis.loader."))
                     throw new IllegalArgumentException("The runner manages " + key);
             }
             for (String flag : RUNNER_FLAGS)
@@ -76,7 +76,7 @@ final class InstanceArguments {
         List<String> args = split(text);
         for (String arg : args) {
             String key = arg.split("=", 2)[0];
-            if (GAME_MANAGED.contains(key)) throw new IllegalArgumentException("The launcher sets " + key);
+            if (GAME_MANAGED.contains(key) || key.equals("--launchTarget") || key.startsWith("--fml.")) throw new IllegalArgumentException("The launcher sets " + key);
         }
         return args;
     }

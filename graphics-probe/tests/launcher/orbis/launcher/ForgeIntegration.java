@@ -29,8 +29,8 @@ public final class ForgeIntegration {
             try {
                 VersionStore.Installed installed = store.install(new VersionStore.GameVersion(minecraft,game.get("url").getAsString(),game.get("sha1").getAsString()),loader,build,op,false);
                 store.verifyLoader(installed);
-                if (!installed.loaderVersion().equals(build) || !installed.gameOptions().contains("forgeclient")) throw new AssertionError("wrong loader install");
-                Files.writeString(root.resolve(loader.name() + "-installed.txt"),installed.gameProfile().toString());
+                if (!installed.loaderVersion().equals(build) || installed.gameOptions().isEmpty()) throw new AssertionError("wrong loader install");
+                Files.writeString(root.resolve(loader.name() + "-" + minecraft + "-installed.txt"),installed.gameProfile().toString());
                 System.out.println("INSTALL VERIFIED " + installed.title() + " " + installed.gameProfile());
             } finally { progress.interrupt(); }
             return;

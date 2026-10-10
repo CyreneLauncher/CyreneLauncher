@@ -33,6 +33,10 @@ int runner_config_load(const char *path, RunnerConfig *config, char *error, size
 int runner_config_seed_defaults(const char *defaults, const char *root, char *error, size_t error_size);
 int runner_config_installed(RunnerConfig *config, char *error, size_t error_size);
 int runner_option_reserved(const char *option);
+#define RUNNER_VM_OPTION_CAPACITY 8192
+#define RUNNER_VM_OPTION_COUNT 96
+/* Loader module options use a private prefix and are confined to configured libraries. */
+int runner_loader_option(const char *option, char *output, size_t capacity, const char *libraries);
 /* Desktop-safe option inventory shared with the native preflight/launcher. */
 size_t runner_desktop_option_count(void);
 const char *runner_desktop_option_at(size_t index);

@@ -45,4 +45,16 @@ with tempfile.TemporaryDirectory() as td:
         assert api.runner_option_reserved(option) == 1, option
     for option in (b'-Xmx512m',b'-Dapplication.name=a b',b'-Djava.home.extra=ok'):
         assert api.runner_option_reserved(option) == 0, option
+    api.runner_loader_option.argtypes = [ctypes.c_char_p,ctypes.c_char_p,ctypes.c_size_t,ctypes.c_char_p]
+    output = ctypes.create_string_buffer(8192)
+    long_path = b'/data/libs/' + b'a'*600 + b'.jar'
+    assert api.runner_loader_option(b'-Dorbis.loader.modulePath='+long_path,output,len(output),b'/data/libs') == 1
+    assert output.value == b'--module-path='+long_path
+    for path in (b'/evil/a.jar',b'/data/libs/../evil.jar',b'/data/libs/a.jar:/evil/b.jar',b'/data/libs/',b'/data/libs/a.jar:'):
+        assert api.runner_loader_option(b'-Dorbis.loader.modulePath='+path,output,len(output),b'/data/libs') < 0, path
+    assert api.runner_loader_option(b'-Dorbis.loader.addModules=ALL-MODULE-PATH',output,len(output),b'/data/libs') == 1
+    assert output.value == b'--add-modules=ALL-MODULE-PATH'
+    assert api.runner_loader_option(b'-Dorbis.loader.modulePath=/data/libs/'+b'a'*8192,output,len(output),b'/data/libs') < 0
+    assert api.runner_loader_option(b'-Dorbis.loader.addModules=evil',output,len(output),b'/data/libs') < 0
+    assert api.runner_loader_option(b'-Xmx512m',output,len(output),b'/data/libs') == 0
 print('Runner configuration behavior passed')

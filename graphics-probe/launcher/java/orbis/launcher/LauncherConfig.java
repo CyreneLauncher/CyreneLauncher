@@ -85,7 +85,7 @@ final class LauncherConfig {
         if (runningHome.startsWith(Path.of("/app0/runtimes"))) javaHome = runningHome;
         defaultHome = javaHome;
         downloadedRuntimes = runnerRoot.getParent().resolve("runtimes");
-        runtimes = Runtimes.discover(javaHome, javaHome.getParent(), downloadedRuntimes);
+        runtimes = Runtimes.discover(javaHome, javaHome.getParent(), Path.of(DEFAULT_JAVA_HOME).getParent(), downloadedRuntimes);
         // Newer Java comes from the runtime release when a version needs it.
         VersionStore.offeredJava = Math.max(runtimes.newest(),
                 RuntimeInstaller.DOWNLOADABLE[RuntimeInstaller.DOWNLOADABLE.length - 1]);
@@ -143,7 +143,15 @@ final class LauncherConfig {
         int feature = RuntimeInstaller.downloadable(required);
         if (feature < 0) throw new IOException("No Java runtime provides Java " + required);
         new RuntimeInstaller(downloadedRuntimes).ensure(feature, progress);
-        runtimes = Runtimes.discover(defaultHome, defaultHome.getParent(), downloadedRuntimes);
+        runtimes = Runtimes.discover(defaultHome, defaultHome.getParent(), Path.of(DEFAULT_JAVA_HOME).getParent(), downloadedRuntimes);
+    }
+
+    void ensureLoaderRuntime(int required, RuntimeInstaller.Progress progress) throws IOException {
+        for (Runtimes.Runtime runtime : runtimes.all) if (runtime.feature() == required) return;
+        if (RuntimeInstaller.downloadable(required) != required) throw new IOException("This loader needs Java " + required);
+        new RuntimeInstaller(downloadedRuntimes).ensure(required,progress);
+        runtimes = Runtimes.discover(defaultHome,defaultHome.getParent(),Path.of(DEFAULT_JAVA_HOME).getParent(),downloadedRuntimes);
+        LoaderLaunch.runtime(runtimes,required);
     }
 
     /** Versions of the ids no mod JAR provides, for checking the selected instance's mods. */

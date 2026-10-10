@@ -42,6 +42,16 @@ final class ConsoleModSettings {
         return true;
     }
 
+    /** Forge's separate early window is disabled so the game owns the console display. */
+    static void applyLoader(Path gameDir, VersionStore.Loader loader) throws IOException {
+        if (!ForgeInstaller.family(loader)) return;
+        Path file = gameDir.resolve("config/fml.toml");
+        LauncherFiles.rejectSymlinks(file);
+        String text = Files.exists(file) ? new String(LauncherFiles.read(file,MAX_CONFIG),StandardCharsets.UTF_8) : "";
+        String updated = switchOff(text,"earlyWindowControl");
+        if (!text.equals(updated)) LauncherFiles.write(file,updated.getBytes(StandardCharsets.UTF_8),false);
+    }
+
     /** Sets each top-level key to false, adding the keys that are missing ahead of the first table. */
     static String switchOff(String toml, String... keys) {
         String text = toml;

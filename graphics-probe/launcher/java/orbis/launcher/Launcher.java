@@ -18,7 +18,11 @@ public final class Launcher {
 
     public static void main(String[] args) throws Throwable {
         LauncherConfig config;
-        try { config = LauncherConfig.load(); }
+        try {
+            InstallContinuation.recover(Path.of(System.getProperty("orbis.launcher.home","/data/orbis-jdk/launcher")),
+                    Path.of(System.getProperty("orbis.runner.root","/data/orbis-jdk/runner")));
+            config = LauncherConfig.load();
+        }
         catch (java.io.IOException | RuntimeException failure) {
             try {
                 LaunchPreparation.recoverAfterConfigFailure(
@@ -42,7 +46,15 @@ public final class Launcher {
                     intent = value;
                 } else base.add(arg);
             }
-            LaunchRequest request = new LaunchPreparation(config).consume(intent);
+            InstallContinuation.Pending installation = InstallContinuation.consume(config.home,intent);
+            if (installation != null) {
+                if (Runtime.version().feature() < installation.java()) throw new java.io.IOException("Installation runtime was not applied");
+                InstanceStore.Operation op = new InstanceStore.Operation();
+                VersionStore.Installed installed = config.versions.install(installation.game(),installation.loader(),installation.loaderVersion(),op,true);
+                config.ensureLoaderRuntime(installed.java(),op::progress);
+                notice = installed.title() + " installed. Choose it when creating your instance.";
+            }
+            LaunchRequest request = new LaunchPreparation(config).consume(installation != null ? null : intent);
             if (request != null) {
                 InstanceStore.Instance instance = config.instances.get(request.instanceId());
                 AccountStore accounts = new AccountStore(config.home, config.runnerRoot);
@@ -120,7 +132,8 @@ public final class Launcher {
     }
 
     static void startGame(String mainClass, String[] args) throws Throwable {
-        Class<?> target = Class.forName(mainClass, true, Thread.currentThread().getContextClassLoader());
+        Class<?> target = LoaderLaunch.mainClass(mainClass);
+        if (target.getModule().isNamed()) Thread.currentThread().setContextClassLoader(target.getClassLoader());
         Method main = target.getMethod("main", String[].class);
         try {
             main.invoke(null, (Object) args);

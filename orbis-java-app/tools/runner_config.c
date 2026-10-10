@@ -237,6 +237,38 @@ int runner_option_reserved(const char *option) {
     return 0;
 }
 
+int runner_loader_option(const char *option, char *output, size_t capacity, const char *libraries) {
+    const char *prefix = "-Dorbis.loader.modulePath=";
+    size_t length = strlen(prefix);
+    if (!strncmp(option, prefix, length)) {
+        const char *value = option + length;
+        size_t root_length = strlen(libraries);
+        if (libraries[0] != '/' || !*value || strlen(value) + strlen("--module-path=") >= capacity) return -1;
+        const char *part = value;
+        for (;;) {
+            size_t n = strcspn(part, ":");
+            if (n <= root_length + 1 || strncmp(part, libraries, root_length) || part[root_length] != '/') return -1;
+            for (size_t i = 0; i < n; ++i) {
+                if (part[i] == '\n' || part[i] == '\r' || part[i] == '\\') return -1;
+                if (i + 1 < n && part[i] == '.' && part[i+1] == '.') return -1;
+            }
+            if (n < 4 || strncmp(part + n - 4, ".jar", 4)) return -1;
+            if (!part[n]) break;
+            part += n + 1;
+        }
+        int written = snprintf(output, capacity, "--module-path=%s", value);
+        return written < 0 || (size_t)written >= capacity ? -1 : 1;
+    }
+    prefix = "-Dorbis.loader.addModules=";
+    if (!strncmp(option, prefix, strlen(prefix))) {
+        if (strcmp(option + strlen(prefix), "ALL-MODULE-PATH")) return -1;
+        int written = snprintf(output, capacity, "--add-modules=ALL-MODULE-PATH");
+        return written < 0 || (size_t)written >= capacity ? -1 : 1;
+    }
+    if (!strncmp(option, "-Dorbis.loader.", strlen("-Dorbis.loader."))) return -1;
+    return 0;
+}
+
 static const char *const desktop_options[] = {
     "-Djava.awt.headless=false",
     "-Dcacio.managed.screensize=1280x720",

@@ -19,6 +19,7 @@ with tempfile.TemporaryDirectory() as directory:
 #include <errno.h>
 #include <string.h>
 #include "runner_config.h"
+static RunnerConfig runner_config = {.libraries="/data/libs"};
 typedef struct { char *optionString; void *extraInfo; } JavaVMOption;
 static void orbis_log_line(const char *a, const char *b, const char *c, ...) { (void)a; (void)b; (void)c; }
 static void debug_text(const char *a) { (void)a; }
@@ -28,14 +29,17 @@ static int desktop_option_conflict(const char *option) { (void)option; return 0;
     api=ctypes.CDLL(str(lib))
     def read(text=None):
         if text is not None: path.write_bytes(text)
-        options=(Option*32)(); storage=((ctypes.c_char*512)*32)()
-        count=api.load_runtime_vm_options(options,storage,32)
+        options=(Option*96)(); storage=((ctypes.c_char*8192)*96)()
+        count=api.load_runtime_vm_options(options,storage,96)
         return count,[options[i].optionString for i in range(max(count,0))]
     assert read()[0] == 0
     assert read(b'# ignored\r\n\r\n-Xmx512m\r\n-Dapplication.name=a b\n') == (2,[b'-Xmx512m',b'-Dapplication.name=a b'])
-    for text in (b'-Djava.home=/other\n',b'-Drunner.jar=/other\n',b'-Dorbis.module.names.file=/other\n',b'--module-path=/other\n',b'-Xmx32m\n'*33,b'x'*512+b'\n'):
+    for text in (b'-Djava.home=/other\n',b'-Drunner.jar=/other\n',b'-Dorbis.module.names.file=/other\n',b'--module-path=/other\n',b'-Xmx32m\n'*97,b'x'*8192+b'\n'):
         assert read(text)[0] < 0, text[:50]
-    assert read(b'-Xmx32m\n'*32)[0] == 32
+    assert read(b'-Xmx32m\n'*96)[0] == 96
+    long_module = b'/data/libs/' + b'a'*600 + b'.jar'
+    assert read(b'-Dorbis.loader.modulePath='+long_module+b'\n') == (1,[b'--module-path='+long_module])
+    assert read(b'-Dorbis.loader.modulePath=/evil.jar\n')[0] < 0
 
 # Display ownership: configuration decides whether the CPU screen console starts.
 main = source[source.index('int main(int argc, char **argv) {'):]

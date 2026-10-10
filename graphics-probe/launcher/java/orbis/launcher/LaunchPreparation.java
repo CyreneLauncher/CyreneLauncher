@@ -44,10 +44,12 @@ final class LaunchPreparation {
         VersionStore.Installed version = config.installed(instance);
         if (version == null && config.launcherOnly)
             throw new IOException("Install and select a Minecraft version before playing");
+        if (version != null) config.versions.verifyLoader(version);
         if (version != null && config.versions.upgradeLwjgl(version))
             System.out.println("launcher: Minecraft " + version.minecraft() + " now runs on LWJGL 3.3.3");
         try {
             ConsoleModSettings.apply(instance.gameDir());
+            if (version != null) ConsoleModSettings.applyLoader(instance.gameDir(),version.loader());
         } catch (IOException failure) {
             System.err.println("launcher: console mod settings not applied: " + failure.getMessage());
         }
@@ -82,6 +84,20 @@ final class LaunchPreparation {
             throw failure;
         }
         return request;
+    }
+
+    void prepareInstaller(Runtimes.Runtime runtime, String intent) throws IOException {
+        rollback();
+        byte[] originalOptions = LauncherFiles.read(optionsFile,MAX_FILE_BYTES);
+        byte[] originalConf = LauncherFiles.read(confFile,MAX_FILE_BYTES);
+        byte[] prepared = configuration(originalConf,config.gameDir,config.debugLog,null,runtime);
+        JsonObject saved = new JsonObject();
+        saved.addProperty("schema",1); saved.addProperty("preparation_id",intent);
+        saved.addProperty("request","installer");
+        put(saved,"options",originalOptions,originalOptions); put(saved,"conf",originalConf,prepared);
+        LauncherFiles.write(journal,saved.toString().getBytes(StandardCharsets.UTF_8),true);
+        try { LauncherFiles.write(confFile,prepared,false); }
+        catch (IOException failed) { rollback(); throw failed; }
     }
 
     /** Consumes the intent first, restores global runner files, and returns a validated launch. */
@@ -216,7 +232,7 @@ final class LaunchPreparation {
      * Quilt versions and added through the loader's addMods property, never into the instance's mods.
      */
     private List<String> compatibilityMod(VersionStore.Installed version) throws IOException {
-        if (version == null || version.loader() == VersionStore.Loader.VANILLA) return List.of();
+        if (version == null || (version.loader() != VersionStore.Loader.FABRIC && version.loader() != VersionStore.Loader.QUILT)) return List.of();
         byte[] jar;
         try (java.io.InputStream in = LaunchPreparation.class.getResourceAsStream("orbis-compat.jar")) {
             if (in == null) throw new IOException("The launcher's compatibility mod is missing");
@@ -247,7 +263,7 @@ final class LaunchPreparation {
         if (!min) result.add("-Xms" + instance.heapMib() + "m");
         if (!max) result.add("-Xmx" + instance.heapMib() + "m");
         if (!arena) result.add("-Dorbis.graphics.arenaMib=" + instance.arenaMib());
-        if (version != null) result.addAll(version.jvmOptions());
+        if (version != null) result.addAll(LoaderLaunch.nativeOptions(version.jvmOptions()));
         result.addAll(extra);
         return String.join("\n", result).concat("\n").getBytes(StandardCharsets.UTF_8);
     }
@@ -257,6 +273,10 @@ final class LaunchPreparation {
      * runtime its Java needs (the optional JDK 21 runner for Minecraft 1.20.5+).
      */
     static Runtimes.Runtime runtime(Runtimes runtimes, VersionStore.Installed version) throws IOException {
+        if (version != null && ForgeInstaller.family(version.loader())) {
+            Runtimes.Runtime matching = LoaderLaunch.runtime(runtimes,version.java());
+            return matching.home().equals(runtimes.fallback.home()) ? null : matching;
+        }
         if (version == null || runtimes.fallback.feature() >= version.java()) return null;
         Runtimes.Runtime runtime = runtimes.forJava(version.java());
         if (runtime == null)

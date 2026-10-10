@@ -1046,7 +1046,10 @@ class LauncherScreen {
             authClient().refresh(account.id());
             InstanceStore.Instance current = config.instances.get(instance.id());
             VersionStore.Installed version = config.installed(current);
-            if (version != null) prepareRuntime(version.java());
+            if (version != null) {
+                if (ForgeInstaller.family(version.loader())) config.ensureLoaderRuntime(version.java(),(text,done) -> { workText=text; workFraction=done; });
+                else prepareRuntime(version.java());
+            }
             return new LaunchPreparation(config).prepare(current, account.id());
         }, request -> {
             setStatus("Starting Minecraft...", GOOD);
@@ -1092,9 +1095,31 @@ class LauncherScreen {
 
     protected VersionStore.Installed installVersion(VersionStore.GameVersion version, VersionStore.Loader loader,
                                                     InstanceStore.Operation op) throws IOException {
-        VersionStore.Installed installed = config.versions.install(version, loader, op);
-        config.ensureRuntime(installed.java(), op::progress);
-        return installed;
+        return installVersion(version,loader,"",op);
+    }
+
+    protected VersionStore.Installed installVersion(VersionStore.GameVersion version, VersionStore.Loader loader,
+                                                    String build, InstanceStore.Operation op) throws IOException {
+        try {
+            VersionStore.Installed installed = config.versions.install(version, loader, build, op, true);
+            if (ForgeInstaller.family(loader)) config.ensureLoaderRuntime(installed.java(),op::progress);
+            else config.ensureRuntime(installed.java(),op::progress);
+            return installed;
+        } catch (ForgeInstaller.NeedsRuntime needed) {
+            config.ensureLoaderRuntime(needed.java,op::progress);
+            op.check();
+            String intent = InstallContinuation.prepare(config,version,loader,needed.build,LoaderLaunch.runtime(config.runtimes,needed.java));
+            results.add(() -> {
+                busy = false;
+                setStatus("Restarting to finish " + loader.title + " installation...",DIM);
+                presentNow();
+                int error = relaunch(intent);
+                try { InstallContinuation.recover(config.home,config.runnerRoot); InstallContinuation.consume(config.home,"discard"); }
+                catch (IOException recovery) { /* Recovery consumed the pending request. */ }
+                setStatus(String.format("Installation restart failed (0x%08x)",error),ERROR);
+            });
+            throw new IOException("Restart required to finish loader installation");
+        }
     }
 
     /** Before a launch: the runtime the version needs, downloaded or updated, with progress in the status line. */

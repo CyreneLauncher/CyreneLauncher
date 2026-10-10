@@ -18,6 +18,13 @@ final class ForgeInstaller {
     private static final Pattern XML_VERSION = Pattern.compile("<version>([^<]+)</version>");
     private ForgeInstaller() { }
 
+    static final class NeedsRuntime extends IOException {
+        private static final long serialVersionUID = 1L;
+        final int java;
+        final String build;
+        NeedsRuntime(int java, String build) { super("Installation needs Java " + java); this.java = java; this.build = build; }
+    }
+
     static boolean family(VersionStore.Loader loader) {
         return loader == VersionStore.Loader.FORGE || loader == VersionStore.Loader.NEOFORGE;
     }
@@ -77,7 +84,7 @@ final class ForgeInstaller {
 
     static String mavenPath(String coordinate) throws IOException {
         String[] ext = coordinate.split("@", -1);
-        if (ext.length > 2 || (ext.length == 2 && !ext[1].matches("[A-Za-z0-9]+"))) throw new IOException("Invalid Maven extension");
+        if (ext.length > 2 || (ext.length == 2 && !ext[1].matches("[A-Za-z0-9]+(\\.[A-Za-z0-9]+)*"))) throw new IOException("Invalid Maven extension");
         String[] p = ext[0].split(":", -1);
         if (p.length < 3 || p.length > 4) throw new IOException("Invalid Maven coordinate");
         for (String part : p) if (!part.matches("[A-Za-z0-9_+.-]+") || part.contains("..")) throw new IOException("Unsafe Maven coordinate");
@@ -105,14 +112,15 @@ final class ForgeInstaller {
                     || !minecraft.equals(install.get("minecraft").getAsString())) throw new IOException("Installer does not match Minecraft " + minecraft);
             JsonObject profile = resourceJson(zip,install.get("json").getAsString().replaceFirst("^/", ""));
             if (!profile.get("mainClass").getAsString().equals("cpw.mods.bootstraplauncher.BootstrapLauncher")
-                    && !profile.get("mainClass").getAsString().equals("cpw.mods.modlauncher.Launcher"))
+                    && !profile.get("mainClass").getAsString().equals("cpw.mods.modlauncher.Launcher")
+                    && !profile.get("mainClass").getAsString().equals("net.minecraftforge.bootstrap.ForgeBootstrap")
+                    && !profile.get("mainClass").getAsString().equals("net.neoforged.fml.startup.Client"))
                 throw new IOException("Unsupported loader entry point");
             int n = 0;
             for (com.google.gson.JsonElement entry : install.getAsJsonArray("libraries")) {
                 op.progress("Downloading patch tools (" + ++n + "/" + install.getAsJsonArray("libraries").size() + ")");
                 download(entry.getAsJsonObject(),libraries,zip);
             }
-            for (com.google.gson.JsonElement entry : profile.getAsJsonArray("libraries")) download(entry.getAsJsonObject(),libraries,zip);
             Map<String,String> data = new LinkedHashMap<>();
             data.put("SIDE","client"); data.put("ROOT",staging.toString());
             data.put("INSTALLER",installer.toString()); data.put("MINECRAFT_JAR",client.toString());
@@ -134,11 +142,13 @@ final class ForgeInstaller {
                 JsonObject processor = element.getAsJsonObject();
                 if (processor.has("sides") && !processor.getAsJsonArray("sides").toString().contains("client")) continue;
                 int needed = processorJava(libraries.resolve(mavenPath(processor.get("jar").getAsString())));
-                if (needed > Runtime.version().feature()) throw new IOException("Installation needs Java " + needed + "; restart the launcher on that runtime");
+                if (needed > Runtime.version().feature()) throw new NeedsRuntime(needed,build);
             }
             InstallerProcessors.run(install,libraries,data,op);
+            // Recent profiles declare the processor-generated client as a runtime artifact with an empty URL.
+            for (com.google.gson.JsonElement entry : profile.getAsJsonArray("libraries")) download(entry.getAsJsonObject(),libraries,zip);
             com.google.gson.JsonArray generated = new com.google.gson.JsonArray();
-            for (String key : List.of("MC_SLIM","MC_EXTRA","MC_SRG","PATCHED")) {
+            for (String key : List.of("MC_SLIM","MC_EXTRA","MC_SRG","MC_OFF","PATCHED")) {
                 if (!data.containsKey(key)) continue;
                 java.nio.file.Path target = java.nio.file.Path.of(data.get(key)).toAbsolutePath().normalize();
                 if (!target.startsWith(libraries.toAbsolutePath().normalize())) throw new IOException("Generated client escapes library storage");
@@ -187,6 +197,8 @@ final class ForgeInstaller {
         String hash = artifact.get("sha1").getAsString(), url = artifact.get("url").getAsString();
         if (!hash.matches("[a-fA-F0-9]{40}")) throw new IOException("Library has no valid checksum");
         if (url.isEmpty()) {
+            if (java.nio.file.Files.isRegularFile(file) && java.nio.file.Files.size(file) == artifact.get("size").getAsLong()
+                    && InstallerProcessors.hash(file).equalsIgnoreCase(hash)) return;
             byte[] content = resource(zip,"maven/" + relative,64L << 20);
             if (!VersionStore.sha1(content).equalsIgnoreCase(hash)) throw new IOException("Embedded library checksum mismatch");
             LauncherFiles.write(file,content,false);

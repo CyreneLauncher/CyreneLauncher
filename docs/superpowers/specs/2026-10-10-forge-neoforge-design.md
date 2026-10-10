@@ -45,7 +45,7 @@ Merge vanilla and loader metadata into flattened game/boot profiles. Keep loader
 
 ### JVM and game startup
 
-Expand bounded native option storage and option count with explicit overlength rejection. Translate module-path arguments to the VM's module-path property; normalize supported add-modules, add-opens, and add-exports options into JNI-compatible single-option forms. Validate paths and supported options, and reject profile attempts to replace runner-managed configuration or add agents.
+Expand bounded native option storage and option count with explicit overlength rejection. Normalize module-path arguments to the JNI-compatible `--module-path=...` option; normalize supported add-modules, add-opens, and add-exports options into JNI-compatible single-option forms. Validate paths and supported options, and reject profile attempts to replace runner-managed configuration or add agents.
 
 Apply loader JVM settings before JVM creation through the existing preparation transaction. Restore global settings as the launcher consumes its intent. Locate the module-loaded bootstrap main class with its owning module loader; preserve context class loader and service discovery behavior expected by the loader. Inspect the real bootstrap's class-path handling against the custom runner loader and verify it in a separate host JVM before declaring startup compatible.
 

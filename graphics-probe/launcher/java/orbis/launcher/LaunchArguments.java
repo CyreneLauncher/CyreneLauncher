@@ -32,7 +32,8 @@ final class LaunchArguments {
             String value = existing[i];
             int equal = value.indexOf('=');
             String key = equal < 0 ? value : value.substring(0, equal);
-            if (MANAGED.contains(key) || (version != null && VERSION.contains(key))) {
+            if (MANAGED.contains(key) || (version != null && VERSION.contains(key))
+                    || (version != null && ForgeInstaller.family(version.loader()) && (key.equals("--launchTarget") || key.startsWith("--fml.")))) {
                 if (equal < 0) {
                     if (++i >= existing.length || existing[i].startsWith("--"))
                         throw new IOException("A configured identity argument is missing its value");
@@ -53,6 +54,7 @@ final class LaunchArguments {
             add(args, "--assetIndex", version.assetIndex());
             add(args, "--versionType", version.versionType());
         }
+        if (version != null && ForgeInstaller.family(version.loader())) args.addAll(version.gameOptions());
         // The instance's own arguments, which cannot replace any of the above.
         try { args.addAll(InstanceArguments.game(instance.gameArgs())); }
         catch (IllegalArgumentException invalid) { throw new IOException("Minecraft arguments: " + invalid.getMessage()); }

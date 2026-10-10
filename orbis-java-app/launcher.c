@@ -586,7 +586,7 @@ static int desktop_option_conflict(const char *option) {
     return 0;
 }
 
-static int load_runtime_vm_options(JavaVMOption *options, char storage[][512],
+static int load_runtime_vm_options(JavaVMOption *options, char storage[][RUNNER_VM_OPTION_CAPACITY],
                                   int capacity) {
     if (ORBIS_PROFILE_RUNTIME_JVM_OPTIONS[0] == '\0')
         return 0;
@@ -596,7 +596,7 @@ static int load_runtime_vm_options(JavaVMOption *options, char storage[][512],
         return -1;
     }
     int count = 0;
-    char line[512];
+    char line[RUNNER_VM_OPTION_CAPACITY];
     while (fgets(line, sizeof(line), file) != NULL) {
         size_t length = strlen(line);
         if (length == sizeof(line) - 1 && line[length - 1] != '\n' &&
@@ -612,13 +612,15 @@ static int load_runtime_vm_options(JavaVMOption *options, char storage[][512],
             fclose(file);
             return -1;
         }
-        if (runner_option_reserved(line) || desktop_option_conflict(line)) {
+        int loader_option = runner_loader_option(line, storage[count], RUNNER_VM_OPTION_CAPACITY, runner_config.libraries);
+        if (loader_option < 0) { fclose(file); return -1; }
+        if (!loader_option && (runner_option_reserved(line) || desktop_option_conflict(line))) {
             orbis_log_line("ERROR", "launcher", "reserved JVM option %s; configure paths in %s", line, RUNNER_CONFIG_PATH);
             debug_text("orbis-java: reserved JVM option; configure paths in runner.conf\n");
             fclose(file);
             return -1;
         }
-        memcpy(storage[count], line, length + 1);
+        if (!loader_option) memcpy(storage[count], line, length + 1);
         options[count].optionString = storage[count];
         options[count].extraInfo = NULL;
         ++count;
@@ -1288,13 +1290,13 @@ int main(int argc, char **argv) {
         park_after_error();
     }
 
-    constexpr int runtime_option_capacity = 32;
+    constexpr int runtime_option_capacity = RUNNER_VM_OPTION_COUNT;
     constexpr int configured_option_count = 19;
     constexpr int desktop_option_capacity = 32;
     int desktop_option_count = runner_display_desktop() ? static_cast<int>(runner_desktop_option_count()) : 0;
     if (desktop_option_count > desktop_option_capacity) { startup_error("desktop option capacity exceeded"); return 3; }
     char configured_storage[configured_option_count][2048];
-    char runtime_option_storage[runtime_option_capacity][512];
+    static char runtime_option_storage[runtime_option_capacity][RUNNER_VM_OPTION_CAPACITY];
     JavaVMOption options[ORBIS_PROFILE_VM_OPTION_COUNT + runtime_option_capacity + configured_option_count + desktop_option_capacity];
     for (int i = 0; i < ORBIS_PROFILE_VM_OPTION_COUNT; ++i)
         {

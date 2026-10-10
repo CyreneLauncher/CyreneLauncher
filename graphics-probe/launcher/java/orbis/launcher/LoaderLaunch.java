@@ -31,7 +31,7 @@ final class LoaderLaunch {
                 for (String path : paths.split(":", -1))
                     if (!path.startsWith("/") || path.contains("/../") || path.endsWith("/.."))
                         throw new IOException("Invalid loader module path");
-                out.add("-Djdk.module.path=" + paths);
+                out.add("--module-path=" + paths);
             } else if (arg.startsWith("--add-modules=") || arg.startsWith("--add-opens=") || arg.startsWith("--add-exports=")) {
                 out.add(arg);
             } else if (arg.startsWith("-D")) {
@@ -74,6 +74,21 @@ final class LoaderLaunch {
                 || text.getBytes(java.nio.charset.StandardCharsets.UTF_8).length > 8191)
             throw new IOException("Invalid or oversized loader argument");
         return text;
+    }
+
+    static List<String> nativeOptions(List<String> options) {
+        List<String> result = new ArrayList<>();
+        for (String option : options) {
+            if (option.startsWith("--module-path=")) result.add("-Dorbis.loader.modulePath=" + option.substring("--module-path=".length()));
+            else if (option.startsWith("--add-modules=")) result.add("-Dorbis.loader.addModules=" + option.substring("--add-modules=".length()));
+            else result.add(option);
+        }
+        return List.copyOf(result);
+    }
+
+    static Runtimes.Runtime runtime(Runtimes runtimes, int java) throws IOException {
+        for (Runtimes.Runtime runtime : runtimes.all) if (runtime.feature() == java) return runtime;
+        throw new IOException("This loader needs the Java " + java + " runtime");
     }
 
     static Class<?> mainClass(String name) throws IOException {
