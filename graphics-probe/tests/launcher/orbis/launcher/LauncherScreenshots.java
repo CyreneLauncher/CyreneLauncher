@@ -68,6 +68,20 @@ final class LauncherScreenshots {
         screen.apply("", List.of(Input.Action.BACK));
         shoot(screen, out, "4-new-instance", Input.Action.FOCUS, Input.Action.DOWN, Input.Action.CONFIRM);
         screen.apply("", List.of(Input.Action.BACK));
+        // Mods, then Modrinth (the fake client's results) and a project's page.
+        shoot(screen, out, "7-browse", Input.Action.FOCUS, Input.Action.UP, Input.Action.UP, Input.Action.CONFIRM,
+                Input.Action.CONFIRM);
+        shoot(screen, out, "8-project", Input.Action.DOWN, Input.Action.DOWN, Input.Action.DOWN, Input.Action.CONFIRM);
+        screen.apply("", List.of(Input.Action.BACK, Input.Action.BACK, Input.Action.BACK));
+        settle(screen);
+        // Rename with a keyboard opens the launcher's own text dialog; Remove asks first.
+        screen.apply("", List.of(Input.Action.FOCUS, Input.Action.DOWN, Input.Action.DOWN, Input.Action.DOWN, Input.Action.DOWN,
+                Input.Action.CONFIRM));
+        settle(screen);
+        save(screen, out.resolve("9-rename.png"));
+        screen.apply("", List.of(Input.Action.BACK));
+        settle(screen);
+        save(screen, out.resolve("0-after-rename.png"));
         shoot(screen, out, "5-accounts", Input.Action.NEXT_SECTION);
         // The same page after keyboard input: the hints name keys instead of buttons.
         screen.applyEvents("", List.of(new Input.Event(Input.Source.KEYBOARD, Input.Action.DOWN)));

@@ -27,13 +27,18 @@ class Renderer {
             TEXT = 0xffffffff, DIM = 0xffb2b2b2, WARN = 0xffe0b050, ERROR = 0xffd9534f, DARK = 0xff101010,
             WHITE = 0xffffffff, SHADE = 0xc0101010, CHIP = 0xff3a3a3a, BLUE = 0xff5b8fd6;
     /** Cells of the generated icon atlas: a disc for rounded corners and the four face buttons. */
-    private static final int DISC = 0, RING = 1, CROSS = 2, TRIANGLE = 3, SQUARE = 4, ICON_CELLS = 5, ICON_SIZE = 64;
+    private static final int DISC = 0, RING = 1, CROSS = 2, TRIANGLE = 3, SQUARE = 4, OUTLINE = 5, ICON_CELLS = 6,
+            ICON_SIZE = 64;
+    /** The outline cell's stroke as a share of its radius. */
+    private static final float OUTLINE_STROKE = 0.2f;
 
     int width, height;
     float s = 1f;
     private int program, vao, vbo, white, font, icons, art, screenUniform, textureUniform;
     final float[] glyphWidth = new float[256];
     private float fontQuadSize = 8, fontOffsetX, fontOffsetY;
+    /** Where capitals start below a text's y, and how tall they are, in font units (times scale for pixels). */
+    private float capTop = 0, capHeight = 7;
     private final FloatBuffer vertices = MemoryUtil.memAllocFloat(6 * 8 * 4096);
     private int vertexCount, boundTexture = -1;
 
@@ -178,6 +183,22 @@ class Renderer {
         image(icons, x + w - radius, y + h - radius, radius, radius, um, 0.5f, u1, 1, color);
     }
 
+    /** The outline of a rounded rectangle, its stroke a fifth of the corner radius: focus around rounded shapes. */
+    void roundFrame(float x, float y, float w, float h, float radius, int color) {
+        radius = Math.min(radius, Math.min(w, h) / 2);
+        float t = radius * OUTLINE_STROKE;
+        if (icons == 0 || radius < 1) { frame(x, y, w, h, Math.max(1, t), color); return; }
+        rect(x + radius, y, w - 2 * radius, t, color);
+        rect(x + radius, y + h - t, w - 2 * radius, t, color);
+        rect(x, y + radius, t, h - 2 * radius, color);
+        rect(x + w - t, y + radius, t, h - 2 * radius, color);
+        float u0 = (float) OUTLINE / ICON_CELLS, um = (OUTLINE + 0.5f) / ICON_CELLS, u1 = (OUTLINE + 1f) / ICON_CELLS;
+        image(icons, x, y, radius, radius, u0, 0, um, 0.5f, color);
+        image(icons, x + w - radius, y, radius, radius, um, 0, u1, 0.5f, color);
+        image(icons, x, y + h - radius, radius, radius, u0, 0.5f, um, 1, color);
+        image(icons, x + w - radius, y + h - radius, radius, radius, um, 0.5f, u1, 1, color);
+    }
+
     /** A filled circle of the given diameter. */
     void disc(float x, float y, float size, int color) {
         roundRect(x, y, size, size, size / 2, color);
@@ -198,7 +219,7 @@ class Renderer {
         if (cell < 0) {
             float scale = size / 19f, w = width(name, scale) + size * 0.7f;
             roundRect(x, y, w, size, size * 0.3f, CHIP);
-            text(name, x + size * 0.35f, y + size * 0.2f, scale, TEXT);
+            textMiddle(name, x + size * 0.35f, y, size, scale, TEXT);
             return w;
         }
         int color = switch (cell) {
@@ -208,7 +229,7 @@ class Renderer {
             default -> 0xffe59ae5;
         };
         disc(x, y, size, CHIP);
-        if (icons == 0) text(name.substring(0, 1).toUpperCase(), x + size * 0.3f, y + size * 0.1f, size / 17f, color);
+        if (icons == 0) textCentered(name.substring(0, 1).toUpperCase(), x, y, size, size, size / 17f, color);
         else image(icons, x, y, size, size, (float) cell / ICON_CELLS, 0, (cell + 1f) / ICON_CELLS, 1, color);
         return size;
     }
@@ -224,6 +245,8 @@ class Renderer {
                     float stroke = 3.2f;
                     switch (cell) {
                         case DISC -> d = (float) Math.hypot(x, y) - n / 2f + 0.5f;
+                        case OUTLINE -> d = Math.abs((float) Math.hypot(x, y) - n / 2f * (1 - OUTLINE_STROKE / 2) + 0.25f)
+                                - n / 2f * OUTLINE_STROKE / 2;
                         case RING -> d = Math.abs((float) Math.hypot(x, y) - 14) - stroke;
                         case CROSS -> d = Math.min(segment(x, y, -13, -13, 13, 13), segment(x, y, -13, 13, 13, -13)) - stroke;
                         case TRIANGLE -> d = Math.min(segment(x, y, 0, -14, 15, 12), Math.min(segment(x, y, 15, 12, -15, 12),
@@ -263,6 +286,34 @@ class Renderer {
                     fontQuadSize * scale, fontQuadSize * scale, u, v, u + 1 / 16f, v + 1 / 16f, color);
             x += glyphWidth[c] * scale;
         }
+    }
+
+    /**
+     * Text whose capitals are centred in the band from top to top + h: labels in buttons, chips and rows
+     * sit in the middle whatever the font's ascent.
+     */
+    void textMiddle(String text, float x, float top, float h, float scale, int color) {
+        text(text, x, middleY(top, h, scale), scale, color);
+    }
+
+    /** The y for {@link #text} that centres capitals in the band from top to top + h. */
+    float middleY(float top, float h, float scale) {
+        return top + (h - capHeight * scale) / 2 - capTop * scale;
+    }
+
+    /** How far below a text's y its baseline is. */
+    float capBottom(float scale) {
+        return (capTop + capHeight) * scale;
+    }
+
+    /** Text sitting on a baseline, so different sizes on one line line up. */
+    void textBaseline(String text, float x, float baseline, float scale, int color) {
+        text(text, x, baseline - (capTop + capHeight) * scale, scale, color);
+    }
+
+    /** Text centred both ways in a box. */
+    void textCentered(String text, float x, float y, float w, float h, float scale, int color) {
+        textMiddle(text, x + (w - width(text, scale)) / 2, y, h, scale, color);
     }
 
     float width(String text, float scale) {
@@ -354,6 +405,15 @@ class Renderer {
                 fontQuadSize = 10;
                 fontOffsetX = -0.5f;
                 fontOffsetY = -1.75f;
+                // The capital H's rows in its 40-pixel cell, four atlas pixels to a font unit.
+                int cell = 'H' % 16 * 40, row = 'H' / 16 * 40, top = 40, bottom = -1;
+                for (int y = 0; y < 40; y++)
+                    for (int x = 0; x < 40; x++)
+                        if ((image.getRGB(cell + x, row + y) >>> 24) > 100) { top = Math.min(top, y); bottom = Math.max(bottom, y); }
+                if (bottom >= top) {
+                    capTop = top / 4f + fontOffsetY;
+                    capHeight = (bottom + 1 - top) / 4f;
+                }
                 int[] pixels = image.getRGB(0, 0, 640, 640, null, 0, 640);
                 ByteBuffer rgba = MemoryUtil.memAlloc(640 * 640 * 4);
                 try {

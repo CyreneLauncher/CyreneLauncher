@@ -1757,14 +1757,14 @@ class LauncherScreen {
         for (String part : hint.split(" {2,}")) {
             int colon = part.indexOf(": ");
             if (colon < 0) {
-                r.text(part, x, y + 8 * s, scale, DIM);
+                r.textMiddle(part, x, y, size, scale, DIM);
                 x += r.width(part, scale) + 34 * s;
                 continue;
             }
             for (String key : buttons(part.substring(0, colon))) x += r.button(key, x, y, size) + 6 * s;
             x += 6 * s;
             String label = part.substring(colon + 2);
-            r.text(label, x, y + 8 * s, scale, DIM);
+            r.textMiddle(label, x, y, size, scale, DIM);
             x += r.width(label, scale) + 34 * s;
         }
         return x - start;
@@ -1814,12 +1814,12 @@ class LauncherScreen {
             r.roundRect(60 * s - 3 * s, 26 * s - 3 * s, logo + 6 * s, logo + 6 * s, 16 * s, LINE);
             r.image(r.artwork(), 60 * s, 26 * s, logo, logo, WHITE);
         } else r.roundRect(60 * s, 26 * s, logo, logo, 14 * s, ACCENT);
-        r.text("Cyrene Launcher", 160 * s, 30 * s, 3.6f * s, TEXT);
+        r.textMiddle("Cyrene Launcher", 160 * s, 26 * s, 46 * s, 3.6f * s, TEXT);
         // The console and the mode it runs the launcher in, as the runner detected them.
         String[] mode = consoleMode(System.getProperty("orbis.console.mode", ""));
         int modeColor = mode[1].equals("pro") ? ACCENT_HI : mode[1].equals("pro-base") ? WARN : DIM;
-        r.disc(162 * s, 88 * s, 14 * s, modeColor);
-        r.text(mode[0], 186 * s, 80 * s, 2.1f * s, mode[1].isEmpty() ? DIM : TEXT);
+        r.disc(162 * s, 79 * s, 14 * s, modeColor);
+        r.textMiddle(mode[0], 186 * s, 72 * s, 28 * s, 2.1f * s, mode[1].isEmpty() ? DIM : TEXT);
         drawSections(s);
         InstanceStore.Instance active = config.selectedInstance();
         String account = effectiveAccount(active);
@@ -1831,9 +1831,9 @@ class LauncherScreen {
         r.disc(chipX + 9 * s, 35 * s, avatar, ACCENT);
         String initial = account.isEmpty() ? "?" : account.substring(account.lastIndexOf(' ') + 1, account.lastIndexOf(' ') + 2)
                 .toUpperCase(java.util.Locale.ROOT);
-        r.text(initial, chipX + 9 * s + (avatar - r.width(initial, 3.4f * s)) / 2, 47 * s, 3.4f * s, TEXT);
-        r.text(r.fit(account, 420 * s, 2.7f * s), chipX + avatar + 26 * s, 35 * s, 2.7f * s, TEXT);
-        r.text(r.fit(active.name(), 420 * s, 2.1f * s), chipX + avatar + 26 * s, 73 * s, 2.1f * s, DIM);
+        r.textCentered(initial, chipX + 9 * s, 35 * s, avatar, avatar, 3.4f * s, TEXT);
+        r.textMiddle(r.fit(account, 420 * s, 2.7f * s), chipX + avatar + 26 * s, 34 * s, 34 * s, 2.7f * s, TEXT);
+        r.textMiddle(r.fit(active.name(), 420 * s, 2.1f * s), chipX + avatar + 26 * s, 68 * s, 28 * s, 2.1f * s, DIM);
     }
 
     /** Mods and settings belong to an instance, so they open from it rather than from a tab. */
@@ -1850,12 +1850,12 @@ class LauncherScreen {
         float total = 0;
         for (String title : SECTION_TITLES) total += r.width(title, scale) + 2 * pad + gap;
         float x = (r.width - total) / 2 - 20 * s;
-        x += r.button("L1", x - 70 * s, y + 10 * s, 38 * s) - 70 * s + 20 * s;
+        x += r.button("L1", x - 70 * s, y + (h - 38 * s) / 2, 38 * s) - 70 * s + 20 * s;
         int current = section();
         for (int i = 0; i < SECTIONS.length; i++) {
             float w = r.width(SECTION_TITLES[i], scale) + 2 * pad;
             if (i == current) r.roundRect(x, y, w, h, h / 2, ACCENT);
-            r.text(SECTION_TITLES[i], x + pad, y + 13 * s, scale, i == current ? TEXT : DIM);
+            r.textMiddle(SECTION_TITLES[i], x + pad, y, h, scale, i == current ? TEXT : DIM);
             int index = i;
             clicks.add(x, y, w, h, null, () -> {
                 if (!idle()) return;
@@ -1864,7 +1864,7 @@ class LauncherScreen {
             });
             x += w + gap;
         }
-        r.button("R1", x + 12 * s, y + 10 * s, 38 * s);
+        r.button("R1", x + 12 * s, y + (h - 38 * s) / 2, 38 * s);
     }
 
     private String hint() {
@@ -1902,18 +1902,19 @@ class LauncherScreen {
                 lx, 230 * s, lw, 690 * s, rowH, (i, y) -> {
             InstanceStore.Instance value = values.get(i);
             boolean highlighted = focus == Focus.LIST && selected == i && !editor.active();
-            row(lx, y, lw, rowH - 12 * s, highlighted);
+            float h = rowH - 12 * s, tile = 60 * s;
+            row(lx, y, lw, h, highlighted);
             String[] info = instanceInfo(value);
-            float tile = 60 * s;
-            r.roundRect(lx + 22 * s, y + 12 * s, tile, tile, 12 * s, loaderColor(info[1]));
-            r.text(info[1], lx + 22 * s + (tile - r.width(info[1], 3.2f * s)) / 2, y + 23 * s, 3.2f * s, TEXT);
-            r.text(r.fit(value.name(), lw - 260 * s, 2.9f * s), lx + 104 * s, y + 10 * s, 2.9f * s, TEXT);
-            r.text(r.fit(info[0], lw - 260 * s, 2.1f * s), lx + 104 * s, y + 50 * s, 2.1f * s, DIM);
+            r.roundRect(lx + 22 * s, y + (h - tile) / 2, tile, tile, 12 * s, loaderColor(info[1]));
+            r.textCentered(info[1], lx + 22 * s, y + (h - tile) / 2, tile, tile, 3.2f * s, TEXT);
+            // Name and version as one block centred on the row.
+            r.textMiddle(r.fit(value.name(), lw - 280 * s, 2.9f * s), lx + 104 * s, y + 10 * s, 34 * s, 2.9f * s, TEXT);
+            r.textMiddle(r.fit(info[0], lw - 280 * s, 2.1f * s), lx + 104 * s, y + 44 * s, 26 * s, 2.1f * s, DIM);
             if (value.id().equals(config.selectedInstance().id())) {
                 String label = "SELECTED";
-                float bw = r.width(label, 1.8f * s) + 28 * s;
-                r.roundRect(lx + lw - bw - 22 * s, y + 27 * s, bw, 30 * s, 15 * s, ACCENT_DARK);
-                r.text(label, lx + lw - bw - 8 * s, y + 31 * s, 1.8f * s, TEXT);
+                float bw = r.width(label, 1.8f * s) + 28 * s, bh = 30 * s;
+                r.roundRect(lx + lw - bw - 22 * s, y + (h - bh) / 2, bw, bh, bh / 2, ACCENT_DARK);
+                r.textCentered(label, lx + lw - bw - 22 * s, y + (h - bh) / 2, bw, bh, 1.8f * s, TEXT);
             }
             hit(lx, y, lw, rowH - 12 * s, () -> { focus = Focus.LIST; selected = i; }, Input.Action.CONFIRM);
         });
@@ -1932,14 +1933,15 @@ class LauncherScreen {
                 r.rect(x, y0, w, y1 - y0, (Math.round(fade * fade * 255) << 24) | (PANEL & 0xffffff));
             }
         }
-        r.text(r.fit(active.name(), w - 70 * s, 4 * s), x + 35 * s, top + banner - 52 * s, 4 * s, TEXT);
-        r.text(r.fit(config.describe(active) + (active.imported() ? "  |  Imported" : "  |  Managed"), w - 70 * s,
-                2.5f * s), x + 35 * s, top + banner + 12 * s, 2.5f * s, DIM);
-        r.text(r.fit(active.gameDir().toString(), w - 70 * s, 2.1f * s), x + 35 * s, top + banner + 50 * s, 2.1f * s, DIM);
-        r.text(config.modCount() + " mods  |  Heap " + config.heapMib + " MiB  |  GPU " + config.arenaMib + " MiB",
-                x + 35 * s, top + banner + 84 * s, 2.3f * s, DIM);
-        if (crash != null) r.text(r.fit("Last session: " + crash.title(), w - 70 * s, 2.1f * s),
-                x + 35 * s, top + banner + 116 * s, 2.1f * s, WARN);
+        r.textMiddle(r.fit(active.name(), w - 70 * s, 4 * s), x + 35 * s, top + banner - 58 * s, 48 * s, 4 * s, TEXT);
+        float line = top + banner + 8 * s;
+        r.textMiddle(r.fit(config.describe(active) + (active.imported() ? "  |  Imported" : "  |  Managed"), w - 70 * s,
+                2.5f * s), x + 35 * s, line, 32 * s, 2.5f * s, TEXT);
+        r.textMiddle(r.fit(active.gameDir().toString(), w - 70 * s, 2.1f * s), x + 35 * s, line + 34 * s, 30 * s, 2.1f * s, DIM);
+        r.textMiddle(config.modCount() + " mods  |  Heap " + config.heapMib + " MiB  |  GPU " + config.arenaMib + " MiB",
+                x + 35 * s, line + 66 * s, 30 * s, 2.3f * s, DIM);
+        if (crash != null) r.textMiddle(r.fit("Last session: " + crash.title(), w - 70 * s, 2.1f * s),
+                x + 35 * s, line + 98 * s, 30 * s, 2.1f * s, WARN);
 
         float py = top + cardH + 22 * s, ph = 86 * s;
         boolean playOn = focus == Focus.DETAIL && detailSelected == 0 && !editor.active();
@@ -1949,10 +1951,19 @@ class LauncherScreen {
             float y = py + ph + 16 * s + (i - 1) * 42 * s;
             boolean highlighted = focus == Focus.DETAIL && detailSelected == i && !editor.active();
             row(x, y, w, 38 * s, highlighted);
-            r.text(HOME_ACTIONS.get(i), x + 34 * s, y + 6 * s, 2.6f * s, highlighted ? TEXT : DIM);
+            r.textMiddle(HOME_ACTIONS.get(i), x + 34 * s, y, 38 * s, 2.6f * s, highlighted ? TEXT : DIM);
             int index = i;
             hit(x, y, w, 38 * s, () -> { focus = Focus.DETAIL; detailSelected = index; }, Input.Action.CONFIRM);
         }
+    }
+
+    /** A page's title, with a smaller note on the same baseline after it. */
+    private void pageTitle(String title, String note) {
+        float s = r.s, baseline = r.middleY(160 * s, 52 * s, 3.6f * s), x = 120 * s;
+        r.text(title, x, baseline, 3.6f * s, TEXT);
+        float end = r.width(title, 3.6f * s) + 30 * s;
+        if (!note.isEmpty()) r.textBaseline(r.fit(note, 1500 * s, 2.3f * s), x + end, r.middleY(160 * s, 52 * s, 3.6f * s)
+                + r.capBottom(3.6f * s), 2.3f * s, DIM);
     }
 
     /** A list row: a panel, and when chosen a lighter one marked with the accent on its left. */
@@ -1972,10 +1983,11 @@ class LauncherScreen {
         r.roundRect(x, y, w, h - 7 * s, 14 * s, focused ? ACCENT_HI : ACCENT);
         r.rect(x + 14 * s, y + 4 * s, w - 28 * s, 3 * s, 0x40ffffff);
         String label = "PLAY";
-        float scale = 4.4f * s, tw = r.width(label, scale);
-        r.text(label, x + (w - tw) / 2 + 3 * s, y + 25 * s, scale, 0x60000000);
-        r.text(label, x + (w - tw) / 2, y + 22 * s, scale, TEXT);
-        if (focused) r.button("cross", x + (w - tw) / 2 - 64 * s, y + 22 * s, 38 * s);
+        // Centred on the raised face, above the darker lip.
+        float scale = 4.4f * s, tw = r.width(label, scale), face = h - 7 * s, ty = r.middleY(y, face, scale);
+        r.text(label, x + (w - tw) / 2 + 3 * s, ty + 3 * s, scale, 0x60000000);
+        r.text(label, x + (w - tw) / 2, ty, scale, TEXT);
+        if (focused) r.button("cross", x + (w - tw) / 2 - 64 * s, y + (face - 38 * s) / 2, 38 * s);
     }
 
     /** Per runtime profile: the version line and the loader's initial; reading it each frame would read files. */
@@ -2031,11 +2043,11 @@ class LauncherScreen {
     private void choice(float x, float y, String no, String yes, boolean yesChosen, int yesColor,
                         Runnable chooseNo, Runnable chooseYes) {
         float s = r.s;
-        r.rect(x, y, 360 * s, 60 * s, yesChosen ? PANEL : ACCENT);
-        r.text(no, x + 25 * s, y + 12 * s, 3 * s, TEXT);
+        r.roundRect(x, y, 360 * s, 60 * s, 14 * s, yesChosen ? PANEL : ACCENT);
+        r.textCentered(no, x, y, 360 * s, 60 * s, 3 * s, TEXT);
         hit(x, y, 360 * s, 60 * s, chooseNo, Input.Action.CONFIRM);
-        r.rect(x + 410 * s, y, 360 * s, 60 * s, yesChosen ? yesColor : PANEL);
-        r.text(yes, x + 435 * s, y + 12 * s, 3 * s, yesChosen ? (yesColor == ACCENT ? TEXT : TEXT) : DIM);
+        r.roundRect(x + 410 * s, y, 360 * s, 60 * s, 14 * s, yesChosen ? yesColor : PANEL);
+        r.textCentered(yes, x + 410 * s, y, 360 * s, 60 * s, 3 * s, yesChosen ? TEXT : DIM);
         hit(x + 410 * s, y, 360 * s, 60 * s, chooseYes, Input.Action.CONFIRM);
     }
 
@@ -2048,14 +2060,14 @@ class LauncherScreen {
         String value = editor.value();
         String caret = value.substring(0, editor.caret()) + "|" + value.substring(editor.caret());
         r.roundRect(x + 30 * s, y + 100 * s, 1160 * s, 60 * s, 12 * s, PANEL);
-        r.text(r.fit(caret, 1120 * s, 3.5f * s), x + 40 * s, y + 113 * s, 3.5f * s, ACCENT_HI);
-        r.rect(x + 40 * s, y + 220 * s, 260 * s, 60 * s, ACCENT);
-        r.text("Accept", x + 70 * s, y + 232 * s, 3 * s, TEXT);
-        hit(x + 40 * s, y + 220 * s, 260 * s, 60 * s, null, Input.Action.CONFIRM);
-        r.roundRect(x + 340 * s, y + 220 * s, 260 * s, 60 * s, 12 * s, PANEL);
-        r.text("Cancel", x + 370 * s, y + 232 * s, 3 * s, TEXT);
-        hit(x + 340 * s, y + 220 * s, 260 * s, 60 * s, null, Input.Action.BACK);
-        r.text("Enter/Cross: accept   Escape/Circle: cancel", x + 650 * s, y + 240 * s, 2.2f * s, DIM);
+        r.textMiddle(r.fit(caret, 1120 * s, 3.5f * s), x + 50 * s, y + 100 * s, 60 * s, 3.5f * s, ACCENT_HI);
+        float by = y + 220 * s, bh = 60 * s;
+        r.roundRect(x + 40 * s, by, 260 * s, bh, 14 * s, ACCENT);
+        r.textCentered("Accept", x + 40 * s, by, 260 * s, bh, 3 * s, TEXT);
+        hit(x + 40 * s, by, 260 * s, bh, null, Input.Action.CONFIRM);
+        r.roundRect(x + 340 * s, by, 260 * s, bh, 14 * s, PANEL);
+        r.textCentered("Cancel", x + 340 * s, by, 260 * s, bh, 3 * s, TEXT);
+        hit(x + 340 * s, by, 260 * s, bh, null, Input.Action.BACK);
     }
 
     private void drawCloneOptions(float s) {
@@ -2234,9 +2246,7 @@ class LauncherScreen {
 
     private void drawSettings(float s) {
         InstanceStore.Instance current = config.selectedInstance();
-        r.text("Instance settings", 120 * s, 168 * s, 3.6f * s, TEXT);
-        r.text(r.fit(current.name(), 900 * s, 2.3f * s), 120 * s + r.width("Instance settings", 3.6f * s) + 30 * s,
-                182 * s, 2.3f * s, DIM);
+        pageTitle("Instance settings", current.name());
         String[][] rows = {
                 {"Java heap", "< " + config.heapMib + " MiB >"},
                 {"GPU memory", "< " + config.arenaMib + " MiB >"},
@@ -2250,11 +2260,12 @@ class LauncherScreen {
             float ry = y + i * rowH + (i >= 5 ? 24 * s : 0);
             if (i < 5) r.roundRect(x, ry, w, rowH - 10 * s, 12 * s, PANEL);
             row(x, ry, w, rowH - 10 * s, on);
-            r.text(rows[i][0], x + 34 * s, ry + 15 * s, 2.7f * s, on ? TEXT : i >= 5 ? DIM : TEXT);
+            float rh = rowH - 10 * s;
+            r.textMiddle(rows[i][0], x + 34 * s, ry, rh, 2.7f * s, on ? TEXT : i >= 5 ? DIM : TEXT);
             if (!rows[i][1].isEmpty()) {
                 String value = r.fit(rows[i][1], 520 * s, 2.5f * s);
                 boolean none = rows[i][1].equals("None");
-                r.text(value, x + w - 34 * s - r.width(value, 2.5f * s), ry + 17 * s, 2.5f * s, none ? DIM : ACCENT_HI);
+                r.textMiddle(value, x + w - 34 * s - r.width(value, 2.5f * s), ry, rh, 2.5f * s, none ? DIM : ACCENT_HI);
             }
             int index = i;
             hit(x, ry, w, rowH - 10 * s, () -> selected = index, Input.Action.CONFIRM);
@@ -2297,7 +2308,7 @@ class LauncherScreen {
             if (i == 0 && r.artwork() > 0) r.image(r.artwork(), x + 40 * s, y + 40 * s, 160 * s, 160 * s, WHITE);
             else {
                 r.roundRect(x + 40 * s, y + 40 * s, 160 * s, 160 * s, 24 * s, ACCENT_DARK);
-                r.text(cards[i][2], x + 40 * s + (160 * s - r.width(cards[i][2], 8 * s)) / 2, y + 70 * s, 8 * s, TEXT);
+                r.textCentered(cards[i][2], x + 40 * s, y + 40 * s, 160 * s, 160 * s, 8 * s, TEXT);
             }
             r.text(cards[i][0], x + 40 * s, y + 240 * s, 4.2f * s, TEXT);
             float ty = y + 310 * s;
@@ -2314,9 +2325,7 @@ class LauncherScreen {
 
     private void drawMods(float s) {
         long on = mods.stream().filter(LauncherScreen::enabled).count();
-        r.text("Mods", 120 * s, 168 * s, 3.6f * s, TEXT);
-        r.text(r.fit(on + " enabled, " + (mods.size() - on) + " disabled  |  " + config.selectedInstance().name(),
-                1400 * s, 2.3f * s), 120 * s + r.width("Mods", 3.6f * s) + 30 * s, 182 * s, 2.3f * s, DIM);
+        pageTitle("Mods", on + " enabled, " + (mods.size() - on) + " disabled  |  " + config.selectedInstance().name());
         int count = 1 + mods.size();
         if (selected >= count) selected = count - 1;
         float x = 120 * s, w = 880 * s, rowH = 66 * s;
@@ -2326,7 +2335,7 @@ class LauncherScreen {
             if (on2) r.roundRect(x, y + 8 * s, 6 * s, rowH - 6 * s - 16 * s, 3 * s, ACCENT);
             hit(x, y, w, rowH - 6 * s, () -> selected = i, Input.Action.CONFIRM);
             if (i == 0) {
-                r.text("+ Browse Modrinth for mods", x + 30 * s, y + 18 * s, 3 * s, ACCENT_HI);
+                r.textMiddle("+ Browse Modrinth for mods", x + 30 * s, y, rowH - 6 * s, 3 * s, ACCENT_HI);
                 return;
             }
             Path mod = mods.get(i - 1);
@@ -2336,11 +2345,16 @@ class LauncherScreen {
             String n = mod.getFileName().toString();
             String name = info != null ? info.name() : enabledMod ? n.substring(0, n.length() - 4)
                     : n.substring(0, n.length() - 13);
-            r.text(r.fit(name, w - 330 * s, 2.8f * s), x + 76 * s, y + 9 * s, 2.8f * s, enabledMod ? TEXT : DIM);
             String version = info != null ? info.version() : "";
-            r.text(r.fit(version, w - 330 * s, 2.1f * s), x + 76 * s, y + 38 * s, 2.1f * s, DIM);
+            // One line when the version is unknown, else name over version, centred on the row.
+            if (version.isEmpty())
+                r.textMiddle(r.fit(name, w - 330 * s, 2.8f * s), x + 76 * s, y, rowH - 6 * s, 2.8f * s, enabledMod ? TEXT : DIM);
+            else {
+                r.textMiddle(r.fit(name, w - 330 * s, 2.8f * s), x + 76 * s, y + 4 * s, 30 * s, 2.8f * s, enabledMod ? TEXT : DIM);
+                r.textMiddle(r.fit(version, w - 330 * s, 2.1f * s), x + 76 * s, y + 33 * s, 24 * s, 2.1f * s, DIM);
+            }
             String state = enabledMod ? "enabled" : "disabled";
-            r.text(state, x + w - r.width(state, 2.3f * s) - 24 * s, y + 20 * s, 2.3f * s, enabledMod ? GOOD : WARN);
+            r.textMiddle(state, x + w - r.width(state, 2.3f * s) - 24 * s, y, rowH - 6 * s, 2.3f * s, enabledMod ? GOOD : WARN);
         });
 
         // The selected mod's details, with Enable/Disable and Remove.
@@ -2383,11 +2397,11 @@ class LauncherScreen {
             ty += 32 * s;
         }
         float by = py + ph - 85 * s;
-        r.rect(px + 35 * s, by, 300 * s, 58 * s, enabledMod ? PANEL_HI : ACCENT);
-        r.text(enabledMod ? "Disable" : "Enable", px + 60 * s, by + 12 * s, 3 * s, TEXT);
+        r.roundRect(px + 35 * s, by, 300 * s, 58 * s, 14 * s, enabledMod ? PANEL_HI : ACCENT);
+        r.textCentered(enabledMod ? "Disable" : "Enable", px + 35 * s, by, 300 * s, 58 * s, 3 * s, TEXT);
         hit(px + 35 * s, by, 300 * s, 58 * s, null, Input.Action.CONFIRM);
-        r.rect(px + 365 * s, by, 300 * s, 58 * s, ERROR);
-        r.text("Remove", px + 390 * s, by + 12 * s, 3 * s, TEXT);
+        r.roundRect(px + 365 * s, by, 300 * s, 58 * s, 14 * s, ERROR);
+        r.textCentered("Remove", px + 365 * s, by, 300 * s, 58 * s, 3 * s, TEXT);
         hit(px + 365 * s, by, 300 * s, 58 * s, null, Input.Action.ALT2);
     }
 
@@ -2399,11 +2413,10 @@ class LauncherScreen {
             r.image(icon.texture(), x, y, size, size, bright ? WHITE : 0x80ffffff);
             return;
         }
-        r.rect(x, y, size, size, CHIP);
+        r.roundRect(x, y, size, size, size * 0.2f, CHIP);
         String n = info != null && !info.name().isEmpty() ? info.name() : mod.getFileName().toString();
         String letter = n.substring(0, 1).toUpperCase(java.util.Locale.ROOT);
-        float scale = size / 16f;
-        r.text(letter, x + (size - r.width(letter, scale)) / 2, y + size / 4, scale, DIM);
+        r.textCentered(letter, x, y, size, size, size / 16f, DIM);
     }
 
     // ------------------------------------------------------------------ browse page
@@ -2414,8 +2427,8 @@ class LauncherScreen {
         float tx = 120 * s, ty = 210 * s;
         for (ModrinthClient.Type type : ModrinthClient.Type.values()) {
             boolean current = type == browseType;
-            r.rect(tx, ty, 230 * s, 56 * s, current ? ACCENT : PANEL);
-            r.text(type.title, tx + (230 * s - r.width(type.title, 3 * s)) / 2, ty + 14 * s, 3 * s, current ? TEXT : TEXT);
+            r.roundRect(tx, ty, 230 * s, 56 * s, 14 * s, current ? ACCENT : PANEL);
+            r.textCentered(type.title, tx, ty, 230 * s, 56 * s, 3 * s, TEXT);
             ModrinthClient.Type target = type;
             clicks.add(tx, ty, 230 * s, 56 * s, () -> selected = 0, () -> {
                 selected = 0;
@@ -2429,11 +2442,11 @@ class LauncherScreen {
             });
             tx += 240 * s;
         }
-        if (selected == 0 && !editing) r.frame(120 * s - 4 * s, ty - 4 * s, 478 * s, 64 * s, 3 * s, WHITE);
+        if (selected == 0 && !editing) r.roundFrame(120 * s - 6 * s, ty - 6 * s, 482 * s, 68 * s, 18 * s, WHITE);
         // Row 1: the search box.
         float sx = 640 * s, sw = 740 * s;
         r.roundRect(sx, ty, sw, 56 * s, 12 * s, PANEL_HI);
-        if (selected == 1 || editing) r.frame(sx, ty, sw, 56 * s, 3 * s, editing ? ACCENT : WHITE);
+        if (selected == 1 || editing) r.roundFrame(sx, ty, sw, 56 * s, 16 * s, editing ? ACCENT : WHITE);
         String shown;
         int shownColor = TEXT;
         if (editing) {
@@ -2441,13 +2454,13 @@ class LauncherScreen {
             shown = v.substring(0, editor.caret()) + "|" + v.substring(editor.caret());
         } else if (query.length() > 0) shown = query.toString();
         else { shown = "Search " + browseType.title.toLowerCase(java.util.Locale.ROOT) + "..."; shownColor = DIM; }
-        r.text(r.fit(shown, sw - 40 * s, 3 * s), sx + 20 * s, ty + 14 * s, 3 * s, shownColor);
+        r.textMiddle(r.fit(shown, sw - 40 * s, 3 * s), sx + 20 * s, ty, 56 * s, 3 * s, shownColor);
         hit(sx, ty, sw, 56 * s, () -> selected = 1, Input.Action.CONFIRM);
         // Row 2: the sort.
         float ox = 1400 * s, ow = 400 * s;
         r.roundRect(ox, ty, ow, 56 * s, 12 * s, PANEL);
-        if (selected == 2 && !editing) r.frame(ox, ty, ow, 56 * s, 3 * s, WHITE);
-        r.text(r.fit("Sort: < " + sort.title + " >", ow - 30 * s, 2.6f * s), ox + 18 * s, ty + 16 * s, 2.6f * s, TEXT);
+        if (selected == 2 && !editing) r.roundFrame(ox, ty, ow, 56 * s, 16 * s, WHITE);
+        r.textMiddle(r.fit("Sort: < " + sort.title + " >", ow - 30 * s, 2.6f * s), ox + 18 * s, ty, 56 * s, 2.6f * s, TEXT);
         hit(ox, ty, ow, 56 * s, () -> selected = 2, Input.Action.CONFIRM);
 
         r.text(r.fit((browseType == ModrinthClient.Type.MOD ? "Mods for " : "Modpacks for ") + target(browseType)
@@ -2464,9 +2477,9 @@ class LauncherScreen {
             boolean on = selected == 3 + i && !editing;
             int index = 3 + i;
             if (i == hits.size()) {
-                r.rect(120 * s, y, cw, 60 * s, on ? ACCENT : PANEL);
+                r.roundRect(120 * s, y, cw, 60 * s, 14 * s, on ? ACCENT : PANEL);
                 String more = String.format("Load more  (%,d of %,d shown)", hits.size(), totalHits);
-                r.text(more, 120 * s + (cw - r.width(more, 3 * s)) / 2, y + 15 * s, 3 * s, on ? TEXT : TEXT);
+                r.textCentered(more, 120 * s, y, cw, 60 * s, 3 * s, TEXT);
                 hit(120 * s, y, cw, 60 * s, () -> selected = index, Input.Action.CONFIRM);
                 return;
             }
@@ -2483,25 +2496,27 @@ class LauncherScreen {
         float tx = x + 116 * s, right = x + w - 24 * s;
         String stats = compact(h.downloads()) + " downloads   " + compact(h.follows()) + " followers";
         float statsW = r.width(stats, 2.2f * s);
-        r.text(stats, right - statsW, y + 16 * s, 2.2f * s, DIM);
+        // Title, author and stats share one baseline; the description has its own line.
+        float firstLine = y + 38 * s;
+        r.textBaseline(stats, right - statsW, firstLine, 2.2f * s, DIM);
         String title = r.fit(h.title(), right - statsW - tx - 260 * s, 3.2f * s);
-        r.text(title, tx, y + 12 * s, 3.2f * s, TEXT);
+        r.textBaseline(title, tx, firstLine, 3.2f * s, TEXT);
         float aw = tx + r.width(title, 3.2f * s) + 16 * s;
-        r.text(r.fit("by " + h.author(), right - statsW - aw - 20 * s, 2.2f * s), aw, y + 20 * s, 2.2f * s, DIM);
-        r.text(r.fit(h.description(), right - tx, 2.4f * s), tx, y + 48 * s, 2.4f * s, TEXT);
+        r.textBaseline(r.fit("by " + h.author(), right - statsW - aw - 20 * s, 2.2f * s), aw, firstLine, 2.2f * s, DIM);
+        r.textBaseline(r.fit(h.description(), right - tx, 2.4f * s), tx, y + 68 * s, 2.4f * s, TEXT);
         float cx = tx;
         for (String c : h.categories()) {
             if (LOADERS.contains(c)) continue;
             String label = c.replace('-', ' ');
             float cw = r.width(label, 2 * s) + 20 * s;
             if (cx + cw > right - 260 * s) break;
-            r.rect(cx, y + 76 * s, cw, 24 * s, CHIP);
-            r.text(label, cx + 10 * s, y + 80 * s, 2 * s, DIM);
+            r.roundRect(cx, y + 76 * s, cw, 24 * s, 12 * s, CHIP);
+            r.textCentered(label, cx, y + 76 * s, cw, 24 * s, 2 * s, DIM);
             cx += cw + 8 * s;
         }
         if (!h.updated().isEmpty()) {
             String updated = "Updated " + date(h.updated());
-            r.text(updated, right - r.width(updated, 2 * s), y + 80 * s, 2 * s, DIM);
+            r.textMiddle(updated, right - r.width(updated, 2 * s), y + 76 * s, 24 * s, 2 * s, DIM);
         }
     }
 
@@ -2515,8 +2530,7 @@ class LauncherScreen {
             r.rect(x, y, w, h, CHIP);
             if (name != null && !name.isEmpty() && !images.loading(url, size)) {
                 String letter = name.substring(0, 1).toUpperCase(java.util.Locale.ROOT);
-                float scale = Math.min(w, h) / 16f;
-                r.text(letter, x + (w - r.width(letter, scale)) / 2, y + (h - 8 * scale) / 2, scale, DIM);
+                r.textCentered(letter, x, y, w, h, Math.min(w, h) / 16f, DIM);
             }
             return false;
         }
@@ -2589,13 +2603,11 @@ class LauncherScreen {
         if (banner == null) r.text(r.fit(h.description(), textW, 2.4f * s), textX, titleY + 78 * s, 2.4f * s, TEXT);
 
         boolean actions = zone == Zone.ACTIONS && galleryOpen < 0;
-        r.rect(bx, by, 340 * s, 58 * s, actions && actionSelected == 0 ? ACCENT : PANEL_HI);
-        r.text(installLabel, bx + (340 * s - r.width(installLabel, 3 * s)) / 2, by + 14 * s, 3 * s,
-                actions && actionSelected == 0 ? TEXT : ACCENT_HI);
+        r.roundRect(bx, by, 340 * s, 58 * s, 14 * s, actions && actionSelected == 0 ? ACCENT : PANEL_HI);
+        r.textCentered(installLabel, bx, by, 340 * s, 58 * s, 3 * s, actions && actionSelected == 0 ? TEXT : ACCENT_HI);
         hit(bx, by, 340 * s, 58 * s, () -> { zone = Zone.ACTIONS; actionSelected = 0; }, Input.Action.CONFIRM);
-        r.rect(bx + 360 * s, by, 200 * s, 58 * s, actions && actionSelected == 1 ? ACCENT : PANEL_HI);
-        r.text("Back", bx + 360 * s + (200 * s - r.width("Back", 3 * s)) / 2, by + 14 * s, 3 * s,
-                actions && actionSelected == 1 ? TEXT : TEXT);
+        r.roundRect(bx + 360 * s, by, 200 * s, 58 * s, 14 * s, actions && actionSelected == 1 ? ACCENT : PANEL_HI);
+        r.textCentered("Back", bx + 360 * s, by, 200 * s, 58 * s, 3 * s, TEXT);
         hit(bx + 360 * s, by, 200 * s, 58 * s, () -> { zone = Zone.ACTIONS; actionSelected = 1; }, Input.Action.CONFIRM);
 
         // Tabs.
@@ -2608,8 +2620,8 @@ class LauncherScreen {
             boolean current = t == tab;
             r.roundRect(tx, tabsY, tw, 52 * s, 12 * s, current ? PANEL_HI : PANEL);
             if (current) r.rect(tx, tabsY + 48 * s, tw, 4 * s, ACCENT);
-            r.text(label, tx + 25 * s, tabsY + 12 * s, 3 * s, current ? TEXT : DIM);
-            if (zone == Zone.TABS && current && galleryOpen < 0) r.frame(tx, tabsY, tw, 52 * s, 3 * s, WHITE);
+            r.textMiddle(label, tx + 25 * s, tabsY, 52 * s, 3 * s, current ? TEXT : DIM);
+            if (zone == Zone.TABS && current && galleryOpen < 0) r.roundFrame(tx, tabsY, tw, 52 * s, 16 * s, WHITE);
             Tab target = t;
             clicks.add(tx, tabsY, tw, 52 * s, null, () -> {
                 if (busy && !cancellable) return;
@@ -2797,16 +2809,18 @@ class LauncherScreen {
             r.roundRect(x + 20 * s, ry, w - 40 * s, rowH - 6 * s, 12 * s, on ? PANEL_HI : PANEL);
             if (on) r.roundRect(x + 20 * s, ry + 8 * s, 6 * s, rowH - 6 * s - 16 * s, 3 * s, ACCENT);
             int typeColor = "release".equals(v.type()) ? GOOD : "beta".equals(v.type()) ? WARN : ERROR;
-            r.rect(x + 40 * s, ry + 11 * s, 110 * s, 28 * s, typeColor);
-            r.text(v.type(), x + 50 * s, ry + 16 * s, 2.1f * s, DARK);
-            r.text(r.fit(v.number(), 470 * s, 2.7f * s), x + 170 * s, ry + 12 * s, 2.7f * s, TEXT);
+            // Every column centred on the type chip's band.
+            float band = ry + 11 * s, bandH = 28 * s;
+            r.roundRect(x + 40 * s, band, 110 * s, bandH, bandH / 2, typeColor);
+            r.textCentered(v.type(), x + 40 * s, band, 110 * s, bandH, 2.1f * s, DARK);
+            r.textMiddle(r.fit(v.number(), 470 * s, 2.7f * s), x + 170 * s, band, bandH, 2.7f * s, TEXT);
             String games = String.join(", ", v.gameVersions().size() > 4
                     ? List.of(v.gameVersions().get(0), "...", v.gameVersions().get(v.gameVersions().size() - 1)) : v.gameVersions());
-            r.text(r.fit(games, 400 * s, 2.3f * s), x + 670 * s, ry + 15 * s, 2.3f * s, DIM);
-            r.text(r.fit(String.join(", ", v.loaders()), 220 * s, 2.3f * s), x + 1090 * s, ry + 15 * s, 2.3f * s, DIM);
-            r.text(date(v.published()), x + 1320 * s, ry + 15 * s, 2.3f * s, DIM);
+            r.textMiddle(r.fit(games, 400 * s, 2.3f * s), x + 670 * s, band, bandH, 2.3f * s, DIM);
+            r.textMiddle(r.fit(String.join(", ", v.loaders()), 220 * s, 2.3f * s), x + 1090 * s, band, bandH, 2.3f * s, DIM);
+            r.textMiddle(date(v.published()), x + 1320 * s, band, bandH, 2.3f * s, DIM);
             String dl = compact(v.downloads());
-            r.text(dl, x + w - 50 * s - r.width(dl, 2.3f * s), ry + 15 * s, 2.3f * s, DIM);
+            r.textMiddle(dl, x + w - 50 * s - r.width(dl, 2.3f * s), band, bandH, 2.3f * s, DIM);
             hit(x + 20 * s, ry, w - 40 * s, rowH - 6 * s, () -> { zone = Zone.CONTENT; versionSelected = i + 1; },
                     Input.Action.CONFIRM);
         });
@@ -2834,7 +2848,7 @@ class LauncherScreen {
         for (int i = 0; i < items.size(); i++) {
             boolean on = i == selected && !editor.active() && !systemKeyboardOpen;
             row(x, y - 10 * s, w, 60 * s, on);
-            r.text(items.get(i), x + 34 * s, y, 3.4f * s, on ? TEXT : DIM);
+            r.textMiddle(items.get(i), x + 34 * s, y - 10 * s, 60 * s, 3.4f * s, on ? TEXT : DIM);
             int index = i;
             hit(x, y - 10 * s, w, 60 * s, () -> selected = index, Input.Action.CONFIRM);
             y += 70 * s;
@@ -2847,7 +2861,7 @@ class LauncherScreen {
         scrollList(scrollers[page.ordinal()], rows.size(), selected, x, y - 8 * s, w, visible * rowH, rowH, (i, ry) -> {
             boolean on = i == selected && !editor.active() && !systemKeyboardOpen;
             row(x, ry, w, 46 * s, on);
-            r.text(r.fit(rows.get(i), w - 48 * s, scale), x + 28 * s, ry + 8 * s, scale, on ? TEXT : colors.get(i));
+            r.textMiddle(r.fit(rows.get(i), w - 48 * s, scale), x + 28 * s, ry, 46 * s, scale, on ? TEXT : colors.get(i));
             hit(x, ry, w, 46 * s, () -> selected = i, Input.Action.CONFIRM);
         });
     }
