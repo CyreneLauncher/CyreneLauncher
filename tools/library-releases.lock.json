@@ -8,18 +8,18 @@
     },
     "openal-soft-orbis": {
       "spec": "release.json",
-      "revision": "6a05be6566494610b047ff9c115d2b30e9f4d7c2",
-      "sha256": "60c3a42076d3af10928ac096331454114a98922475c14c61db64d9da3496eb4a"
+      "revision": "8de2979e367c486cf636e0bbeafc3bce8c39dc24",
+      "sha256": "6b5dbf91b1b95e07caa1d023503c7a5670b42c7499b8f10d1810cfd7d7b9365c"
     },
     "sdl-orbis": {
       "spec": "release.json",
-      "revision": "36b56a86f6da935786842228d38b575406339c46",
-      "sha256": "1a150e87618c8799b49662d85493043c4e39417a721c2dc6b69b8d827ab24b49"
+      "revision": "f92bd0e2edf3cda3d85dbd6bb16b64444b1f8c10",
+      "sha256": "24e58292c7ca088454fc306ab655056bf021977bce01bccc41655ed36a59a8ae"
     },
     "lwjgl-orbis": {
       "spec": "release.json",
-      "revision": "9d8327cb1239d08bad595bbb86488dcb6c73e00b",
-      "sha256": "5d4a275b3b768ef619f228166997cc09a54558586d85683d0e4cf7e539582133"
+      "revision": "ac58aa74a0800eb3c7eb1da87123486c4d25587a",
+      "sha256": "4642951a9519f9a1609f9abbfb8f881b43997663c3635c6d4f80c8383155484f"
     }
   }
 }
