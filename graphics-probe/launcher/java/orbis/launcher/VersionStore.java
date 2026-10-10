@@ -286,7 +286,8 @@ final class VersionStore {
             for (JsonElement element : loaderLibraries) {
                 JsonObject library = element.getAsJsonObject();
                 String name = library.get("name").getAsString();
-                op.progress("Downloading " + loader.title + " libraries (" + ++index + "/" + loaderLibraries.size() + ")");
+                op.progress("Downloading " + loader.title + " libraries (" + ++index + "/" + loaderLibraries.size() + ")",
+                        (double) index / loaderLibraries.size());
                 if (!seen.add(key(name))) continue;
                 JsonObject entry = mavenLibrary(library);
                 merged.add(entry);
@@ -319,7 +320,8 @@ final class VersionStore {
         for (JsonElement element : vanillaLibraries) {
             JsonObject library = element.getAsJsonObject();
             String name = library.get("name").getAsString();
-            op.progress("Downloading Minecraft libraries (" + ++index + "/" + vanillaLibraries.size() + ")");
+            op.progress("Downloading Minecraft libraries (" + ++index + "/" + vanillaLibraries.size() + ")",
+                    (double) index / vanillaLibraries.size());
             if (ownLwjgl && name.startsWith("org.lwjgl:")) {
                 // Orbis natives come from the graphics bundle; the Linux ones are never used.
                 if (name.split(":").length == 4 && name.split(":")[3].startsWith("natives-")) continue;
@@ -417,7 +419,7 @@ final class VersionStore {
         long total = missing.stream().mapToLong(Map.Entry::getValue).sum();
         AtomicInteger done = new AtomicInteger();
         AtomicLong bytes = new AtomicLong();
-        op.progress("Downloading assets: " + missing.size() + " of " + objects.size() + " needed (" + (total >> 20) + " MiB)");
+        op.progress("Downloading assets: " + missing.size() + " of " + objects.size() + " needed (" + (total >> 20) + " MiB)", 0);
         ExecutorService pool = Executors.newFixedThreadPool(DOWNLOAD_THREADS, task -> {
             Thread t = new Thread(task, "asset download");
             t.setDaemon(true);
@@ -433,7 +435,7 @@ final class VersionStore {
                     int n = done.incrementAndGet();
                     long b = bytes.addAndGet(object.getValue());
                     op.progress("Downloading assets: " + n + "/" + missing.size() + " (" + (b >> 20) + " of "
-                            + (total >> 20) + " MiB)");
+                            + (total >> 20) + " MiB)", total == 0 ? 1 : (double) b / total);
                     return null;
                 }));
             }

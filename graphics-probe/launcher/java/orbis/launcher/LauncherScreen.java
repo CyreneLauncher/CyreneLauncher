@@ -244,6 +244,8 @@ class LauncherScreen {
     /** Circle abandons a cancellable task: its result is dropped and the screen is usable again. */
     private <T> void background(String message, boolean canCancel, Work<T> work, Done<T> done) {
         busy = true;
+        workText = null;
+        workFraction = -1;
         cancellable = canCancel;
         long started = generation, task = ++activeTask;
         setStatus(message, DIM);
@@ -687,7 +689,7 @@ class LauncherScreen {
             case VERSIONS -> 1 + catalog.size();
             case SETTINGS -> SETTINGS_ROWS;
             case CREATE -> 2;
-            case ACCOUNTS -> accountList().size() + 2;
+            case ACCOUNTS -> accountList().size() + 1;
             case MODS -> 1 + mods.size();
             case BROWSE -> browseRows();
             case PROJECT -> 1;
@@ -715,8 +717,7 @@ class LauncherScreen {
             case ACCOUNTS -> {
                 List<AccountStore.Account> list = accountList();
                 if (selected < list.size()) makeDefault(list.get(selected));
-                else if (selected == list.size()) startMicrosoftLogin();
-                else cycleInstanceAccount(+1);
+                else startMicrosoftLogin();
             }
             case SETTINGS -> {
                 switch (selected) {
@@ -818,6 +819,10 @@ class LauncherScreen {
         }
     }
 
+    /** A background task's own progress (a runtime download), shown in place of the status text. */
+    private volatile String workText;
+    private volatile double workFraction = -1;
+
     private static final List<String> HOME_ACTIONS = List.of("Play", "Mods", "Instance settings", "New instance",
             "Clone", "Rename", "Remove", "Quit");
     /** Heap, GPU memory, JVM arguments, Minecraft arguments, debug log, Save, Back. */
@@ -860,6 +865,11 @@ class LauncherScreen {
     private interface InstanceWork { InstanceStore.Instance run(InstanceStore.Operation operation) throws IOException; }
 
     private void startInstanceOperation(String message, InstanceStore.Operation operation, InstanceWork work) {
+        startInstanceOperation(message, operation, work, null);
+    }
+
+    /** then runs after the instance is selected, if the operation completed. */
+    private void startInstanceOperation(String message, InstanceStore.Operation operation, InstanceWork work, Runnable then) {
         long started = ++generation;
         instanceOperation = operation;
         busy = true;
@@ -874,7 +884,9 @@ class LauncherScreen {
                         return;
                     }
                     try { chooseInstance(result.id()); }
-                    catch (IOException failure) { setStatus("Created, but could not select: " + failure.getMessage(), ERROR); }
+                    catch (IOException failure) { setStatus("Created, but could not select: " + failure.getMessage(), ERROR); return; }
+                    instanceInfo.clear();
+                    if (then != null) then.run();
                 });
             } catch (Exception failure) {
                 results.add(() -> {
@@ -955,7 +967,6 @@ class LauncherScreen {
 
     private void adjust(int direction) {
         if (page == Page.VERSIONS && selected == 0) { cycleLoader(direction); return; }
-        if (page == Page.ACCOUNTS && selected == accountList().size() + 1) { cycleInstanceAccount(direction); return; }
         if (page == Page.CREATE) { selected = (selected + 2 + direction) % 2; return; }
         if (page != Page.SETTINGS) return;
         int step = direction * LauncherConfig.STEP_MIB;
@@ -988,9 +999,22 @@ class LauncherScreen {
 
     private void play() {
         final InstanceStore.Instance instance = config.selectedInstance();
+        // An instance without a game yet: install the newest Minecraft with Fabric, then play it.
+        if (config.installed(instance) == null && config.launcherOnly) {
+            if (!ownsMinecraft()) return;
+            startInstanceOperation("Finding the latest Minecraft...", new InstanceStore.Operation(), op -> {
+                op.progress("Finding the latest Minecraft...");
+                List<VersionStore.GameVersion> versions = fetchCatalog(VersionStore.Loader.FABRIC);
+                if (versions.isEmpty()) throw new IOException("No Minecraft release is available");
+                Path profile = profileFor(versions.get(0), VersionStore.Loader.FABRIC, op);
+                return config.instances.setProfile(instance.id(), profile);
+            }, this::play);
+            return;
+        }
         background("Checking account before starting...", () -> {
             if (dirty) config.save();
-            AccountStore.Account account = accounts().resolveAccount(instance.accountId());
+            // One account for every instance: the one selected on the Accounts page.
+            AccountStore.Account account = accounts().resolveAccount("");
             authClient().refresh(account.id());
             InstanceStore.Instance current = config.instances.get(instance.id());
             VersionStore.Installed version = config.installed(current);
@@ -1047,7 +1071,10 @@ class LauncherScreen {
 
     /** Before a launch: the runtime the version needs, downloaded or updated, with progress in the status line. */
     protected void prepareRuntime(int java) throws IOException {
-        config.ensureRuntime(java, text -> results.add(() -> setStatus(text, DIM)));
+        config.ensureRuntime(java, (text, done) -> {
+            workText = text;
+            workFraction = done;
+        });
     }
 
     /** The game profile a new instance runs: the built-in 1.18.2, an installed version, or a fresh download. */
@@ -1084,17 +1111,18 @@ class LauncherScreen {
         } catch (IOException failure) { return "Unavailable"; }
     }
 
-    /** What Play will use for the selected instance. */
+    /** The account Play uses: the selected one, for every instance. */
     private String effectiveAccount(InstanceStore.Instance instance) {
-        if (!instance.accountId().isEmpty()) return accountName(instance.accountId());
-        try { return "Default: " + accountName(accounts().defaultAccountId()); }
-        catch (IOException failure) { return "Unavailable"; }
+        try {
+            String id = accounts().defaultAccountId();
+            return id == null || id.isEmpty() ? "No account" : accountName(id);
+        } catch (IOException failure) { return "Unavailable"; }
     }
 
     private void makeDefault(AccountStore.Account account) {
         try {
             accounts().selectDefault(account.id());
-            setStatus(account.username() + " is now the default account.", GOOD);
+            setStatus("Playing as " + account.username() + ".", GOOD);
         } catch (IOException failure) { setStatus("Cannot change the default: " + failure.getMessage(), ERROR); }
     }
 
@@ -1104,19 +1132,6 @@ class LauncherScreen {
         AccountStore.Account account = list.get(selected);
         accountRemovePending = account.id();
         removeConfirmed = false;
-    }
-
-    /** Follow default, then each account in turn; the choice is saved with the instance. */
-    private void cycleInstanceAccount(int direction) {
-        List<String> choices = new ArrayList<>();
-        choices.add("");
-        for (AccountStore.Account account : accountList()) choices.add(account.id());
-        int at = Math.max(0, choices.indexOf(config.selectedInstance().accountId()));
-        String next = choices.get((at + direction + choices.size()) % choices.size());
-        try {
-            config.setInstanceAccount(next);
-            setStatus(config.selectedInstance().name() + " uses " + effectiveAccount(config.selectedInstance()) + ".", GOOD);
-        } catch (IOException failure) { setStatus("Cannot save the instance account: " + failure.getMessage(), ERROR); }
     }
 
     private void accountRemoveAction(Input.Action action) {
@@ -1732,7 +1747,10 @@ class LauncherScreen {
         if (plan != null) drawPlanDialog(s);
         if (pack != null) drawPackDialog(s);
         if (editor.active() && editingField != null && editingField != Field.SEARCH) drawNameDialog(s);
-        String shownStatus = instanceOperation == null ? status : instanceOperation.progress();
+        String shownStatus = instanceOperation != null ? instanceOperation.progress()
+                : busy && workText != null ? workText : status;
+        double fraction = instanceOperation != null ? instanceOperation.fraction() : busy && workText != null ? workFraction : -1;
+        if (busy || instanceOperation != null) drawProgress(fraction);
         if (instanceOperation != null && instanceOperation.destination() != null)
             r.text(r.fit("Destination: " + instanceOperation.destination(), r.width - 240 * s, 2.2f * s),
                     120 * s, r.height - 178 * s, 2.2f * s, DIM);
@@ -1746,6 +1764,26 @@ class LauncherScreen {
         if (busy && (cancellable || instanceOperation != null))
             hit(120 * s, r.height - 70 * s, hintWidth, 54 * s, null, Input.Action.BACK);
         reveal = false;
+    }
+
+    /**
+     * The bar above the status line while the launcher works: filled to the fraction when it is known,
+     * else a band sweeping across.
+     */
+    private void drawProgress(double fraction) {
+        float s = r.s, x = 120 * s, y = r.height - 104 * s, w = r.width - 240 * s, h = 8 * s;
+        r.roundRect(x, y, w, h, h / 2, PANEL_HI);
+        if (fraction >= 0) {
+            float fill = (float) Math.min(1, fraction) * w;
+            if (fill > 0) r.roundRect(x, y, Math.max(h, fill), h, h / 2, ACCENT_HI);
+            String percent = Math.round(Math.min(1, fraction) * 100) + "%";
+            r.textMiddle(percent, x + w - r.width(percent, 2.2f * s), y - 40 * s, 30 * s, 2.2f * s, DIM);
+        } else {
+            float band = w * 0.22f, phase = (System.nanoTime() % 1_600_000_000L) / 1.6e9f;
+            float start = -band + (w + band) * phase;
+            float a = Math.max(x, x + start), b = Math.min(x + w, x + start + band);
+            if (b > a) r.roundRect(a, y, b - a, h, h / 2, ACCENT_HI);
+        }
     }
 
     /**
@@ -1889,7 +1927,7 @@ class LauncherScreen {
             case CREATE -> "Left/Right: choose   Cross/Enter: open   Circle/Escape: back";
             case SETTINGS -> "Left/Right: change   Cross/Enter: edit or select   Circle/Escape: back";
             case INSTANCES -> "Cross/Enter: select   Left/Right or Tab: focus   L1/R1: section";
-            case ACCOUNTS -> "Cross: make default / choose   Triangle: rename or sign out   Circle: back   L1/R1: section";
+            case ACCOUNTS -> "Cross: use this account   Triangle: sign out   Circle: back   L1/R1: section";
             default -> "Cross/Enter: select   Circle/Escape: back   L1/R1: section";
         };
     }
@@ -2114,17 +2152,11 @@ class LauncherScreen {
         List<Integer> colors = new ArrayList<>();
         for (AccountStore.Account account : accountList()) {
             boolean isDefault = account.id().equals(defaultId);
-            rows.add((isDefault ? "* " : "  ") + account.username()
-                    + "   (Microsoft)"
-                    + (isDefault ? "   default" : ""));
+            rows.add(account.username() + "   Microsoft account" + (isDefault ? "   (in use)" : ""));
             colors.add(TEXT);
         }
         rows.add("Add Microsoft account");
         colors.add(ACCENT_HI);
-        InstanceStore.Instance active = config.selectedInstance();
-        rows.add("Account for " + active.name() + ":  < "
-                + (active.accountId().isEmpty() ? "Follow default" : accountName(active.accountId())) + " >");
-        colors.add(TEXT);
         list(rows, colors, 120 * s, 280 * s, 1680 * s, 12);
     }
 

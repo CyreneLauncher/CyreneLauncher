@@ -16,7 +16,6 @@ import java.security.DigestInputStream;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
-import java.util.function.Consumer;
 
 import org.tukaani.xz.XZInputStream;
 
@@ -34,8 +33,11 @@ final class RuntimeInstaller {
     private static final String USER_AGENT = "orbis-launcher (PlayStation 4 Minecraft launcher)";
     private static final long MAX_ARCHIVE = 512L << 20, MAX_UNPACKED = 1536L << 20;
 
-    /** The network seam, replaced in tests. */
-    interface Source { InputStream open(String url) throws IOException; }
+    /** The network seam, replaced in tests: a stream and its length in bytes (negative when unknown). */
+    interface Source { Opened open(String url) throws IOException; }
+    record Opened(InputStream in, long length) { }
+    /** What is happening, and how much of it is done (0 to 1, negative when not known). */
+    interface Progress { void report(String text, double fraction); }
 
     private final Path root;
     private final Source source;
@@ -64,7 +66,7 @@ final class RuntimeInstaller {
      * Makes sure root/jdk<feature> holds the download release's runtime: installs it when missing, replaces it
      * when the release has a different build. An installed runtime survives a failed check.
      */
-    Path ensure(int feature, Consumer<String> progress) throws IOException {
+    Path ensure(int feature, Progress progress) throws IOException {
         Path home = root.resolve("jdk" + feature);
         String installed = installedSha(home);
         String expected;
@@ -83,7 +85,7 @@ final class RuntimeInstaller {
             makeLoadable(home);
             return home;
         }
-        progress.accept((installed == null ? "Downloading" : "Updating") + " Java " + feature + "...");
+        progress.report((installed == null ? "Downloading" : "Updating") + " Java " + feature + "...", 0);
         install(feature, expected, progress);
         return home;
     }
@@ -101,7 +103,7 @@ final class RuntimeInstaller {
     private String expectedSha(int feature) throws IOException {
         String name = asset(feature);
         String sums;
-        try (InputStream in = source.open(RELEASE + "SHA256SUMS")) {
+        try (InputStream in = source.open(RELEASE + "SHA256SUMS").in()) {
             sums = new String(in.readNBytes(65536), StandardCharsets.US_ASCII);
         }
         for (String line : sums.split("\n")) {
@@ -111,7 +113,7 @@ final class RuntimeInstaller {
         throw new IOException("The runtime release lists no " + name);
     }
 
-    private void install(int feature, String sha256, Consumer<String> progress) throws IOException {
+    private void install(int feature, String sha256, Progress progress) throws IOException {
         Files.createDirectories(root);
         String name = "jdk" + feature;
         Path archive = root.resolve("." + name + ".tar.xz"), staging = root.resolve("." + name + "-staging"),
@@ -120,7 +122,8 @@ final class RuntimeInstaller {
         deleteTree(old);
         try {
             MessageDigest digest = sha256();
-            try (InputStream in = new DigestInputStream(source.open(RELEASE + asset(feature)), digest);
+            Opened opened = source.open(RELEASE + asset(feature));
+            try (InputStream in = new DigestInputStream(opened.in(), digest);
                  OutputStream out = Files.newOutputStream(archive)) {
                 byte[] buffer = new byte[1 << 16];
                 long total = 0, shown = 0;
@@ -128,15 +131,17 @@ final class RuntimeInstaller {
                     total += n;
                     if (total > MAX_ARCHIVE) throw new IOException("Java " + feature + " download is too large");
                     out.write(buffer, 0, n);
-                    if (total - shown >= 4 << 20) {
+                    if (total - shown >= 1 << 20) {
                         shown = total;
-                        progress.accept("Downloading Java " + feature + " (" + (total >> 20) + " MiB)...");
+                        progress.report("Downloading Java " + feature + " (" + (total >> 20)
+                                + (opened.length() > 0 ? " of " + (opened.length() >> 20) : "") + " MiB)...",
+                                opened.length() > 0 ? (double) total / opened.length() : -1);
                     }
                 }
             }
             if (!HexFormat.of().formatHex(digest.digest()).equals(sha256))
                 throw new IOException("Java " + feature + " download does not match its release checksum");
-            progress.accept("Unpacking Java " + feature + "...");
+            progress.report("Unpacking Java " + feature + "...", -1);
             try (InputStream in = new XZInputStream(new BufferedInputStream(Files.newInputStream(archive), 1 << 16))) {
                 Tar.extract(in, staging, name + "/", MAX_UNPACKED);
             }
@@ -191,7 +196,7 @@ final class RuntimeInstaller {
         catch (NoSuchAlgorithmException impossible) { throw new IllegalStateException(impossible); }
     }
 
-    private static InputStream download(String url) throws IOException {
+    private static Opened download(String url) throws IOException {
         URI uri = URI.create(url);
         if (!"https".equals(uri.getScheme())) throw new IOException("Refusing non-HTTPS download " + url);
         HttpURLConnection connection = (HttpURLConnection) uri.toURL().openConnection();
@@ -203,7 +208,7 @@ final class RuntimeInstaller {
             connection.disconnect();
             throw new IOException("HTTP " + status + " from " + uri.getHost());
         }
-        return connection.getInputStream();
+        return new Opened(connection.getInputStream(), connection.getContentLengthLong());
     }
 
     /** The subset of tar the release archives use: directories and regular files, with PAX or GNU long names. */

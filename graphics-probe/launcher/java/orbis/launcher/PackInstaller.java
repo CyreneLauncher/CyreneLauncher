@@ -217,7 +217,7 @@ class PackInstaller {
                     op.check();
                     fetchFile(file, game);
                     int n = finished.incrementAndGet();
-                    op.progress("Downloading pack files " + n + " of " + files.size() + "...");
+                    op.progress("Downloading pack files " + n + " of " + files.size() + "...", (double) n / files.size());
                     return null;
                 }));
             }

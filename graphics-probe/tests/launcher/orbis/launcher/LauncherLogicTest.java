@@ -271,30 +271,33 @@ public final class LauncherLogicTest {
         RuntimeInstaller installer = new RuntimeInstaller(root, url -> {
             byte[] data = release.get(url.substring(RuntimeInstaller.RELEASE.length()));
             if (data == null) throw new IOException("HTTP 404");
-            return new java.io.ByteArrayInputStream(data);
+            return new RuntimeInstaller.Opened(new java.io.ByteArrayInputStream(data), data.length);
         });
         List<String> progress = new ArrayList<>();
+        List<Double> fractions = new ArrayList<>();
+        RuntimeInstaller.Progress report = (text, done) -> { progress.add(text); fractions.add(done); };
         String asset = RuntimeInstaller.asset(21);
         byte[] first = runtimeArchive("jdk21", "21.0.11", false);
         try {
-            installer.ensure(21, progress::add);
+            installer.ensure(21, report);
             throw new AssertionError("no runtime without the release");
         } catch (IOException expected) {
             check(expected.getMessage().contains("must be downloaded"), expected.getMessage());
         }
         release.put(asset, first);
         release.put("SHA256SUMS", (sha256(first) + "  " + asset + "\n").getBytes(StandardCharsets.US_ASCII));
-        Path home = installer.ensure(21, progress::add);
+        Path home = installer.ensure(21, report);
         check(home.equals(root.resolve("jdk21")) && Runtimes.feature(home, -1) == 21, "Java 21 installed: " + home);
         check(Files.isRegularFile(home.resolve("legal/" + "x".repeat(120))), "PAX long names unpacked");
         check(progress.get(0).equals("Downloading Java 21..."), "progress shown: " + progress);
+        check(fractions.get(0) == 0 && fractions.stream().allMatch(f -> f <= 1.0001), "progress fractions: " + fractions);
         // The kernel refuses to load a PRX without execute access (EACCES 0xd on the console).
         check(Files.isExecutable(home.resolve("lib/server/libjvm.prx")), "unpacked modules are executable");
         home.resolve("lib/server/libjvm.prx").toFile().setExecutable(false, false);
-        installer.ensure(21, progress::add);
+        installer.ensure(21, report);
         check(Files.isExecutable(home.resolve("lib/server/libjvm.prx")), "an installed runtime's modules are repaired");
         progress.clear();
-        installer.ensure(21, progress::add);
+        installer.ensure(21, report);
         check(progress.isEmpty(), "an up-to-date runtime is not downloaded again: " + progress);
         Runtimes runtimes = Runtimes.discover(export(Files.createTempDirectory("packaged").resolve("jdk17"), "17.0.20"),
                 Path.of("/nonexistent"), root);
@@ -303,7 +306,7 @@ public final class LauncherLogicTest {
         byte[] second = runtimeArchive("jdk21", "21.0.12", false);
         release.put(asset, second);
         release.put("SHA256SUMS", (sha256(second) + "  " + asset + "\n").getBytes(StandardCharsets.US_ASCII));
-        installer.ensure(21, progress::add);
+        installer.ensure(21, report);
         check(Files.readString(home.resolve("release")).contains("21.0.12") && progress.get(0).startsWith("Updating"),
                 "a newer release replaces the runtime: " + progress);
         try (java.util.stream.Stream<Path> left = Files.list(root)) {
@@ -311,13 +314,13 @@ public final class LauncherLogicTest {
         }
 
         release.remove("SHA256SUMS");
-        check(installer.ensure(21, progress::add).equals(home), "offline keeps the installed runtime");
+        check(installer.ensure(21, report).equals(home), "offline keeps the installed runtime");
 
         byte[] corrupt = runtimeArchive("jdk21", "21.0.13", false);
         release.put(asset, corrupt);
         release.put("SHA256SUMS", ("0".repeat(64) + "  " + asset + "\n").getBytes(StandardCharsets.US_ASCII));
         try {
-            installer.ensure(21, progress::add);
+            installer.ensure(21, report);
             throw new AssertionError("a download that does not match its checksum must not install");
         } catch (IOException expected) {
             check(expected.getMessage().contains("checksum"), expected.getMessage());
@@ -328,7 +331,7 @@ public final class LauncherLogicTest {
         release.put(RuntimeInstaller.asset(25), escaping);
         release.put("SHA256SUMS", (sha256(escaping) + "  " + RuntimeInstaller.asset(25) + "\n").getBytes(StandardCharsets.US_ASCII));
         try {
-            installer.ensure(25, progress::add);
+            installer.ensure(25, report);
             throw new AssertionError("an archive writing outside its runtime must not install");
         } catch (IOException expected) {
             check(expected.getMessage().contains("Unsafe") || expected.getMessage().contains("Unexpected"), expected.getMessage());
@@ -390,7 +393,8 @@ public final class LauncherLogicTest {
         System.setProperty("orbis.launcher.gameMetadata", metadata.toString());
         System.setProperty("user.dir", game.toString());
         LauncherConfig config = LauncherConfig.load();
-        check(config.describe(config.selectedInstance()).equals("No game installed"), "fresh install has no built-in Minecraft");
+        check(config.describe(config.selectedInstance()).startsWith("Latest Minecraft")
+                && config.selectedInstance().name().equals("Latest"), "a fresh install's instance installs the latest game on Play");
         try {
             new LaunchPreparation(config).prepare(config.selectedInstance(), "offline-test");
             throw new AssertionError("launcher bootstrap must never be launched as a game");

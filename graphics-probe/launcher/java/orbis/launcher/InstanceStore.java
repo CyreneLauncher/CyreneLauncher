@@ -36,6 +36,8 @@ final class InstanceStore {
     static final class Operation {
         private volatile boolean cancelled;
         private volatile String progress = "Preparing...";
+        /** How much is done, 0 to 1; negative while that is not known. */
+        private volatile double fraction = -1;
         private volatile Path destination;
         void cancel() { cancelled = true; }
         boolean cancelled() { return cancelled; }
@@ -44,7 +46,9 @@ final class InstanceStore {
         void check() {
             if (cancelled || Thread.currentThread().isInterrupted()) throw new CancellationException("Operation cancelled");
         }
-        void progress(String value) { progress = value; check(); }
+        void progress(String value) { progress(value, -1); }
+        void progress(String value, double done) { progress = value; fraction = done; check(); }
+        double fraction() { return fraction; }
     }
 
     private final Path root;
@@ -110,7 +114,7 @@ final class InstanceStore {
         instances.sort(Comparator.comparing(Instance::name, String.CASE_INSENSITIVE_ORDER));
         if (instances.isEmpty()) {
             String id = newId();
-            Instance imported = new Instance(id, launcherOnly ? "New instance" : "Existing Minecraft", importedDir, runtimeProfile,
+            Instance imported = new Instance(id, launcherOnly ? "Latest" : "Existing Minecraft", importedDir, runtimeProfile,
                     "", importedHeap, importedArena, true);
             writeRecord(imported);
             instances.add(imported);
@@ -241,6 +245,18 @@ final class InstanceStore {
             throw new IOException("Invalid memory settings");
         Instance changed = new Instance(id, old.name(), old.gameDir(), old.runtimeProfile(),
                 accountId == null ? "" : accountId, heapMib, arenaMib, old.imported(), old.jvmArgs(), old.gameArgs());
+        writeRecord(changed);
+        replace(old, changed);
+        return changed;
+    }
+
+    /** Points an instance at another installed game profile (a downloaded version's game.json). */
+    synchronized Instance setProfile(String id, Path profile) throws IOException {
+        Instance old = require(id);
+        Path clean = profile.toAbsolutePath().normalize();
+        if (!knownProfile(clean)) throw new IOException("Not an installed Minecraft version: " + profile);
+        Instance changed = new Instance(id, old.name(), old.gameDir(), clean, old.accountId(), old.heapMib(),
+                old.arenaMib(), old.imported(), old.jvmArgs(), old.gameArgs());
         writeRecord(changed);
         replace(old, changed);
         return changed;

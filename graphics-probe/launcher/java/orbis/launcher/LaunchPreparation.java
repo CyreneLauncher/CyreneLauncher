@@ -101,7 +101,7 @@ final class LaunchPreparation {
                     throw new IOException("A legacy launch cannot consume a new preparation");
                 InstanceStore.Instance instance = config.selectedInstance();
                 return LaunchRequest.create(instance.id(), new AccountStore(config.home, config.runnerRoot)
-                        .resolveAccount(instance.accountId()).id());
+                        .resolveAccount("").id());
             }
             LaunchRequest request = LaunchRequest.decode(text);
             if (invocationIntent == null && System.currentTimeMillis() - request.createdAt() < FALLBACK_MILLIS) {
