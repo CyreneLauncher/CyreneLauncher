@@ -144,7 +144,7 @@ Leave custom launch arguments empty unless you need a specific setting. The laun
 
 Updates use the same application identity and preserve existing settings and game data. Keep `/data/orbis-jdk` intact. Install the full launcher package to update its bundled components; you do not need to replace individual graphics libraries.
 
-Java 21 and 25 runtimes are checked for updates when needed. An installed runtime is retained if its update check fails; first-time installation still needs internet access. Microsoft sign-in and online play have their own connection requirements.
+Java 21 and 25 runtimes are checked for updates when needed. An installed runtime is retained if its update check fails; first-time installation still needs internet access. Microsoft sign-in and online play have their own connection requirements. Interrupted Minecraft, mod/modpack, and Java runtime downloads keep partial data. Retry the same operation to resume where the server supports it; servers without resume support start that file again. Already verified files are reused, and a checksum mismatch discards the incomplete file before another attempt.
 
 ## Back up your worlds
 
@@ -179,6 +179,14 @@ Copy the whole instance folder to preserve its setup, or at least `saves/` to pr
 | Settings did not take effect | Open **Instance settings**, choose **Save**, then launch again. |
 | Launch returns to the launcher or the application closes | Reopen Cyrene, read any crash summary, and collect the logs below. |
 | An older installation behaves unexpectedly after updating | Back up settings and report the issue before replacing files. Older installations can retain custom runner settings. |
+
+### Share a crash log
+
+Select an instance and choose **Share crash log** from its actions. The launcher opens the last crash report, or a game/launcher log if no crash report is available. Review the report with **Up / Down**; **Left / Right** moves a page at a time. Known credentials, chat entries, email addresses, and IP addresses are removed locally, but check for any other personal information before sharing.
+
+Choose **Upload to mclo.gs** to create a shareable log page. Scan the QR code with your phone or copy the displayed link into your bug report. Uploading requires an internet connection and happens only when you choose it. **Circle / Escape** cancels the preview without sending anything.
+
+The reviewed report is also saved at `/data/orbis-jdk/launcher/shared-report.txt`; after a successful upload, the link is saved at `/data/orbis-jdk/launcher/shared-log-url.txt`.
 
 ### Report a problem
 

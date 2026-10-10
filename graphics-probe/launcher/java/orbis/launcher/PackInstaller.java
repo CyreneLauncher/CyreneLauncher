@@ -51,7 +51,15 @@ class PackInstaller {
     record Installed(InstanceStore.Instance instance, List<String> disabled) {}
 
     /** Where file bytes come from; tests answer without the network. */
-    interface Source { byte[] fetch(String url, long max) throws IOException; }
+    interface Source {
+        byte[] fetch(String url, long max) throws IOException;
+        default byte[] verified(String url, String sha1, long size, long max) throws IOException {
+            byte[] data = fetch(url, max);
+            if (size >= 0 && data.length != size) throw new IOException("Pack download size does not match");
+            if (!hex("SHA-1", data).equals(sha1)) throw new IOException("Pack download does not match its SHA-1");
+            return data;
+        }
+    }
 
     /** The game profile for a Minecraft version and loader no older than loaderVersion; installs it when needed. */
     interface Profiles {
@@ -81,7 +89,7 @@ class PackInstaller {
         if (!file.filename().toLowerCase(Locale.ROOT).endsWith(".mrpack"))
             throw new IOException(file.filename() + " is not a Modrinth modpack (.mrpack)");
         op.progress("Downloading " + file.filename() + "...");
-        byte[] data = source.fetch(file.url(), MAX_FILE);
+        byte[] data = source.verified(file.url(), file.sha1(), file.size(), MAX_FILE);
         if (!hex("SHA-1", data).equals(file.sha1()))
             throw new IOException(file.filename() + " does not match its published SHA-1");
         Files.createDirectories(folder);
@@ -243,7 +251,7 @@ class PackInstaller {
         IOException last = null;
         for (String url : file.urls()) {
             try {
-                byte[] data = source.fetch(url, MAX_FILE);
+                byte[] data = source.verified(url, file.sha1(), file.size(), MAX_FILE);
                 if (file.size() >= 0 && data.length != file.size())
                     throw new IOException(file.path() + ": size " + data.length + " is not the listed " + file.size());
                 if (!hex("SHA-1", data).equals(file.sha1())) throw new IOException(file.path() + " does not match its SHA-1");

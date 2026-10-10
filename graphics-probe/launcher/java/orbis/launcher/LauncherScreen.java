@@ -1,6 +1,7 @@
 package orbis.launcher;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
@@ -43,6 +44,10 @@ class LauncherScreen {
 
     private final LauncherConfig config;
     private CrashAnalyzer.Report crash;
+    private String sharePreview, shareUrl;
+    private List<String> shareLines = List.of();
+    private int shareScroll;
+    private boolean[][] shareQr;
     private final Renderer r;
     private final Input input = new Input();
     private final ExecutorService worker = Executors.newSingleThreadExecutor(task -> {
@@ -333,6 +338,10 @@ class LauncherScreen {
                 if (accountRemovePending == null) break;
                 continue;
             }
+            if (sharePreview != null) {
+                shareLogAction(action);
+                break;
+            }
             if (login != null) {
                 if (action == Input.Action.BACK) { cancelMicrosoftLogin(); break; }
                 continue;
@@ -372,7 +381,7 @@ class LauncherScreen {
                 act(event);
                 if (editor.active() || systemKeyboardOpen || removePending != null
                         || instanceRemovePending != null || accountRemovePending != null || cloneOptions
-                        || login != null || plan != null || pack != null) break;
+                        || login != null || plan != null || pack != null || sharePreview != null) break;
             }
         }
     }
@@ -620,7 +629,7 @@ class LauncherScreen {
     private boolean idle() {
         return !busy && !editor.active() && !systemKeyboardOpen && removePending == null && instanceRemovePending == null
                 && accountRemovePending == null && login == null && !cloneOptions && plan == null && pack == null
-                && galleryOpen < 0;
+                && galleryOpen < 0 && sharePreview == null;
     }
 
     /** An unexpected error in a frame: logged with its stack (launcher.log) and shown, not fatal. */
@@ -830,6 +839,7 @@ class LauncherScreen {
                         if (config.instances.list().size() <= 1) setStatus("Keep at least one instance.", WARN);
                         else { instanceRemovePending = current.id(); removeConfirmed = false; }
                     }
+                    case 7 -> reviewLog();
                     default -> closeWindow();
                 }
             }
@@ -842,7 +852,7 @@ class LauncherScreen {
     private volatile double workFraction = -1;
 
     private static final List<String> HOME_ACTIONS = List.of("Play", "Mods", "Instance settings", "New instance",
-            "Clone", "Rename", "Remove", "Quit");
+            "Clone", "Rename", "Remove", "Share crash log", "Quit");
     /** Heap, GPU memory, JVM arguments, Minecraft arguments, debug log, Save, Back. */
     private static final int SETTINGS_ROWS = 7;
     private Page browseFrom = Page.MODS;
@@ -1769,7 +1779,12 @@ class LauncherScreen {
     }
 
     PackInstaller packInstaller() {
-        return new PackInstaller(this::fetchPackFile, this::packProfile, config.instances);
+        return new PackInstaller(new PackInstaller.Source() {
+            @Override public byte[] fetch(String url, long max) throws IOException { return fetchPackFile(url, max); }
+            @Override public byte[] verified(String url, String sha1, long size, long max) throws IOException {
+                return DownloadCache.bytes(config.home.resolve("cache/downloads"), url, "SHA-1", sha1, size, max);
+            }
+        }, this::packProfile, config.instances);
     }
 
     /** An installed profile for the pack's Minecraft and loader, no older than its loader; else a fresh install. */
@@ -1821,6 +1836,7 @@ class LauncherScreen {
         if (instanceRemovePending != null) drawInstanceRemoveDialog(s);
         if (accountRemovePending != null) drawAccountRemoveDialog(s);
         if (login != null) drawLoginDialog(s);
+        if (sharePreview != null) drawShareLog(s);
         if (cloneOptions) drawCloneOptions(s);
         if (plan != null) drawPlanDialog(s);
         if (pack != null) drawPackDialog(s);
@@ -2333,6 +2349,78 @@ class LauncherScreen {
             colors.add(ACCENT_HI);
         }
         list(rows, colors, 120 * s, 280 * s, 1680 * s, 12);
+    }
+
+    private void reviewLog() {
+        InstanceStore.Instance instance = config.selectedInstance();
+        background("Preparing a log for review...", true, () -> {
+            Path source = crash != null && crash.source() != null ? crash.source() : instance.gameDir().resolve("logs/latest.log");
+            if (!Files.isRegularFile(source)) source = config.home.resolve("launcher.log");
+            String snapshot = LogSharing.prepare(source);
+            LauncherFiles.write(config.home.resolve("shared-report.txt"), snapshot.getBytes(StandardCharsets.UTF_8), true);
+            return snapshot;
+        }, snapshot -> {
+            sharePreview = snapshot; shareUrl = null; shareQr = null; shareScroll = 0;
+            shareLines = LogSharing.preview(snapshot, 1320, character -> r.width(String.valueOf(character), 2));
+            setStatus("Review the report. Cross uploads it to mclo.gs; Circle cancels.", WARN);
+        });
+    }
+
+    protected String uploadSharedLog(String content) throws IOException { return LogSharing.upload(content); }
+
+    private void shareLogAction(Input.Action action) {
+        if (busy) return;
+        switch (action) {
+            case BACK -> { sharePreview = null; shareUrl = null; shareQr = null; input.releaseBarrier(); }
+            case HOME -> shareScroll = 0;
+            case END -> shareScroll = Math.max(0, shareLines.size() - 12);
+            case LEFT -> shareScroll = Math.max(0, shareScroll - 12);
+            case RIGHT -> shareScroll = Math.min(Math.max(0, shareLines.size() - 12), shareScroll + 12);
+            case UP -> shareScroll = Math.max(0, shareScroll - 1);
+            case DOWN -> shareScroll = Math.min(Math.max(0, shareLines.size() - 12), shareScroll + 1);
+            case CONFIRM -> {
+                if (shareUrl != null) { sharePreview = null; shareUrl = null; shareQr = null; }
+                else {
+                    String snapshot = sharePreview;
+                    background("Uploading reviewed report to mclo.gs...", () -> uploadSharedLog(snapshot), url -> {
+                        shareUrl = url; shareQr = LoginQr.encode(url);
+                        setStatus("Log shared: " + url, GOOD);
+                        try { LauncherFiles.write(config.home.resolve("shared-log-url.txt"), (url + "\n").getBytes(StandardCharsets.UTF_8), false); }
+                        catch (IOException unavailable) { setStatus("Log shared: " + url + " (could not save link locally)", WARN); }
+                    });
+                }
+            }
+            default -> { }
+        }
+    }
+
+    private void drawShareLog(float s) {
+        float x = 260 * s, y = 130 * s, w = 1400 * s, h = 820 * s;
+        dialog(x, y, w, h);
+        r.text(shareUrl == null ? "REVIEW LOG BEFORE SHARING" : "LOG SHARED", x + 40 * s, y + 35 * s, 3.5f * s, TEXT);
+        if (shareUrl == null) {
+            r.text("Upload to mclo.gs creates a shareable page. Review for personal information.", x + 40 * s, y + 105 * s, 2.4f * s, WARN);
+            r.text("Known credentials, chat entries, email and IP addresses have been removed.", x + 40 * s, y + 145 * s, 2.4f * s, DIM);
+            for (int i = 0; i < 12 && shareScroll + i < shareLines.size(); i++)
+                r.text(shareLines.get(shareScroll + i), x + 40 * s, y + (215 + i * 34) * s, 2f * s, TEXT);
+            r.text("Up/Down: review   Left/Right: page   Row " + (shareScroll + 1) + " of " + shareLines.size(), x + 40 * s, y + 660 * s, 2.4f * s, DIM);
+            clicks.wheel(x + 30 * s, y + 200 * s, w - 60 * s, 430 * s,
+                    amount -> shareScroll = Math.max(0, Math.min(Math.max(0, shareLines.size() - 12), shareScroll - (int) amount * 3)));
+        } else {
+            LoginQr.draw(r, shareQr, x + 40 * s, y + 150 * s, 450 * s);
+            r.text("Scan this QR code to open your report.", x + 550 * s, y + 190 * s, 2.8f * s, TEXT);
+            r.text(shareUrl, x + 550 * s, y + 255 * s, 3.2f * s, ACCENT_HI);
+            r.text("Send this link with your bug report.", x + 550 * s, y + 330 * s, 2.8f * s, DIM);
+        }
+        float by = y + 730 * s;
+        r.roundRect(x + 40 * s, by, 300 * s, 60 * s, 12 * s, ACCENT);
+        r.textCentered(busy ? "Uploading..." : shareUrl == null ? "Upload to mclo.gs" : "Done", x + 40 * s, by, 300 * s, 60 * s, 2.5f * s, TEXT);
+        hit(x + 40 * s, by, 300 * s, 60 * s, null, Input.Action.CONFIRM);
+        if (shareUrl == null) {
+            r.roundRect(x + 370 * s, by, 260 * s, 60 * s, 12 * s, PANEL);
+            r.textCentered("Cancel", x + 370 * s, by, 260 * s, 60 * s, 2.5f * s, TEXT);
+            hit(x + 370 * s, by, 260 * s, 60 * s, null, Input.Action.BACK);
+        }
     }
 
     private void drawLoginDialog(float s) {

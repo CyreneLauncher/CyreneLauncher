@@ -516,16 +516,11 @@ final class VersionStore {
     private static void ensure(Path file, String url, String sha1, long size) throws IOException {
         if (Files.isRegularFile(file, LinkOption.NOFOLLOW_LINKS) && (size < 0 || Files.size(file) == size)
                 && sha1(Files.readAllBytes(file)).equals(sha1)) return;
-        byte[] data = verified(url, sha1, size, MAX_FILE);
-        Files.createDirectories(file.getParent());
-        LauncherFiles.write(file, data, false);
+        DownloadCache.get(file, url, "SHA-1", sha1, size, MAX_FILE, DownloadCache::http, (n,t) -> { });
     }
 
     private static byte[] verified(String url, String sha1, long size, long max) throws IOException {
-        byte[] data = fetch(url, max);
-        if (size >= 0 && data.length != size) throw new IOException(url + ": " + data.length + " bytes, expected " + size);
-        if (!sha1(data).equals(sha1)) throw new IOException(url + ": SHA-1 does not match");
-        return data;
+        return DownloadCache.bytes(DownloadCache.root(), url, "SHA-1", sha1, size, max);
     }
 
     // ------------------------------------------------------------------ helpers

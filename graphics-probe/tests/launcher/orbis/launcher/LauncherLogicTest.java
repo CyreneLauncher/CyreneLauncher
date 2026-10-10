@@ -22,6 +22,8 @@ public final class LauncherLogicTest {
     private static final Input.Action[] ACTIONS = Input.Action.values();
 
     public static void main(String[] args) throws Exception {
+        DownloadRecoveryTest.main(new String[]{Files.createTempDirectory("download-recovery-").toString()});
+        LogSharingTest.main(new String[]{Files.createTempDirectory("log-sharing-").toString()});
         versionPredicates();
         lwjglSelection();
         lwjglUpgrade();
@@ -925,12 +927,18 @@ public final class LauncherLogicTest {
         final LauncherConfig config;
         final Random random;
         final FakePacks packs;
-        int relaunches, consumed, closes, installs, compatLaunches, packFetches;
+        int relaunches, consumed, closes, installs, compatLaunches, packFetches, logUploads;
         TestScreen(LauncherConfig c, Renderer r, ModrinthClient m, ModInstaller i, Random random, FakePacks packs) {
             super(c, r, m, i);
             config = c;
             this.random = random;
             this.packs = packs;
+        }
+
+        @Override protected String uploadSharedLog(String content) throws IOException {
+            check(!content.contains("ui-secret"), "screen upload uses redacted snapshot");
+            logUploads++;
+            return LogSharing.upload(content, c -> "{\"success\":true,\"url\":\"https://mclo.gs/test123\"}");
         }
 
         @Override protected SkinFaces.Source skinSource() {
@@ -1003,6 +1011,11 @@ public final class LauncherLogicTest {
         }
     }
 
+    private static void waitScreen(TestScreen screen) throws Exception {
+        for (long deadline = System.nanoTime() + 5_000_000_000L; screen.applyResults(); Thread.sleep(1))
+            if (System.nanoTime() > deadline) throw new AssertionError("Screen work did not finish");
+    }
+
     private static void screen(long seed, int steps) throws Exception {
         Random random = new Random(seed);
         Path root = Files.createTempDirectory("launcher-test");
@@ -1044,6 +1057,24 @@ public final class LauncherLogicTest {
             check(new AccountStore(config.home, config.runnerRoot).list().size() == 1, "account screen removes an offline profile");
             screen.apply("", List.of(Input.Action.BACK));
         }
+
+        Files.createDirectories(game.getParent().resolve("logs"));
+        Files.writeString(game.getParent().resolve("logs/latest.log"), "Crash detail\n--accessToken ui-secret\n");
+        screen.apply("", List.of(Input.Action.FOCUS));
+        for (int i = 0; i < 7; i++) screen.apply("", List.of(Input.Action.DOWN));
+        screen.apply("", List.of(Input.Action.CONFIRM));
+        waitScreen(screen);
+        check(screen.logUploads == 0, "opening preview does not upload logs");
+        screen.apply("", List.of(Input.Action.BACK));
+        check(screen.logUploads == 0, "cancelling preview does not upload logs");
+        screen.apply("", List.of(Input.Action.CONFIRM));
+        waitScreen(screen);
+        screen.apply("", List.of(Input.Action.CONFIRM));
+        waitScreen(screen);
+        check(screen.logUploads == 1, "explicit confirmation uploads one redacted report");
+        screen.apply("", List.of(Input.Action.BACK));
+        for (int i = 0; i < 7; i++) screen.apply("", List.of(Input.Action.UP));
+        screen.apply("", List.of(Input.Action.FOCUS));
 
         // Play directly once: focus the actions, Play is the first.
         String conf = Files.readString(runner.resolve("runner.conf")), options = Files.readString(runner.resolve("jvm-options.txt"));

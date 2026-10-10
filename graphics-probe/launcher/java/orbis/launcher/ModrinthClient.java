@@ -220,7 +220,7 @@ class ModrinthClient {
 
     /** The file's bytes, checked against Modrinth's size and SHA-1. */
     byte[] download(ModFile file) throws IOException {
-        byte[] data = fetch(file.url());
+        byte[] data = DownloadCache.bytes(DownloadCache.root(), file.url(), "SHA-1", file.sha1(), file.size(), MAX_DOWNLOAD);
         if (data.length != file.size()) throw new IOException(file.filename() + ": size " + data.length
                 + " is not the published " + file.size());
         String sha1 = sha1(data);

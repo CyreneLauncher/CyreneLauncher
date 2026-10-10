@@ -34,7 +34,13 @@ final class RuntimeInstaller {
     private static final long MAX_ARCHIVE = 512L << 20, MAX_UNPACKED = 1536L << 20;
 
     /** The network seam, replaced in tests: a stream and its length in bytes (negative when unknown). */
-    interface Source { Opened open(String url) throws IOException; }
+    interface Source {
+        Opened open(String url) throws IOException;
+        default DownloadCache.Response range(String url, long offset) throws IOException {
+            Opened opened = open(url);
+            return new DownloadCache.Response(opened.in(), 200, 0, opened.length(), opened.length());
+        }
+    }
     record Opened(InputStream in, long length) { }
     /** What is happening, and how much of it is done (0 to 1, negative when not known). */
     interface Progress { void report(String text, double fraction); }
@@ -43,7 +49,10 @@ final class RuntimeInstaller {
     private final Source source;
 
     RuntimeInstaller(Path root) {
-        this(root, RuntimeInstaller::download);
+        this(root, new Source() {
+            @Override public Opened open(String url) throws IOException { return download(url); }
+            @Override public DownloadCache.Response range(String url, long offset) throws IOException { return DownloadCache.http(url, offset); }
+        });
     }
 
     RuntimeInstaller(Path root, Source source) {
@@ -121,26 +130,10 @@ final class RuntimeInstaller {
         deleteTree(staging);
         deleteTree(old);
         try {
-            MessageDigest digest = sha256();
-            Opened opened = source.open(RELEASE + asset(feature));
-            try (InputStream in = new DigestInputStream(opened.in(), digest);
-                 OutputStream out = Files.newOutputStream(archive)) {
-                byte[] buffer = new byte[1 << 16];
-                long total = 0, shown = 0;
-                for (int n; (n = in.read(buffer)) > 0; ) {
-                    total += n;
-                    if (total > MAX_ARCHIVE) throw new IOException("Java " + feature + " download is too large");
-                    out.write(buffer, 0, n);
-                    if (total - shown >= 1 << 20) {
-                        shown = total;
-                        progress.report("Downloading Java " + feature + " (" + (total >> 20)
-                                + (opened.length() > 0 ? " of " + (opened.length() >> 20) : "") + " MiB)...",
-                                opened.length() > 0 ? (double) total / opened.length() : -1);
-                    }
-                }
-            }
-            if (!HexFormat.of().formatHex(digest.digest()).equals(sha256))
-                throw new IOException("Java " + feature + " download does not match its release checksum");
+            DownloadCache.get(archive, RELEASE + asset(feature), "SHA-256", sha256, -1, MAX_ARCHIVE,
+                    source::range, (total, length) -> progress.report("Downloading Java " + feature + " ("
+                            + (total >> 20) + (length > 0 ? " of " + (length >> 20) : "") + " MiB)...",
+                            length > 0 ? (double) total / length : -1));
             progress.report("Unpacking Java " + feature + "...", -1);
             try (InputStream in = new XZInputStream(new BufferedInputStream(Files.newInputStream(archive), 1 << 16))) {
                 Tar.extract(in, staging, name + "/", MAX_UNPACKED);
@@ -154,10 +147,17 @@ final class RuntimeInstaller {
             // The launcher runs on the packaged JDK 17, so the runtime being replaced is not in use.
             if (Files.exists(target, LinkOption.NOFOLLOW_LINKS)) Files.move(target, old, StandardCopyOption.ATOMIC_MOVE);
             Files.move(home, target, StandardCopyOption.ATOMIC_MOVE);
-        } finally {
             Files.deleteIfExists(archive);
+        } catch (IOException failed) {
+            Path target = root.resolve(name);
+            if (Files.exists(old, LinkOption.NOFOLLOW_LINKS) && !Files.exists(target, LinkOption.NOFOLLOW_LINKS)) {
+                try { Files.move(old, target, StandardCopyOption.ATOMIC_MOVE); }
+                catch (IOException restore) { failed.addSuppressed(restore); }
+            }
+            throw failed;
+        } finally {
             deleteTree(staging);
-            deleteTree(old);
+            if (Files.exists(root.resolve(name), LinkOption.NOFOLLOW_LINKS)) deleteTree(old);
         }
     }
 
@@ -197,18 +197,8 @@ final class RuntimeInstaller {
     }
 
     private static Opened download(String url) throws IOException {
-        URI uri = URI.create(url);
-        if (!"https".equals(uri.getScheme())) throw new IOException("Refusing non-HTTPS download " + url);
-        HttpURLConnection connection = (HttpURLConnection) uri.toURL().openConnection();
-        connection.setRequestProperty("User-Agent", USER_AGENT);
-        connection.setConnectTimeout(15_000);
-        connection.setReadTimeout(60_000);
-        int status = connection.getResponseCode();
-        if (status != 200) {
-            connection.disconnect();
-            throw new IOException("HTTP " + status + " from " + uri.getHost());
-        }
-        return new Opened(connection.getInputStream(), connection.getContentLengthLong());
+        DownloadCache.Response response = DownloadCache.http(url, 0);
+        return new Opened(response.in(), response.total());
     }
 
     /** The subset of tar the release archives use: directories and regular files, with PAX or GNU long names. */
