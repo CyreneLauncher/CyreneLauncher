@@ -30,8 +30,10 @@ jobs:
         run: test -n "$ORBIS_MSA_CLIENT_ID"
       - name: Test orchestration
         run: python3 -m unittest discover -s orbis-launcher/tools/tests -v
-      - name: Require pinned runtime release
-        run: orbis-launcher/orbis pin-jdks --check
+      - name: Require pinned runtime and library releases
+        run: |
+          orbis-launcher/orbis pin-jdks --check
+          orbis-launcher/orbis pin-libraries --check
   assets:
     needs: checks
     runs-on: ubuntu-24.04
@@ -46,8 +48,19 @@ jobs:
       - uses: ./orbis-launcher/.github/actions/build-host
         with:
           jdks: '17 25'
-      - name: Build native drivers, launcher and desktop support
-        run: orbis-launcher/orbis assets --jobs 4
+      - name: Download pinned library releases
+        env:
+          # As for the runtimes: needs read access to the private port repositories' releases.
+          GH_TOKEN: ${{ secrets.CYRENE_RELEASES_TOKEN || github.token }}
+        shell: bash
+        run: |
+          orbis-launcher/orbis bootstrap
+          orbis-launcher/orbis release-assets > library-releases.txt
+          while read -r component repository tag asset; do
+            gh release download "$tag" --repo "$repository" --pattern "$asset" --dir "incoming/libraries/$component"
+          done < library-releases.txt
+      - name: Install libraries, build launcher and desktop support
+        run: orbis-launcher/orbis assets --jobs 4 --from "$GITHUB_WORKSPACE/incoming/libraries"
       - name: Archive audited assets
         run: |
           python3 orbis-launcher/tools/build_artifacts.py pack --root "$GITHUB_WORKSPACE" \

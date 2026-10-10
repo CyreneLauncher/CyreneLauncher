@@ -249,6 +249,99 @@ def pin_jdks(args):
     print('Pinned runtime release '+tag)
 
 
+LIBRARY_LOCK = ROOT/'tools/library-releases.lock.json'
+
+
+def repository_name(url):
+    import re
+    match = re.fullmatch(r'https://github\.com/([^/]+/[^/]+?)(?:\.git)?', url or '')
+    if not match:raise ValueError('Not a GitHub repository URL: '+str(url))
+    return match.group(1)
+
+
+def check_library_pins(lock=None):
+    """Every port release is recorded for the revision repositories.lock.json pins."""
+    import re
+    lock=lock or json.loads(LIBRARY_LOCK.read_text())
+    repos=json.loads((ROOT/'repositories.lock.json').read_text())['components']
+    if lock.get('schema')!=1 or not lock.get('components'):raise ValueError('Unsupported library release lock')
+    for name,item in lock['components'].items():
+        if item.get('revision')!=repos[name]['revision'] or not re.fullmatch(r'[0-9a-f]{64}',item.get('sha256') or ''):
+            raise ValueError(f'Library release is not pinned for {name} {repos[name]["revision"]}; publish its release and run ./orbis pin-libraries')
+    return lock
+
+
+def library_releases(lock):
+    """Tag, asset and repository of each pinned port release, from the ports' own release.json."""
+    repos=json.loads((ROOT/'repositories.lock.json').read_text())['components']
+    releases=[]
+    for name,item in lock['components'].items():
+        component=repos[name]
+        spec=json.loads((WORK/component['directory']/item['spec']).read_text())
+        releases.append({'component':name,'repository':repository_name(component['url']),
+                         'tag':spec['tag_prefix']+'-'+component['revision'][:12],'asset':spec['asset'],'sha256':item.get('sha256')})
+    return releases
+
+
+def check_platform_mesa(lock):
+    """lwjgl-orbis's platform PRX must have been linked against the Mesa release the launcher ships."""
+    pinned=json.loads((WORK/'lwjgl-orbis/dependencies.lock.json').read_text())['mesa-orbis']
+    mesa=lock['components']['mesa-orbis']
+    if pinned['revision']!=mesa['revision'] or pinned['sha256']!=mesa['sha256']:
+        raise ValueError('lwjgl-orbis was built against a different Mesa release than mesa-orbis pins; update one of them')
+
+
+def release_archive():
+    import importlib.util
+    spec=importlib.util.spec_from_file_location('release_archive',WORK/'orbis-runtime-support/release_archive.py')
+    module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+    return module
+
+
+def fetch_libraries(args):
+    lock=check_library_pins();check_platform_mesa(lock)
+    marker=GP/'build/.library-releases.json'
+    installed=json.loads(marker.read_text()) if marker.is_file() else {}
+    unpack=release_archive().unpack
+    for item in library_releases(lock):
+        name=item['component']
+        if installed.get(name)==item['sha256']:
+            print(f'{name}: {item["tag"]} already installed');continue
+        if args.from_dir:
+            archive=args.from_dir/name/item['asset']
+        else:
+            archive=ROOT/'dist/library-downloads'/item['tag']/item['asset']
+            fetch(f"https://github.com/{item['repository']}/releases/download/{item['tag']}/{item['asset']}",archive,'sha256',item['sha256'])
+        unpack(archive,GP/'build',item['sha256'])
+        installed[name]=item['sha256'];marker.write_text(json.dumps(installed,indent=2)+'\n')
+        print(f'{name}: installed {item["tag"]}/{item["asset"]}')
+
+
+def pin_libraries(args):
+    if args.check:
+        check_library_pins();print('Library release pins match repositories.lock.json');return
+    lock=json.loads(LIBRARY_LOCK.read_text())
+    repos=json.loads((ROOT/'repositories.lock.json').read_text())['components']
+    for item in library_releases(lock):
+        name=item['component']
+        if args.from_dir:
+            sums=(args.from_dir/name/'SHA256SUMS').read_text()
+        else:
+            with urllib.request.urlopen(f"https://github.com/{item['repository']}/releases/download/{item['tag']}/SHA256SUMS") as response:
+                sums=response.read().decode()
+        recorded={entry.lstrip('*'):sha for sha,entry in (line.split() for line in sums.splitlines() if line.strip())}
+        if item['asset'] not in recorded:raise ValueError('Release '+item['tag']+' has no '+item['asset'])
+        lock['components'][name].update(revision=repos[name]['revision'],sha256=recorded[item['asset']])
+    check_platform_mesa(lock)
+    LIBRARY_LOCK.write_text(json.dumps(lock,indent=2)+'\n')
+    print('Pinned library releases: '+', '.join(item['tag'] for item in library_releases(lock)))
+
+
+def facades(args, runner):
+    for version in ('3.2.2','3.3.3','3.4.1','3.4.3'):
+        script(runner,'facade-'+version,GP/'tools/build_lwjgl_facade.py','--release',version,'--boot-jdk',args.boot_jdk17,'--jars',GP/'build/java-jars'/version,'--fetch')
+
+
 def native(args, runner):
     tools = GP/'tools'; build = GP/'build'
     if not (build/'deps/clean/bootstrap-manifest.json').exists():
@@ -264,7 +357,6 @@ def native(args, runner):
            '--build',build/'vulkan-mesa','--output',build/'platform-native')
     for version in ('3.2.2','3.3.3','3.4.1','3.4.3'):
         script(runner,'lwjgl-'+version,tools/'build_lwjgl_natives.py',*common,'--jni-headers',args.boot_jdk17/'include','--release',version,'--fetch')
-        script(runner,'facade-'+version,tools/'build_lwjgl_facade.py','--release',version,'--boot-jdk',args.boot_jdk17,'--jars',build/'java-jars'/version,'--fetch')
     script(runner,'optional',tools/'build_lwjgl_optional.py',*common,'--jni-headers',args.boot_jdk17/'include','--jars',build/'java-jars/3.2.2')
     script(runner,'openal',tools/'build_openal.py',*common,'--fetch')
     for version in ('3.3.3','3.4.1','3.4.3'):
@@ -272,6 +364,7 @@ def native(args, runner):
     script(runner,'spirv',tools/'build_spirv.py',*common,'--release','3.4.3','--fetch')
     script(runner,'vma',tools/'build_vma.py',*common,'--jni-headers',args.boot_jdk17/'include','--release','3.4.3','--jars',build/'java-jars/3.4.3','--fetch')
     script(runner,'sdl',tools/'build_sdl3.py',*common,'--fetch')
+    facades(args,runner)
 
 
 def launcher(args, runner):
@@ -424,10 +517,10 @@ def import_artifacts(args):
 
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('command',choices=['doctor','bootstrap','build','jdks','fetch-jdks','pin-jdks','native','assets','launcher','seal','package','export','import'])
+    parser.add_argument('command',choices=['doctor','bootstrap','build','jdks','fetch-jdks','pin-jdks','native','fetch-libraries','pin-libraries','release-assets','assets','launcher','seal','package','export','import'])
     parser.add_argument('--jdk',choices=['all','17','21','25'],default='all',help='Select one runtime for the jdks or fetch-jdks command')
-    parser.add_argument('--from',dest='from_dir',type=Path,help='Directory holding already downloaded runtime release assets')
-    parser.add_argument('--check',action='store_true',help='With pin-jdks: only verify the existing pin')
+    parser.add_argument('--from',dest='from_dir',type=Path,help='Directory of downloaded release assets: JDK archives directly, port releases in one subdirectory per repository')
+    parser.add_argument('--check',action='store_true',help='With pin-jdks or pin-libraries: only verify the existing pins')
     parser.add_argument('--sdk',type=Path,default=Path(os.environ.get('ORBIS_SDK') or '/home/wonder/ps4-payload-sdk'))
     parser.add_argument('--toolchain',type=Path,default=Path(os.environ.get('PS4_TOOLCHAIN') or '/home/wonder/PS4Toolchain'))
     parser.add_argument('--pkgtool',type=Path,default=Path(os.environ.get('PKGTOOL') or '/home/wonder/pkgtool-net8/PkgTool.Core.dll'))
@@ -448,12 +541,21 @@ def main():
         elif args.command=='seal':bootstrap(runner);record_components(args)
         elif args.command=='pin-jdks':pin_jdks(args)
         elif args.command=='fetch-jdks':bootstrap(runner);fetch_jdks(args)
+        elif args.command=='pin-libraries':
+            if not args.check:bootstrap(runner)
+            pin_libraries(args)
+        elif args.command=='fetch-libraries':bootstrap(runner);fetch_libraries(args)
+        elif args.command=='release-assets':
+            # Machine-readable; run bootstrap first so the ports' release.json files are present.
+            for item in library_releases(check_library_pins()):
+                print(item['component'],item['repository'],item['tag'],item['asset'])
         else:
             versions=((17,21,25) if args.jdk=='all' else (int(args.jdk),)) if args.command=='jdks' else ((17,) if args.command=='native' else (17,25))
             doctor(args,versions);bootstrap(runner);dependencies(runner)
             if args.command=='jdks':jdks(args,runner)
             if args.command=='build':fetch_jdks(args)
-            if args.command in ('build','native','assets'):native(args,runner)
+            if args.command=='native':native(args,runner)
+            if args.command in ('build','assets'):fetch_libraries(args);facades(args,runner)
             if args.command in ('build','launcher','assets'):
                 launcher(args,runner)
                 if args.command != 'assets':record_components(args)

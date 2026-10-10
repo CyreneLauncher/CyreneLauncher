@@ -1,0 +1,25 @@
+{
+  "schema": 1,
+  "components": {
+    "mesa-orbis": {
+      "spec": "orbis-port/release.json",
+      "revision": null,
+      "sha256": null
+    },
+    "openal-soft-orbis": {
+      "spec": "release.json",
+      "revision": null,
+      "sha256": null
+    },
+    "sdl-orbis": {
+      "spec": "release.json",
+      "revision": null,
+      "sha256": null
+    },
+    "lwjgl-orbis": {
+      "spec": "release.json",
+      "revision": null,
+      "sha256": null
+    }
+  }
+}

@@ -25,6 +25,11 @@ OpenAL and SDL at run time only. Each port reads its own pins and files; set
 `ORBIS_BUILD_ROOT` to choose where downloads, prepared sources and outputs go. The
 launcher's wrappers set it to `graphics-probe/build`.
 
+Each port publishes its build as a GitHub release from its own Release workflow:
+`release.json` lists what the archive holds and `dependencies.lock.json` pins what
+the release build uses. The launcher installs those releases (see README.md);
+`./orbis native` still builds every port from source.
+
 RADV, radeonsi and Zink are drivers inside Mesa, not separate repositories.
 LWJGL's four releases are profiles inside one port repository. OpenAL and SDL
 are initially overlay repositories: their recipes extract hash-pinned upstream
