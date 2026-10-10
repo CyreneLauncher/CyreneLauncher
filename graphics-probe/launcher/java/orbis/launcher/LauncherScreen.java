@@ -574,7 +574,7 @@ class LauncherScreen {
     private void scrollbar(Scroller sc, float content, float x, float y, float h) {
         if (content <= h + 1) return;
         float s = r.s, barH = Math.max(40 * s, h * h / content);
-        r.rect(x, y, 5 * s, h, PANEL);
+        r.roundRect(x, y, 5 * s, h, 12 * s, PANEL);
         r.rect(x, y + (h - barH) * (sc.offset() / Math.max(1, sc.max())), 5 * s, barH, DIM);
     }
 
@@ -1727,14 +1727,14 @@ class LauncherScreen {
         for (String part : hint.split(" {2,}")) {
             int colon = part.indexOf(": ");
             if (colon < 0) {
-                r.text(part, x, y + 4 * s, scale, DIM);
+                r.text(part, x, y + 8 * s, scale, DIM);
                 x += r.width(part, scale) + 34 * s;
                 continue;
             }
             for (String key : buttons(part.substring(0, colon))) x += r.button(key, x, y, size) + 6 * s;
             x += 6 * s;
             String label = part.substring(colon + 2);
-            r.text(label, x, y + 4 * s, scale, DIM);
+            r.text(label, x, y + 8 * s, scale, DIM);
             x += r.width(label, scale) + 34 * s;
         }
         return x - start;
@@ -1779,7 +1779,7 @@ class LauncherScreen {
         r.disc(chipX + 9 * s, 35 * s, avatar, ACCENT);
         String initial = account.isEmpty() ? "?" : account.substring(account.lastIndexOf(' ') + 1, account.lastIndexOf(' ') + 2)
                 .toUpperCase(java.util.Locale.ROOT);
-        r.text(initial, chipX + 9 * s + (avatar - r.width(initial, 3.4f * s)) / 2, 41 * s, 3.4f * s, TEXT);
+        r.text(initial, chipX + 9 * s + (avatar - r.width(initial, 3.4f * s)) / 2, 47 * s, 3.4f * s, TEXT);
         r.text(r.fit(account, 420 * s, 2.7f * s), chipX + avatar + 26 * s, 35 * s, 2.7f * s, TEXT);
         r.text(r.fit(active.name(), 420 * s, 2.1f * s), chipX + avatar + 26 * s, 73 * s, 2.1f * s, DIM);
     }
@@ -1845,42 +1845,112 @@ class LauncherScreen {
     }
 
     private void drawHome(float s) {
-        r.text("INSTANCES", 120 * s, 215 * s, 4 * s, TEXT);
+        r.text("Instances", 120 * s, 168 * s, 3.6f * s, TEXT);
         List<InstanceStore.Instance> values = config.instances.list();
         if (selected >= values.size()) selected = values.size() - 1;
+        float lx = 120 * s, lw = 750 * s, rowH = 96 * s;
         scrollList(scrollers[Page.INSTANCES.ordinal()], values.size(), focus == Focus.LIST ? selected : -1,
-                120 * s, 272 * s, 750 * s, 600 * s, 60 * s, (i, y) -> {
+                lx, 230 * s, lw, 690 * s, rowH, (i, y) -> {
             InstanceStore.Instance value = values.get(i);
             boolean highlighted = focus == Focus.LIST && selected == i && !editor.active();
-            if (highlighted) r.rect(120 * s, y, 750 * s, 53 * s, ACCENT);
-            String label = (value.id().equals(config.selectedInstance().id()) ? "* " : "  ") + value.name();
-            r.text(r.fit(label, 710 * s, 3 * s), 140 * s, y + 8 * s, 3 * s, highlighted ? TEXT : TEXT);
-            hit(120 * s, y, 750 * s, 53 * s, () -> { focus = Focus.LIST; selected = i; }, Input.Action.CONFIRM);
+            row(lx, y, lw, rowH - 12 * s, highlighted);
+            String[] info = instanceInfo(value);
+            float tile = 60 * s;
+            r.roundRect(lx + 22 * s, y + 12 * s, tile, tile, 12 * s, loaderColor(info[1]));
+            r.text(info[1], lx + 22 * s + (tile - r.width(info[1], 3.2f * s)) / 2, y + 23 * s, 3.2f * s, TEXT);
+            r.text(r.fit(value.name(), lw - 260 * s, 2.9f * s), lx + 104 * s, y + 10 * s, 2.9f * s, TEXT);
+            r.text(r.fit(info[0], lw - 260 * s, 2.1f * s), lx + 104 * s, y + 50 * s, 2.1f * s, DIM);
+            if (value.id().equals(config.selectedInstance().id())) {
+                String label = "SELECTED";
+                float bw = r.width(label, 1.8f * s) + 28 * s;
+                r.roundRect(lx + lw - bw - 22 * s, y + 27 * s, bw, 30 * s, 15 * s, ACCENT_DARK);
+                r.text(label, lx + lw - bw - 8 * s, y + 31 * s, 1.8f * s, TEXT);
+            }
+            hit(lx, y, lw, rowH - 12 * s, () -> { focus = Focus.LIST; selected = i; }, Input.Action.CONFIRM);
         });
+
+        // The selected instance: its card under the application art, then Play and the other actions.
         InstanceStore.Instance active = config.selectedInstance();
-        float x = 930 * s;
-        r.rect(x, 205 * s, 870 * s, 250 * s, PANEL);
-        r.rect(x, 205 * s, 8 * s, 250 * s, ACCENT);
-        r.text(r.fit(active.name(), 800 * s, 4 * s), x + 35 * s, 230 * s, 4 * s, TEXT);
-        r.text(r.fit(config.describe(active) + (active.imported() ? "  |  Imported" : "  |  Managed"), 790 * s, 2.6f * s),
-                x + 35 * s, 295 * s, 2.6f * s, DIM);
-        r.text(r.fit(active.gameDir().toString(), 790 * s, 2.3f * s), x + 35 * s, 330 * s, 2.3f * s, DIM);
+        float x = 930 * s, w = 870 * s, top = 168 * s, banner = 150 * s, cardH = 300 * s;
+        r.roundRect(x, top, w, cardH, 18 * s, PANEL);
+        if (r.artwork() > 0) {
+            r.image(r.artwork(), x, top, w, banner, 0, 0.30f, 1, 0.30f + (banner / w), WHITE);
+            // Fade the art into the card: whole-pixel bands, so none overlap into darker lines.
+            int bands = 32;
+            for (int band = 0; band < bands; band++) {
+                float y0 = Math.round(top + banner * band / bands), y1 = Math.round(top + banner * (band + 1) / bands);
+                float fade = Math.max(0, (band + 0.5f) / bands - 0.25f) / 0.75f;
+                r.rect(x, y0, w, y1 - y0, (Math.round(fade * fade * 255) << 24) | (PANEL & 0xffffff));
+            }
+        }
+        r.text(r.fit(active.name(), w - 70 * s, 4 * s), x + 35 * s, top + banner - 52 * s, 4 * s, TEXT);
+        r.text(r.fit(config.describe(active) + (active.imported() ? "  |  Imported" : "  |  Managed"), w - 70 * s,
+                2.5f * s), x + 35 * s, top + banner + 12 * s, 2.5f * s, DIM);
+        r.text(r.fit(active.gameDir().toString(), w - 70 * s, 2.1f * s), x + 35 * s, top + banner + 50 * s, 2.1f * s, DIM);
         r.text(config.modCount() + " mods  |  Heap " + config.heapMib + " MiB  |  GPU " + config.arenaMib + " MiB",
-                x + 35 * s, 375 * s, 2.5f * s, DIM);
-        if (crash != null) r.text(r.fit("Last session: " + crash.title(), 790 * s, 2.2f * s),
-                x + 35 * s, 410 * s, 2.2f * s, WARN);
-        for (int i = 0; i < HOME_ACTIONS.size(); i++) {
-            float y = (475 + i * 47) * s;
+                x + 35 * s, top + banner + 84 * s, 2.3f * s, DIM);
+        if (crash != null) r.text(r.fit("Last session: " + crash.title(), w - 70 * s, 2.1f * s),
+                x + 35 * s, top + banner + 116 * s, 2.1f * s, WARN);
+
+        float py = top + cardH + 22 * s, ph = 86 * s;
+        boolean playOn = focus == Focus.DETAIL && detailSelected == 0 && !editor.active();
+        playButton(x, py, w, ph, playOn);
+        hit(x, py, w, ph, () -> { focus = Focus.DETAIL; detailSelected = 0; }, Input.Action.CONFIRM);
+        for (int i = 1; i < HOME_ACTIONS.size(); i++) {
+            float y = py + ph + 16 * s + (i - 1) * 42 * s;
             boolean highlighted = focus == Focus.DETAIL && detailSelected == i && !editor.active();
-            if (highlighted) r.rect(x, y - 7 * s, 870 * s, 44 * s, ACCENT);
-            r.text(HOME_ACTIONS.get(i), x + 30 * s, y, 3 * s, highlighted ? TEXT : i == 0 ? ACCENT : TEXT);
+            row(x, y, w, 38 * s, highlighted);
+            r.text(HOME_ACTIONS.get(i), x + 34 * s, y + 6 * s, 2.6f * s, highlighted ? TEXT : DIM);
             int index = i;
-            hit(x, y - 7 * s, 870 * s, 44 * s, () -> { focus = Focus.DETAIL; detailSelected = index; }, Input.Action.CONFIRM);
+            hit(x, y, w, 38 * s, () -> { focus = Focus.DETAIL; detailSelected = index; }, Input.Action.CONFIRM);
         }
     }
 
+    /** A list row: a panel, and when chosen a lighter one marked with the accent on its left. */
+    private void row(float x, float y, float w, float h, boolean chosen) {
+        float s = r.s;
+        if (chosen) {
+            r.roundRect(x, y, w, h, 12 * s, PANEL_HI);
+            r.roundRect(x, y + h * 0.18f, 6 * s, h * 0.64f, 3 * s, ACCENT);
+        }
+    }
+
+    /** Amethyst's play button: a raised amethyst block with the label in the middle. */
+    private void playButton(float x, float y, float w, float h, boolean focused) {
+        float s = r.s;
+        if (focused) r.roundRect(x - 5 * s, y - 5 * s, w + 10 * s, h + 10 * s, 18 * s, WHITE);
+        r.roundRect(x, y, w, h, 14 * s, ACCENT_DARK);
+        r.roundRect(x, y, w, h - 7 * s, 14 * s, focused ? ACCENT_HI : ACCENT);
+        r.rect(x + 14 * s, y + 4 * s, w - 28 * s, 3 * s, 0x40ffffff);
+        String label = "PLAY";
+        float scale = 4.4f * s, tw = r.width(label, scale);
+        r.text(label, x + (w - tw) / 2 + 3 * s, y + 25 * s, scale, 0x60000000);
+        r.text(label, x + (w - tw) / 2, y + 22 * s, scale, TEXT);
+        if (focused) r.button("cross", x + (w - tw) / 2 - 64 * s, y + 22 * s, 38 * s);
+    }
+
+    /** Per runtime profile: the version line and the loader's initial; reading it each frame would read files. */
+    private final java.util.Map<Path, String[]> instanceInfo = new java.util.HashMap<>();
+
+    private String[] instanceInfo(InstanceStore.Instance instance) {
+        return instanceInfo.computeIfAbsent(instance.runtimeProfile(), profile -> {
+            VersionStore.Installed version = config.installed(instance);
+            String loader = version != null ? version.loader().title
+                    : config.loaderVersion.isEmpty() ? "Vanilla" : "Fabric";
+            return new String[]{config.describe(instance), loader.substring(0, 1)};
+        });
+    }
+
+    private static int loaderColor(String initial) {
+        return switch (initial) {
+            case "F" -> 0xffb88a52;
+            case "Q" -> 0xff7a5ad1;
+            default -> 0xff4f9a4a;
+        };
+    }
+
     private void drawVersions(float s) {
-        r.text("NEW INSTANCE  -  CHOOSE MINECRAFT", 120 * s, 210 * s, 4 * s, TEXT);
+        r.text("New instance: choose Minecraft", 120 * s, 168 * s, 3.6f * s, TEXT);
         List<String> rows = new ArrayList<>();
         List<Integer> colors = new ArrayList<>();
         rows.add("Loader:  < " + versionLoader.title + " >");
@@ -1904,8 +1974,8 @@ class LauncherScreen {
     private void dialog(float x, float y, float w, float h) {
         clicks.modal();
         r.rect(0, 0, r.width, r.height, 0x80000000);
-        r.rect(x, y, w, h, PANEL_HI);
-        r.rect(x, y, w, 6 * r.s, ACCENT);
+        r.roundRect(x, y, w, h, 20 * r.s, PANEL_HI);
+        r.roundRect(x + 30 * r.s, y, w - 60 * r.s, 6 * r.s, 3 * r.s, ACCENT);
     }
 
     /** A two-way choice's buttons: "no" first (selected while yes is false), then "yes". */
@@ -1927,12 +1997,12 @@ class LauncherScreen {
                 ? "CLONE INSTANCE" : "RENAME INSTANCE", x + 40 * s, y + 35 * s, 3.5f * s, TEXT);
         String value = editor.value();
         String caret = value.substring(0, editor.caret()) + "|" + value.substring(editor.caret());
-        r.rect(x + 30 * s, y + 100 * s, 1160 * s, 60 * s, PANEL);
+        r.roundRect(x + 30 * s, y + 100 * s, 1160 * s, 60 * s, 12 * s, PANEL);
         r.text(r.fit(caret, 1120 * s, 3.5f * s), x + 40 * s, y + 113 * s, 3.5f * s, ACCENT_HI);
         r.rect(x + 40 * s, y + 220 * s, 260 * s, 60 * s, ACCENT);
         r.text("Accept", x + 70 * s, y + 232 * s, 3 * s, TEXT);
         hit(x + 40 * s, y + 220 * s, 260 * s, 60 * s, null, Input.Action.CONFIRM);
-        r.rect(x + 340 * s, y + 220 * s, 260 * s, 60 * s, PANEL);
+        r.roundRect(x + 340 * s, y + 220 * s, 260 * s, 60 * s, 12 * s, PANEL);
         r.text("Cancel", x + 370 * s, y + 232 * s, 3 * s, TEXT);
         hit(x + 340 * s, y + 220 * s, 260 * s, 60 * s, null, Input.Action.BACK);
         r.text("Enter/Cross: accept   Escape/Circle: cancel", x + 650 * s, y + 240 * s, 2.2f * s, DIM);
@@ -1945,7 +2015,7 @@ class LauncherScreen {
         List<String> rows = List.of("Copy worlds: " + (copyWorlds ? "[x]" : "[ ]"), "Create clone", "Cancel");
         for (int i = 0; i < rows.size(); i++) {
             float rowY = y + (100 + i * 70) * s;
-            if (i == cloneOptionSelected) r.rect(x + 30 * s, rowY - 8 * s, 900 * s, 55 * s, ACCENT);
+            row(x + 30 * s, rowY - 8 * s, 900 * s, 55 * s, i == cloneOptionSelected);
             r.text(rows.get(i), x + 55 * s, rowY, 3 * s, i == cloneOptionSelected ? TEXT : TEXT);
             int index = i;
             hit(x + 30 * s, rowY - 8 * s, 900 * s, 55 * s, () -> cloneOptionSelected = index, Input.Action.CONFIRM);
@@ -1969,7 +2039,7 @@ class LauncherScreen {
     }
 
     private void drawAccounts(float s) {
-        r.text("ACCOUNTS", 120 * s, 210 * s, 4 * s, TEXT);
+        r.text("Accounts", 120 * s, 168 * s, 3.6f * s, TEXT);
         String defaultId;
         try { defaultId = accounts().defaultAccountId(); }
         catch (IOException failure) {
@@ -2009,7 +2079,7 @@ class LauncherScreen {
         r.text(String.format("Code expires in %d:%02d", left / 60, left % 60), tx, y + 400 * s, 2.6f * s,
                 left < 60 ? WARN : DIM);
         r.text("3. Sign in with the account that owns Minecraft.", tx, y + 450 * s, 2.6f * s, DIM);
-        r.rect(tx, y + 545 * s, 260 * s, 60 * s, PANEL);
+        r.roundRect(tx, y + 545 * s, 260 * s, 60 * s, 12 * s, PANEL);
         r.text("Cancel", tx + 30 * s, y + 557 * s, 3 * s, TEXT);
         hit(tx, y + 545 * s, 260 * s, 60 * s, null, Input.Action.BACK);
     }
@@ -2113,7 +2183,7 @@ class LauncherScreen {
     }
 
     private void drawSettings(float s) {
-        r.text("SETTINGS", 120 * s, 210 * s, 4 * s, TEXT);
+        r.text("Settings", 120 * s, 168 * s, 3.6f * s, TEXT);
         menu(List.of("Java heap        < " + config.heapMib + " MiB >",
                 "GPU memory       < " + config.arenaMib + " MiB >",
                 "Runner debug log (global)  < " + (config.debugLog ? "on" : "off") + " >", "Save", "Back"),
@@ -2124,15 +2194,16 @@ class LauncherScreen {
 
     private void drawMods(float s) {
         long on = mods.stream().filter(LauncherScreen::enabled).count();
-        r.text(r.fit("MODS  (" + on + " enabled, " + (mods.size() - on) + " disabled)  -  "
-                + config.selectedInstance().name(), 1680 * s, 4 * s), 120 * s, 210 * s, 4 * s, TEXT);
+        r.text("Mods", 120 * s, 168 * s, 3.6f * s, TEXT);
+        r.text(r.fit(on + " enabled, " + (mods.size() - on) + " disabled  |  " + config.selectedInstance().name(),
+                1400 * s, 2.3f * s), 120 * s + r.width("Mods", 3.6f * s) + 30 * s, 182 * s, 2.3f * s, DIM);
         int count = 1 + mods.size();
         if (selected >= count) selected = count - 1;
         float x = 120 * s, w = 880 * s, rowH = 66 * s;
         scrollList(scrollers[Page.MODS.ordinal()], count, selected, x, 270 * s, w, 9 * rowH, rowH, (i, y) -> {
             boolean on2 = i == selected && !editor.active() && !systemKeyboardOpen;
-            r.rect(x, y, w, rowH - 6 * s, on2 ? PANEL_HI : PANEL);
-            if (on2) r.rect(x, y, 6 * s, rowH - 6 * s, ACCENT);
+            r.roundRect(x, y, w, rowH - 6 * s, 12 * s, on2 ? PANEL_HI : PANEL);
+            if (on2) r.roundRect(x, y + 8 * s, 6 * s, rowH - 6 * s - 16 * s, 3 * s, ACCENT);
             hit(x, y, w, rowH - 6 * s, () -> selected = i, Input.Action.CONFIRM);
             if (i == 0) {
                 r.text("+ Browse Modrinth for mods and modpacks", x + 30 * s, y + 18 * s, 3 * s, ACCENT_HI);
@@ -2154,7 +2225,7 @@ class LauncherScreen {
 
         // The selected mod's details, with Enable/Disable and Remove.
         float px = 1040 * s, py = 270 * s, pw = 760 * s, ph = 585 * s;
-        r.rect(px, py, pw, ph, PANEL);
+        r.roundRect(px, py, pw, ph, 12 * s, PANEL);
         if (selected == 0 || selected > mods.size()) {
             r.text("MODRINTH", px + 35 * s, py + 30 * s, 3.5f * s, TEXT);
             float ty = py + 90 * s;
@@ -2241,7 +2312,7 @@ class LauncherScreen {
         if (selected == 0 && !editing) r.frame(120 * s - 4 * s, ty - 4 * s, 478 * s, 64 * s, 3 * s, WHITE);
         // Row 1: the search box.
         float sx = 640 * s, sw = 740 * s;
-        r.rect(sx, ty, sw, 56 * s, PANEL_HI);
+        r.roundRect(sx, ty, sw, 56 * s, 12 * s, PANEL_HI);
         if (selected == 1 || editing) r.frame(sx, ty, sw, 56 * s, 3 * s, editing ? ACCENT : WHITE);
         String shown;
         int shownColor = TEXT;
@@ -2254,7 +2325,7 @@ class LauncherScreen {
         hit(sx, ty, sw, 56 * s, () -> selected = 1, Input.Action.CONFIRM);
         // Row 2: the sort.
         float ox = 1400 * s, ow = 400 * s;
-        r.rect(ox, ty, ow, 56 * s, PANEL);
+        r.roundRect(ox, ty, ow, 56 * s, 12 * s, PANEL);
         if (selected == 2 && !editing) r.frame(ox, ty, ow, 56 * s, 3 * s, WHITE);
         r.text(r.fit("Sort: < " + sort.title + " >", ow - 30 * s, 2.6f * s), ox + 18 * s, ty + 16 * s, 2.6f * s, TEXT);
         hit(ox, ty, ow, 56 * s, () -> selected = 2, Input.Action.CONFIRM);
@@ -2286,8 +2357,8 @@ class LauncherScreen {
 
     private void drawCard(ModrinthClient.Hit h, float x, float y, float w, float ch, boolean on) {
         float s = r.s;
-        r.rect(x, y, w, ch, on ? PANEL_HI : PANEL);
-        if (on) r.rect(x, y, 6 * s, ch, ACCENT);
+        r.roundRect(x, y, w, ch, 12 * s, on ? PANEL_HI : PANEL);
+        if (on) r.roundRect(x, y + 8 * s, 6 * s, ch - 16 * s, 3 * s, ACCENT);
         picture(h.iconUrl(), ImageCache.Size.ICON, x + 16 * s, y + 13 * s, 80 * s, 80 * s, false, h.title());
         float tx = x + 116 * s, right = x + w - 24 * s;
         String stats = compact(h.downloads()) + " downloads   " + compact(h.follows()) + " followers";
@@ -2415,7 +2486,7 @@ class LauncherScreen {
             String label = titles[t.ordinal()];
             float tw = r.width(label, 3 * s) + 50 * s;
             boolean current = t == tab;
-            r.rect(tx, tabsY, tw, 52 * s, current ? PANEL_HI : PANEL);
+            r.roundRect(tx, tabsY, tw, 52 * s, 12 * s, current ? PANEL_HI : PANEL);
             if (current) r.rect(tx, tabsY + 48 * s, tw, 4 * s, ACCENT);
             r.text(label, tx + 25 * s, tabsY + 12 * s, 3 * s, current ? TEXT : DIM);
             if (zone == Zone.TABS && current && galleryOpen < 0) r.frame(tx, tabsY, tw, 52 * s, 3 * s, WHITE);
@@ -2429,7 +2500,7 @@ class LauncherScreen {
         }
 
         float cy = tabsY + 70 * s, cb = r.height - 175 * s, ch = cb - cy;
-        r.rect(x, cy, w, ch, PANEL);
+        r.roundRect(x, cy, w, ch, 12 * s, PANEL);
         if (zone == Zone.CONTENT && galleryOpen < 0) r.rect(x, cy, 4 * s, ch, ACCENT);
         if (p == null) {
             r.text(busy ? "Loading..." : "Could not load the project.", x + 30 * s, cy + 30 * s, 3 * s, DIM);
@@ -2603,8 +2674,8 @@ class LauncherScreen {
                 x, ly, w - 14 * s, y + h - ly - 10 * s, rowH, (i, ry) -> {
             ModrinthClient.VersionInfo v = list.get(i);
             boolean on = content && versionSelected == i + 1;
-            r.rect(x + 20 * s, ry, w - 40 * s, rowH - 6 * s, on ? PANEL_HI : PANEL);
-            if (on) r.rect(x + 20 * s, ry, 6 * s, rowH - 6 * s, ACCENT);
+            r.roundRect(x + 20 * s, ry, w - 40 * s, rowH - 6 * s, 12 * s, on ? PANEL_HI : PANEL);
+            if (on) r.roundRect(x + 20 * s, ry + 8 * s, 6 * s, rowH - 6 * s - 16 * s, 3 * s, ACCENT);
             int typeColor = "release".equals(v.type()) ? GOOD : "beta".equals(v.type()) ? WARN : ERROR;
             r.rect(x + 40 * s, ry + 11 * s, 110 * s, 28 * s, typeColor);
             r.text(v.type(), x + 50 * s, ry + 16 * s, 2.1f * s, DARK);
@@ -2627,7 +2698,7 @@ class LauncherScreen {
         for (String line : crash.lines()) lines.addAll(r.wrap(line, w - 2 * pad, scale));
         if (crash.source() != null) lines.addAll(r.wrap("Details: " + crash.source(), w - 2 * pad, scale));
         float h = 110 * s + lines.size() * 30 * s;
-        r.rect(x, y, w, h, PANEL);
+        r.roundRect(x, y, w, h, 12 * s, PANEL);
         r.rect(x, y, 8 * s, h, ERROR);
         r.text("LAST SESSION", x + pad, y + 24 * s, 2.5f * s, DIM);
         r.text(crash.title(), x + pad, y + 54 * s, 3 * s, ERROR);
@@ -2642,8 +2713,8 @@ class LauncherScreen {
         float s = r.s;
         for (int i = 0; i < items.size(); i++) {
             boolean on = i == selected && !editor.active() && !systemKeyboardOpen;
-            if (on) r.rect(x, y - 10 * s, w, 60 * s, ACCENT);
-            r.text(items.get(i), x + 30 * s, y, 4 * s, on ? TEXT : TEXT);
+            row(x, y - 10 * s, w, 60 * s, on);
+            r.text(items.get(i), x + 34 * s, y, 3.4f * s, on ? TEXT : DIM);
             int index = i;
             hit(x, y - 10 * s, w, 60 * s, () -> selected = index, Input.Action.CONFIRM);
             y += 70 * s;
@@ -2655,8 +2726,8 @@ class LauncherScreen {
         float s = r.s, scale = 3 * s, rowH = 52 * s;
         scrollList(scrollers[page.ordinal()], rows.size(), selected, x, y - 8 * s, w, visible * rowH, rowH, (i, ry) -> {
             boolean on = i == selected && !editor.active() && !systemKeyboardOpen;
-            if (on) r.rect(x, ry, w, 46 * s, ACCENT);
-            r.text(r.fit(rows.get(i), w - 40 * s, scale), x + 20 * s, ry + 8 * s, scale, on ? TEXT : colors.get(i));
+            row(x, ry, w, 46 * s, on);
+            r.text(r.fit(rows.get(i), w - 48 * s, scale), x + 28 * s, ry + 8 * s, scale, on ? TEXT : colors.get(i));
             hit(x, ry, w, 46 * s, () -> selected = i, Input.Action.CONFIRM);
         });
     }

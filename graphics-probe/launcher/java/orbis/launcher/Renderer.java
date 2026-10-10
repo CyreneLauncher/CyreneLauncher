@@ -196,9 +196,9 @@ class Renderer {
             default -> -1;
         };
         if (cell < 0) {
-            float scale = size / 34f, w = width(name, scale) + size * 0.7f;
+            float scale = size / 19f, w = width(name, scale) + size * 0.7f;
             roundRect(x, y, w, size, size * 0.3f, CHIP);
-            text(name, x + size * 0.35f, y + size * 0.12f, scale, TEXT);
+            text(name, x + size * 0.35f, y + size * 0.2f, scale, TEXT);
             return w;
         }
         int color = switch (cell) {
@@ -208,7 +208,7 @@ class Renderer {
             default -> 0xffe59ae5;
         };
         disc(x, y, size, CHIP);
-        if (icons == 0) text(name.substring(0, 1).toUpperCase(), x + size * 0.3f, y + size * 0.1f, size / 34f, color);
+        if (icons == 0) text(name.substring(0, 1).toUpperCase(), x + size * 0.3f, y + size * 0.1f, size / 17f, color);
         else image(icons, x, y, size, size, (float) cell / ICON_CELLS, 0, (cell + 1f) / ICON_CELLS, 1, color);
         return size;
     }
